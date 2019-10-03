@@ -1,0 +1,15 @@
+bottleneck
+cdsapi
+dask
+matplotlib
+Pyomo
+scipy
+toolz
+xarray
+geopandas
+cartopy
+pyyaml
+xlrd
+tqdm
+joblib
+git+https://github.com/PyPSA/PyPSA.git

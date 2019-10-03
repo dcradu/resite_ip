@@ -1,0 +1,8 @@
+input_data
+output_data
+resource_data
+*.lp
+*.log
+*.pyc
+src/__pycache*
+.idea

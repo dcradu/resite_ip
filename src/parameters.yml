@@ -1,0 +1,80 @@
+# Spatial resolution of the reanalysis data.
+spatial_resolution: 0.5
+
+# Path towards the resource data. Has to be manually updated for different spatial resolutions.
+path_resource_data: '../resource_data/'
+# Path towards different transfer functions.
+path_transfer_function_data: '../input_data/transfer_functions/'
+# Path towards population density data.
+path_population_density_data: '../input_data/population_density/'
+# Path towards protected areas data.
+path_protected_areas_data: '../input_data/protected_areas/'
+# path towards land characteristics data.
+path_landseamask: '../input_data/land_mask/'
+# Path towards load data.
+path_load_data: '../input_data/load_data/'
+# Path towards bus data.
+path_bus_data: '../input_data/transmission_data/'
+
+# Threshold above which no generation capacity is deployed.
+population_density_threshold: 150.
+# Selected protected areas. Check here for details: http://datasets.wri.org/dataset/64b69c0fb0834351bd6c0ceb3744c5ad
+protected_areas_selection: ['Ia', 'Ib', 'II', 'Not Applicable']
+# Distance threshold from protected areas
+protected_areas_threshold: 20.
+# Depth threshold
+depth_threshold: 100.
+
+# Start time and end time for slicing the database.
+time_slice: ['2017-01-01T00:00', '2017-01-31T23:00']
+# List of regions to be considered in the optimization.
+regions: ['NA']
+# Technologies to deploy. Must be in 'RESOURCE_CONVERTER' structure.
+technologies: ['wind_aerodyn']
+
+# Assessment measure for each time window. Available: mean, median or percentiles.
+resource_quality_measure: 'mean'
+# Defines how \alpha is considered in space and time. (load_based, uniform, percentile)
+alpha_rule: 'load_based'
+# For the load-dependent \alpha, it sets how regions are aggregated. (centralized, partitioned)
+alpha_plan: 'centralized'
+# Normalization procedures (detailed in tools.py). (min, max)
+alpha_norm: 'min'
+# Capacity factor threshold used to compute the criticality indicators. If given as 'float', is uniform across regions. If percentile, it's assigned location-wise.
+alpha_numerical: 0.3
+# Time-window length used to compute the criticality indicator.
+delta: 24
+# Geographical coverage threshold used to compute the criticality indicator.
+beta: 0.9
+
+# Choice of solver. Available: 'gurobi' and 'cplex'.
+solver: 'gurobi'
+# MIP gap --- 0.01 = 1%
+mipgap: 0.04
+
+# Type of problem to be solved. Check models.py for a full list.
+main_problem: 'Covering'
+# Objective of the problem. Check models.py for a full list.
+main_objective: 'cardinality_floor'
+# Solution method: None, Projection, Lagrange
+solution_method: 'None'
+# Langrangian subproblem: Inexact/Exact
+subgradient_approximation: 'Inexact'
+# Number of Lagrangian iterations
+no_iterations_Lagrange: 1000
+# Number of Simulated Annealing iterations
+no_iterations_SA: 500
+# Number of explorations within an epoque
+no_explorations_SA: 1000
+
+# List of deployments per region (ordered as the list above)
+cardinality_constraint: [50]
+# Capacity budget in GW.
+capacity_constraint: 200.0
+# Monetary budget in units.
+cost_budget: 4000.0
+
+# Keeping files at the end of the run
+keep_files: True
+# Staying away from pypsa model formulation
+low_memory: False
