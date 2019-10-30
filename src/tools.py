@@ -12,7 +12,6 @@ from time import strftime
 from os import makedirs, getcwd, listdir, remove
 from os.path import isdir, abspath, join, isfile
 from geopandas import read_file
-import geopandas as gpd
 from shapely import prepared
 from shapely.geometry import Point, MultiPolygon, Polygon
 from shapely.ops import cascaded_union
@@ -234,10 +233,10 @@ def get_offshore_shapes(names, country_shapes, minarea=0.1, filterremote=False):
     offshore_shapes = read_file(all_offshore_shapes_file_name).set_index("name")
 
     # Keep only associated countries
-    countries_names = [name.split('-')[0] for name in names] # Allows to consider states and provinces
+    countries_names = [name.split('-')[0] for name in names] #Allows to consider states and provinces
 
     offshore_shapes = offshore_shapes.reindex(countries_names)
-    offshore_shapes[offshore_shapes.isna()] = Polygon([])
+    offshore_shapes['geometry'][offshore_shapes['geometry'].isna()] = Polygon([])
 
     country_shapes = country_shapes.loc[names]
     country_shapes_union = cascaded_union(country_shapes['geometry'].values)

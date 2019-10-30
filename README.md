@@ -11,8 +11,14 @@ command that builds a separate environment for this module from the `yml` file:
    
     conda env create -f environment.yml
     
-In addition, the tool also requires the installation of an MILP solver. At the time of writing, `gurobi` is the only
-solver this model supports. 
+In addition, the tool also requires the installation of the `pypsa` module (details [here](https://pypsa.org/)) for model
+development purposes which are detailed in the `models.py` script. Since one of the latest versions of this module is 
+required, its installation has to be carried out manually via
+
+	pip install git+https://github.com/PyPSA/PyPSA.git
+
+Lastly, the tool requires to installation of an MILP solver. At the time of writing, `gurobi` is the only solver this 
+model supports (see installation details [here](https://www.gurobi.com/documentation/8.1/remoteservices/installation.html).
 
 At the time of writing, the model readily supports (given the availability of already downloaded data
 [here](https://dox.uliege.be/index.php/s/trys2xY7j9JsQ3z) and the set-up within `tools.py`) siting assessments in 

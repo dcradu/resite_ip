@@ -1,6 +1,5 @@
 name: resite
 channels:
-  - defaults
   - conda-forge
 dependencies:
   - bottleneck
@@ -17,4 +16,3 @@ dependencies:
   - xlrd
   - tqdm
   - joblib
-  - git+https://github.com/PyPSA/PyPSA.git
