@@ -1,12 +1,11 @@
 import cdsapi
 import os
 
-# regions = {'EU':'70/-10/35/30',
-#           'US':'50/-125/30/-70'}
-
-regions = {'NA':'38/-14/28/25',
+regions = {'EU':'70/-10/35/30',
+           'NA':'38/-14/28/25',
            'IC':'66/-25/63/-14',
-           'GR':'62/-49/59/-42'}
+           'GR':'62/-49/59/-42',
+           'US':'50/-125/25/-65'}
 
 years = ['2008', '2009','2010','2011','2012','2013','2014','2015','2016','2017']
 months = ['01','02','03','04','05','06','07','08','09','10','11','12']
@@ -14,7 +13,7 @@ months = ['01','02','03','04','05','06','07','08','09','10','11','12']
 spatial_resolution = 0.5
 
 for region in regions.keys():
-    directory = '../resource_data/' + str(spatial_resolution) + '/' + region + '/'
+    directory = '../input_data/resource_data/' + str(spatial_resolution) + '/' + region + '/'
     if not os.path.exists(directory):
         os.makedirs(directory)
 
@@ -40,7 +39,7 @@ for key, value in regions.items():
                                 '18:00', '19:00', '20:00','21:00', '22:00', '23:00'],
                         'format':'netcdf'
                     },
-                '../resource_data/'+str(spatial_resolution)+'/'+key+'_'+year+'_'+month+'.nc')
+                directory+'/'+key+'_'+year+'_'+month+'.nc')
 
 
 
@@ -48,13 +47,29 @@ for key, value in regions.items():
 # c.retrieve(
 #     'reanalysis-era5-single-levels',
 #     {
-#         'variable':['low_vegetation_cover','high_vegetation_cover','land_sea_mask','model_bathymetry', 'orography','sea_ice_cover'],
+#         'variable':['low_vegetation_cover','high_vegetation_cover','land_sea_mask', 'model_bathymetry', 'orography', 'sea_ice_cover'],
 #         'product_type':'reanalysis',
 #         'grid': str(spatial_resolution)+'/'+str(spatial_resolution),
-#         'year':'2018',
+#         'year':'2017',
 #         'month':'12',
 #         'day':'31',
 #         'time':'00:00',
 #         'format':'netcdf'
 #     },
 #     '../input_data/land_mask/'+'ERA5_surface_characteristics_20181231_'+str(spatial_resolution)+'.nc')
+
+# c.retrieve(
+#     'reanalysis-era5-single-levels',
+#     {
+#         'product_type':'reanalysis',
+#         'variable':[
+#             'orography','slope_of_sub_gridscale_orography'
+#         ],
+#         'grid': str(spatial_resolution)+'/'+str(spatial_resolution),
+#         'year':'2017',
+#         'month':'12',
+#         'day':'31',
+#         'time':'00:00',
+#         'format':'netcdf'
+#     },
+#     '../input_data/land_mask/'+'ERA5_orography_characteristics_20181231_'+str(spatial_resolution)+'.nc')

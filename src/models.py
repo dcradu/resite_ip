@@ -29,6 +29,7 @@ def preprocess_input_data(parameters):
 
 
     region = parameters['regions']
+    add_offshore = parameters['add_offshore']
     technologies = parameters['technologies']
     measure = parameters['resource_quality_measure']
     horizon = parameters['time_slice']
@@ -38,14 +39,23 @@ def preprocess_input_data(parameters):
     path_transfer_function_data = parameters['path_transfer_function_data']
     path_population_density_data = parameters['path_population_density_data']
     path_protected_areas_data = parameters['path_protected_areas_data']
+    path_orography_data = parameters['path_orography_data']
     path_landseamask = parameters['path_landseamask']
     path_load_data = parameters['path_load_data']
     path_bus_data = parameters['path_bus_data']
 
+    population_layer = parameters['population_density_layer']
     population_density_threshold = parameters['population_density_threshold']
+    protected_areas_layer = parameters['protected_areas_layer']
     protected_areas_selection = parameters['protected_areas_selection']
     threshold_distance = parameters['protected_areas_threshold']
-    threshold_depth = parameters['depth_threshold']
+    bathymetry_layer = parameters['bathymetry_layer']
+    depth_threshold = parameters['depth_threshold']
+    forestry_layer = parameters['forestry_layer']
+    forestry_threshold = parameters['forestry_threshold']
+    orography_layer = parameters['orography_layer']
+    altitude_threshold = parameters['altitude_threshold']
+    slope_threshold = parameters['slope_threshold']
 
     alpha_rule = parameters['alpha_rule']
     alpha_plan = parameters['alpha_plan']
@@ -55,6 +65,8 @@ def preprocess_input_data(parameters):
     delta = parameters['delta']
     beta = parameters['beta']
 
+    objective = parameters['main_objective']
+
     number_of_deployments = parameters['cardinality_constraint']
     capacity_constraint = parameters['capacity_constraint']
     economic_budget = parameters['cost_budget']
@@ -63,18 +75,22 @@ def preprocess_input_data(parameters):
     global_coordinates = tl.get_global_coordinates(database,
                                                     spatial_resolution,
                                                     population_density_threshold,
-                                                    path_population_density_data,
                                                     protected_areas_selection,
                                                     threshold_distance,
+                                                    altitude_threshold,
+                                                    slope_threshold,
+                                                    forestry_threshold,
+                                                    depth_threshold,
+                                                    path_population_density_data,
                                                     path_protected_areas_data,
-                                                    population_density_layer=False,
-                                                    protected_areas_layer=False)
-    coordinates_filtered_depth = tl.filter_offshore_coordinates(global_coordinates,
-                                                                threshold_depth,
-                                                                spatial_resolution,
-                                                                path_landseamask)
-    region_coordinates = tl.return_coordinates_from_countries(region, coordinates_filtered_depth, add_offshore=True)
-    # region_coordinates = tl.return_coordinates(region, coordinates_filtered_depth)
+                                                    path_orography_data,
+                                                    path_landseamask,
+                                                    population_density_layer=population_layer,
+                                                    protected_areas_layer=protected_areas_layer,
+                                                    orography_layer=orography_layer,
+                                                    forestry_layer=forestry_layer,
+                                                    bathymetry_layer=bathymetry_layer)
+    region_coordinates = tl.return_coordinates_from_countries(region, global_coordinates, add_offshore=add_offshore)
 
     truncated_data = tl.selected_data(database, region_coordinates, horizon)
     output_data = tl.return_output(truncated_data, technologies, path_transfer_function_data)
@@ -98,12 +114,9 @@ def preprocess_input_data(parameters):
                                                   horizon,
                                                   path_load_data)
 
-    partitions, indices = tl.get_indices(technologies, number_of_deployments, region_coordinates)
-
-    load_dict, load_data = tl.read_load_data(path_load_data, horizon)
-    load_array, weight_array = tl.build_load_vectors(load_dict, load_data, region)
-
-    distance_array = tl.dist_to_grid_as_penalty(path_bus_data, region_coordinates, technologies)
+    partitions, indices = tl.get_matrix_indices(technologies, number_of_deployments, region_coordinates)
+    load_array = tl.retrieve_load_data(path_load_data, horizon, delta, region,
+                                       alpha_plan='centralized', alpha_load_norm=alpha_load_norm)
 
     capacity_array, cost_array = tl.build_parametric_dataset(
                                             path_landseamask,
@@ -111,7 +124,9 @@ def preprocess_input_data(parameters):
                                             path_bus_data,
                                             region_coordinates,
                                             technologies,
-                                            spatial_resolution)
+                                            spatial_resolution,
+                                            distance_assessment=False)
+
 
     tl.custom_log(' Input data read. Model building starts.')
 
@@ -129,9 +144,11 @@ def preprocess_input_data(parameters):
                          'economic_budget': economic_budget,
                          'capacity_potential_per_node': capacity_array,
                          'cost_estimation_per_node': cost_array,
-                         'distance_from_grid': distance_array,
-                         'load_centralized': load_array,
-                         'load_weight': weight_array}
+                         'load_centralized': load_array}
+
+    if objective == 'cardinality_distance':
+        distance_array = tl.dist_to_grid_as_penalty(path_bus_data, region_coordinates, technologies)
+        output_dictionary.update({'distance_from_grid': distance_array})
 
     return output_dictionary
 
@@ -273,8 +290,6 @@ def build_model(input_data, problem, objective, output_folder,
 
         if not isinstance(delta, int):
             raise ValueError(' Delta has to be an integer in this (covering) setup.')
-
-        distance_array = input_data['distance_from_grid']
 
 
     elif problem == 'Load':
@@ -449,6 +464,8 @@ def build_model(input_data, problem, objective, output_folder,
 
     elif (problem == 'Covering') & (objective == 'cardinality_distance'):
 
+        distance_array = input_data['distance_from_grid']
+
         model.partitions = arange(1, k + 1)
 
         model.x = Var(model.L, within=Binary)
@@ -457,7 +474,7 @@ def build_model(input_data, problem, objective, output_folder,
         D = ones((no_windows, no_locations)) - critical_windows.values
         model.c = int(floor(sum(n)*round((1 - beta), 2)) + 1)
 
-        lamda = 1e0
+        lamda = 1e1
         penalty = asarray(multiply(lamda, distance_array))
 
         if low_memory == True:

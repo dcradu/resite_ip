@@ -1,15 +1,20 @@
-bottleneck
-cdsapi
-dask
-matplotlib
-Pyomo
-scipy
-toolz
-xarray
-geopandas
-cartopy
-pyyaml
-xlrd
-tqdm
-joblib
-git+https://github.com/PyPSA/PyPSA.git
+name: resite
+channels:
+  - defaults
+  - conda-forge
+dependencies:
+  - bottleneck
+  - cdsapi
+  - dask
+  - matplotlib
+  - Pyomo
+  - scipy
+  - toolz
+  - xarray
+  - geopandas
+  - cartopy
+  - pyyaml
+  - xlrd
+  - tqdm
+  - joblib
+  - git+https://github.com/PyPSA/PyPSA.git

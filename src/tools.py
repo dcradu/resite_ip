@@ -1,7 +1,7 @@
 import sys
 from numpy import arange, interp, load, float32, datetime64, where, sqrt, floor, \
                   asarray, ones, clip, array, newaxis, multiply, sum, tile, \
-                  concatenate, delete, dot, vstack, take, full, exp, max, hstack, dtype, unique
+                  concatenate, delete, dot, vstack, take, full, exp, max, hstack, dtype, unique, pi
 from numpy.random import uniform
 from scipy import sin, cos, radians, arctan2
 import xarray as xr
@@ -12,8 +12,9 @@ from time import strftime
 from os import makedirs, getcwd, listdir, remove
 from os.path import isdir, abspath, join, isfile
 from geopandas import read_file
+import geopandas as gpd
 from shapely import prepared
-from shapely.geometry import Point
+from shapely.geometry import Point, MultiPolygon, Polygon
 from shapely.ops import cascaded_union
 from pandas import read_csv, DataFrame, date_range, MultiIndex
 import yaml
@@ -26,6 +27,12 @@ from tqdm import tqdm
 from joblib import Parallel, delayed
 from random import choice, sample
 from datetime import datetime
+from operator import attrgetter
+from itertools import takewhile
+
+
+
+
 
 def list_chunks(l, n):
     """Splitting list in multiple chunks.
@@ -53,7 +60,203 @@ def list_chunks(l, n):
 
 
 
+
+
+def filter_onshore_polys(polys, minarea=0.1, filterremote=True):
+    """Filter onshore polygons based on i) polygon area and ii) distance to main land.
+
+    Parameters:
+
+    ------------
+
+    polys : geopandas polygon
+        Polygon or MultiPolygon associated to a given country.
+
+    minarea : float
+        Area under which polygon is discarded.
+
+    filterremote : boolean
+
+
+    Returns:
+
+    ------------
+
+    polys_simplified : geopandas polygon
+
+    """
+
+    if isinstance(polys, MultiPolygon):
+        polys = sorted(polys, key=attrgetter('area'), reverse=True)
+        mainpoly = polys[0]
+        mainlength = sqrt(mainpoly.area/(2.*pi))
+        if mainpoly.area > minarea:
+            polys = MultiPolygon([p
+                                  for p in takewhile(lambda p: p.area > minarea, polys)
+                                  if not filterremote or (mainpoly.distance(p) < mainlength)])
+        else:
+            polys = mainpoly
+
+
+    return polys
+
+
+
+
+
+def filter_offshore_polys(offshore_polys, onshore_polys_union, minarea=0.1, filterremote=True):
+    """Filter offshore polygons based on distance to main land.
+
+    Parameters:
+
+    ------------
+
+    offshore_polys : geopandas polygon
+        Polygon or MultiPolygon associated to a given country EEZ.
+
+    onshore_polys_union : geopandas polygon
+        Polygon or MultiPolygon of associated land-based area.
+
+    minarea : float
+        Area under which polygon is discarded.
+
+    filterremote : boolean
+
+
+    Returns:
+
+    ------------
+
+    polys_simplified : geopandas polygon
+
+    """
+
+    if isinstance(offshore_polys, MultiPolygon):
+        offshore_polys = sorted(offshore_polys, key=attrgetter('area'), reverse=True)
+    else:
+        offshore_polys = [offshore_polys]
+    mainpoly = offshore_polys[0]
+    mainlength = sqrt(mainpoly.area/(5.*pi))
+    polys = []
+    if mainpoly.area > minarea:
+        for offshore_poly in offshore_polys:
+
+            if offshore_poly.area < minarea:
+                break
+
+            if isinstance(onshore_polys_union, Polygon):
+                onshore_polys_union = [onshore_polys_union]
+            for onshore_poly in onshore_polys_union:
+                if not filterremote or offshore_poly.distance(onshore_poly) < mainlength:
+                    polys.append(offshore_poly)
+                    break
+        polys = MultiPolygon(polys)
+    else:
+        polys = mainpoly
+
+    return polys
+
+
+
+
+
+
+def get_onshore_shapes(names, minarea=0.1, filterremote=True):
+    """Load the shapes of the onshore territories a specified set of countries into a GeoPandas Dataframe.
+
+    Parameters:
+
+    ------------
+
+    names : list
+        List of strings, names of the countries/states of interest.
+
+    minarea : float
+        Area under which polygon is discarded.
+
+    filterremote : boolean
+
+
+    Returns:
+
+    ------------
+
+    onshore_shapes : geopandas dataframe
+        Indexed by the name of the country and containing the shape of each country.
+
+
+    """
+
+    onshore_shapes_file_name = '../input_data/geographics/onshore_shapes.geojson'
+    onshore_shapes = read_file(onshore_shapes_file_name).set_index("name")
+
+    onshore_shapes = onshore_shapes.loc[names]
+    onshore_shapes['geometry'] = onshore_shapes['geometry'].map(lambda x: filter_onshore_polys(x, minarea, filterremote))
+
+    return onshore_shapes
+
+
+
+
+
+
+
+def get_offshore_shapes(names, country_shapes, minarea=0.1, filterremote=False):
+    """Load the shapes of the offshore territories of a specified set of countries into a GeoPandas Dataframe.
+
+    Parameters:
+
+    ------------
+
+    names : list
+        List of strings, names of the countries/states of interest.
+
+    country_shapes: geopandas DataFrame
+        Indexed by the name of the country and containing the shape of onshore territories of each country.
+
+    minarea : float
+        Area under which polygon is discarded.
+
+    filterremote : boolean
+
+
+    Returns:
+
+    ------------
+
+    offshore_shapes : geopandas dataframe
+        Indexed by the name of the country and containing the shape of each country EEZ.
+
+
+    """
+
+    all_offshore_shapes_file_name = '../input_data/geographics/offshore_shapes.geojson'
+    offshore_shapes = read_file(all_offshore_shapes_file_name).set_index("name")
+
+    # Keep only associated countries
+    countries_names = [name.split('-')[0] for name in names] # Allows to consider states and provinces
+
+    offshore_shapes = offshore_shapes.reindex(countries_names)
+    offshore_shapes[offshore_shapes.isna()] = Polygon([])
+
+    country_shapes = country_shapes.loc[names]
+    country_shapes_union = cascaded_union(country_shapes['geometry'].values)
+
+    # Keep only offshore 'close' to onshore
+    offshore_shapes['geometry'] = offshore_shapes['geometry'].map(lambda x: filter_offshore_polys(x,
+                                                                                                  country_shapes_union,
+                                                                                                  minarea,
+                                                                                                  filterremote))
+
+    return offshore_shapes
+
+
+
+
+
+
 def append_database(initial_ds, appended_ds):
+
     """Concatenates two xarray Datasets on a given dimension.
 
     Parameters:
@@ -104,16 +307,6 @@ def read_database(file_path):
         a common time horizon.
 
 
-    TODO   The raw .nc files are downloaded for each region, rather than
-           for the entire globe (mainly due to the size limitation). Each .nc
-           file will start with a 2-letter code of the underlying region (e.g.,
-           'EU', 'US', etc.).
-           The first chunk of code here retrieves the aforementioned codes
-           from the file names in path. This requires hard coding in terms of
-           naming the .nc files accordingly. Should be fixed by reading all
-           files at once, but xarray does not support 2D (on location and time)
-           concatentation now.
-
     """
 
     # Read through all files, extract the first 2 characters (giving the
@@ -155,10 +348,14 @@ def read_database(file_path):
 
 
 
+
 def get_global_coordinates(dataset, spatial_resolution,
-                           population_density_threshold, path_population_density_data,
-                           protected_areas_selection, threshold_distance, path_protected_areas_data,
-                           population_density_layer=True, protected_areas_layer=True):
+                           population_density_threshold, protected_areas_selection, threshold_distance,
+                           altitude_threshold, slope_threshold, forestry_threshold, depth_threshold,
+                           path_population_density_data, path_protected_areas_data,
+                           path_orography_data, path_land_data,
+                           population_density_layer=True, protected_areas_layer=True,
+                           orography_layer=True, forestry_layer=True, bathymetry_layer=True):
 
     """Returning the set of all available coordinate pairs.
 
@@ -175,8 +372,6 @@ def get_global_coordinates(dataset, spatial_resolution,
         Population density limit (in persons/sqkm) above which no deployments are
         possible for one given node.
 
-    path_population_density_data : str
-
     protected_areas_selection : list
         List containing the types of protected areas to be considered for removal.
         Details here:
@@ -186,7 +381,19 @@ def get_global_coordinates(dataset, spatial_resolution,
         Distance to protected area shape under which the node is not considered
         anymore for deployments.
 
+    altitude_threshold: float
+        Altitude above which points are discarded.
+
+    slope_threshold: float
+        Terrain slope threshold above which points are discarded.
+
+    path_population_density_data : str
+
     path_protected_areas_data : str
+
+    path_orography_data : str
+
+    path_land_data : str
 
     population_density_layer : boolean
         By default TRUE. It adds the population density layer, resulting in removing
@@ -195,6 +402,18 @@ def get_global_coordinates(dataset, spatial_resolution,
     protected_areas_layer : boolean
         By default TRUE. It adds the protected areas layer, resulting in removing the
         nodes close to those locations.
+
+    orography_layer : boolean
+        By default TRUE. It adds the orography layer, resulting in removing the
+        nodes not appropriate for RES deployment based on altitude and terrain slope.
+
+    forestry_layer : boolean
+        By default TRUE. It adds the forestry layer, assuming that only a cell which is fully
+        covered by forest can be discarded.
+
+    offshore_layer : boolean
+        By default TRUE. It adds the offshore layer, resulting in removing points with
+        an associated depth below a given threshold.
 
 
     Returns:
@@ -281,57 +500,68 @@ def get_global_coordinates(dataset, spatial_resolution,
                 if distance < threshold_distance:
                     coords_to_remove_areas.append(i)
 
+    if orography_layer:
+
+        file_name = 'ERA5_orography_characteristics_20181231_'+str(spatial_resolution)+'.nc'
+        dataset = xr.open_dataset(join(path_orography_data, file_name))
+
+        dataset = dataset.sortby([dataset.longitude, dataset.latitude])
+        dataset = dataset.assign_coords(longitude=(((dataset.longitude
+                                                        + 180) % 360) - 180)).sortby('longitude')
+        dataset = dataset.drop('time').squeeze().stack(locations=('longitude', 'latitude'))
+
+        array_altitude = dataset.z / 9.80665
+        array_slope = dataset.slor
+
+        mask_altitude = array_altitude.where(array_altitude.data > altitude_threshold)
+        mask_slope = array_slope.where(array_slope.data > slope_threshold)
+
+        coords_mask_altitude = mask_altitude[mask_altitude.notnull()].locations.values.tolist()
+        coords_mask_slope = mask_slope[mask_slope.notnull()].locations.values.tolist()
+
+        coords_mask_orography = list(set(coords_mask_altitude).union(set(coords_mask_slope)))
+        coords_to_remove_orography = list(set(start_coordinates).intersection(set(coords_mask_orography)))
+
+    if forestry_layer:
+
+        file_name = 'ERA5_surface_characteristics_20181231_'+str(spatial_resolution)+'.nc'
+        dataset_land = xr.open_dataset(join(path_land_data, file_name))
+        # Longitude updated from (0-360) to (-180, 180) to match resource data.
+        data_land = dataset_land.assign_coords(longitude=(((dataset_land.longitude
+                                                            + 180) % 360) - 180)).sortby('longitude')
+        data_land = data_land.drop('time').squeeze().stack(locations=('longitude', 'latitude'))
+        array_forestry = data_land['cvh']
+
+        mask_forestry = array_forestry.where(array_forestry.data >= forestry_threshold)
+        coords_mask_forestry = mask_forestry[mask_forestry.notnull()].locations.values.tolist()
+
+        coords_to_remove_forestry = list(set(start_coordinates).intersection(set(coords_mask_forestry)))
+
+    if bathymetry_layer:
+
+        file_name = 'ERA5_surface_characteristics_20181231_' + str(spatial_resolution) + '.nc'
+        dataset_land = xr.open_dataset(join(path_land_data, file_name))
+
+        data_bath = dataset_land['wmb'].assign_coords(longitude=(((dataset_land.longitude
+                                                                   + 180) % 360) - 180)).sortby('longitude')
+
+        data_bath = data_bath.drop('time').squeeze().stack(locations=('longitude', 'latitude'))
+        array_offshore = data_bath.fillna(0.)
+
+        mask_offshore = array_offshore.where(array_offshore.data > depth_threshold)
+        coords_mask_offshore = mask_offshore[mask_offshore.notnull()].locations.values.tolist()
+
+        coords_to_remove_offshore = list(set(start_coordinates).intersection(set(coords_mask_offshore)))
+
     # Set difference between "global" coordinates and the sets computed in this function.
     updated_coordinates = set(start_coordinates) - \
                           set(coords_to_remove_population) - \
-                          set(coords_to_remove_areas)
+                          set(coords_to_remove_areas) - \
+                          set(coords_to_remove_orography) -\
+                          set(coords_to_remove_forestry) -\
+                          set(coords_to_remove_offshore)
 
     return list(updated_coordinates)
-
-
-
-
-
-
-
-def filter_offshore_coordinates(init_coordinate_list, depth_threshold, spatial_resolution, path_landseamask):
-    """Filtering offshore locations based on bathymetry.
-
-    Parameters:
-
-    ------------
-
-    :param init_coordinate_list: list
-            "Global" coordinate list.
-    :param depth_threshold:  float
-            Threshold under which locations are removed from list.
-    :param spatial_resolution: float
-            Spatial resolution of the underlying data.
-    :param path_landseamask: str
-            Path towards the file.
-
-    Returns:
-
-    ------------
-
-    potential_sites : list
-        List of sites excluding locations with depth > depth_threshold.
-    """
-    dataset_land = xr.open_dataset(join(path_landseamask,
-                                        'ERA5_surface_characteristics_20181231_'+str(spatial_resolution)+'.nc'))
-    data_bath = dataset_land['wmb'].assign_coords(longitude=(((dataset_land.longitude
-                                                        + 180) % 360) - 180)).sortby('longitude')
-
-    data_bath = data_bath.stack(locations=('longitude', 'latitude')).fillna(0.)
-    filtered_locations = list(data_bath.where(data_bath <= depth_threshold, drop=True).locations.values)
-
-    potential_sites = list(set(init_coordinate_list).intersection(set(filtered_locations)))
-
-    return potential_sites
-
-
-
-
 
 
 
@@ -354,8 +584,6 @@ def return_coordinates_from_countries(regions, global_coordinates, add_offshore=
 
     add_offshore : boolean
 
-
-
     Returns:
 
     ------------
@@ -364,79 +592,80 @@ def return_coordinates_from_countries(regions, global_coordinates, add_offshore=
         (Key, value) pairs of coordinates associated to each input region.
 
     """
-    # Load countries shapes
-    countries_shapes = read_file("../input_data/geographics/countries_shapes.geojson")
-    # Load offshore shapes
-    if add_offshore:
-        offshore_shapes = read_file("../input_data/geographics/offshore_shapes.geojson")
 
     coordinates_dict = {}
 
     if isinstance(regions, str):
         regions = [regions]
 
+    # Load countries/regions shapes
+    onshore_shapes_all = read_file("../input_data/geographics/onshore_shapes.geojson")
+
     for region in regions:
         if region == 'EU':
-            region_countries = ['AT', 'BE', 'DE', 'DK', 'ES',
+            region_states = ['AT', 'BE', 'DE', 'DK', 'ES',
                                 'FR', 'GB', 'IE', 'IT', 'LU',
                                 'NL', 'NO', 'PT', 'SE', 'CH', 'CZ',
                                 'AL', 'BA', 'BG', 'EE', 'LV', 'ME',
                                 'FI', 'GR', 'HR', 'HU', 'LT',
                                 'MK', 'PL', 'RO', 'RS', 'SI', 'SK']
         elif region == 'EU_W':
-            region_countries = ['AT', 'BE', 'DE', 'DK', 'ES',
+            region_states = ['AT', 'BE', 'DE', 'DK', 'ES',
                                 'FR', 'GB', 'IE', 'IT', 'LU',
                                 'NL', 'NO', 'PT', 'SE', 'CH']
         elif region == 'EU_E':
-            region_countries = ['AL', 'BA', 'BG', 'EE', 'LV', 'ME',
+            region_states = ['AL', 'BA', 'BG', 'EE', 'LV', 'ME',
                                 'FI', 'GR', 'HR', 'HU', 'LT', 'CZ',
                                 'MK', 'PL', 'RO', 'RS', 'SI', 'SK']
         elif region == "ContEU":
-            region_countries = ['PL', 'SK', 'SI', 'HU', 'HR', 'RO', 'GR', 'RS', 'BG', 'BA', 'IT', 'ES', 'PT', 'FR',
+            region_states = ['PL', 'SK', 'SI', 'HU', 'HR', 'RO', 'GR', 'RS', 'BG', 'BA', 'IT', 'ES', 'PT', 'FR',
                                 'BE', 'NL', 'PT', 'ES', 'LU', 'DE', 'CZ', 'CH', 'AT']
         elif region == "CWE":
-            region_countries = ['DE', 'FR', 'BE', 'NL', 'LU']
+            region_states = ['DE', 'FR', 'BE', 'NL']
         elif region == 'WestEU':
-            region_countries = ['FR', 'BE', 'NL', 'PT', 'ES', 'LU', 'DE', 'IT', 'AT', 'CH']
+            region_states = ['FR', 'BE', 'NL', 'PT', 'ES', 'LU', 'DE', 'IT', 'AT', 'CH']
         elif region == 'NA':
-            region_countries = ['DZ', 'EG', 'MA', 'LY', 'TN']
+            region_states = ['DZ', 'EG', 'MA', 'LY', 'TN']
         elif region == 'ME':
-            region_countries = ['AE', 'BH', 'CY', 'IR', 'IQ', 'IL', 'JO', 'KW', 'LB', 'OM', 'PS', 'QA', 'SA', 'SY', 'YE']
-        elif region in countries_shapes["name"].values:
-            region_countries = [region] # e.g., Greenland = GL, Iceland = IS
+            region_states = ['AE', 'BH', 'CY', 'IR', 'IQ', 'IL', 'JO', 'KW', 'LB', 'OM', 'PS', 'QA', 'SA', 'SY', 'YE']
+        elif region == 'US_S':
+            region_states = ['US-TX']
+        elif region == 'US_W':
+            region_states = ['US-AZ', 'US-CA', 'US-CO', 'US-MT', 'US-WY', 'US-NM',
+                             'US-UT', 'US-ID', 'US-WA', 'US-NV', 'US-OR']
+        elif region == 'US_E':
+            region_states = ['US-ND', 'US-SD', 'US-NE', 'US-KS', 'US-OK', 'US-MN',
+                              'US-IA', 'US-MO', 'US-AR', 'US-LA', 'US-MS', 'US-AL', 'US-TN',
+                              'US-IL', 'US-WI', 'US-MI', 'US-IN', 'US-OH', 'US-KY', 'US-GA', 'US-FL',
+                              'US-PA', 'US-SC', 'US-NC', 'US-VA', 'US-WV',
+                              'US-MD', 'US-DE', 'US-NJ', 'US-NY', 'US-CT', 'US-RI',
+                              'US-MA', 'US-VT', 'US-ME', 'US-NH']
+        elif region in onshore_shapes_all["name"].values:
+            region_states = [region]
         else:
-            raise ValueError(" Unknown region ", region)
+            raise ValueError("Unknown region ", region)
 
-        countries_shapes_in_region = countries_shapes.loc[countries_shapes["name"].isin(region_countries)]
+        onshore_shapes_selected = get_onshore_shapes(region_states, minarea=0.1)
+
         if add_offshore:
-            offshore_shapes_in_region = offshore_shapes.loc[offshore_shapes["name"].isin(region_countries)]
-            all_shapes = hstack((countries_shapes_in_region["geometry"].values,
-                                offshore_shapes_in_region["geometry"].values))
+
+            offshore_shapes_selected = get_offshore_shapes(region_states, onshore_shapes_selected)
+            all_shapes = hstack((onshore_shapes_selected["geometry"].values,
+                                 offshore_shapes_selected["geometry"].values))
         else:
-            all_shapes = countries_shapes_in_region["geometry"].values
+            all_shapes = onshore_shapes_selected["geometry"].values
 
         total_shape = cascaded_union(all_shapes)
         total_shape_prepped = prepared.prep(total_shape)
 
-        '''
-        # Convert Polygon and MutliPolygon to list
-        if isinstance(row[1], Polygon):
-            #geometry = list(row[1].exterior.coords)
-            geometry = row[1]
-        elif isinstance(row[1], MultiPolygon):
-             # Only keep biggest polygon --> TODO might want to change that, enfin pas besoin si on restreint les points avant
-             max_area_id = np.argmax([p.area for p in row[1]])
-             #geometry = list(row[1][max_area_id].exterior.coords)
-             geometry = row[1][max_area_id]
-        '''
         points = array(global_coordinates,
-                          dtype('float,float'))[[total_shape_prepped.contains(Point(p)) for p in global_coordinates]].tolist()
+                       dtype('float,float'))[
+            [total_shape_prepped.contains(Point(p)) for p in global_coordinates]].tolist()
 
         if len(points) != 0:
             coordinates_dict[region] = points
 
     return coordinates_dict
-
 
 
 
@@ -492,6 +721,7 @@ def selected_data(dataset, region_coordinates, time_slice):
     updated_dataset = xr.concat(dataset_regions, dim='locations')
 
     return updated_dataset
+
 
 
 
@@ -585,6 +815,7 @@ def return_output(dataset, techs, path_to_transfer_function):
 
                 irradiance.values = clip(irradiance.values, 1., None)
 
+                # Based on https://iopscience.iop.org/article/10.1088/1748-9326/aad8f6/meta
                 t_cell = c1 + c2 * temperature + c3 * irradiance
                 eta_cell = eta_ref * (1 - b * (t_cell - t_ref)
                                       + xu.log10(irradiance) * g)
@@ -768,7 +999,7 @@ def critical_window_mapping(rolling_signal_dict,
 
 
 
-    elif alpha_rule == 'percentile':
+    elif alpha_rule == 'location_dependent':
 
         # Assessing windows for each technology in the dict
         for tech in critical_dict.keys():
@@ -780,23 +1011,14 @@ def critical_window_mapping(rolling_signal_dict,
 
 
 
-    elif alpha_rule == 'load_based':
-        # Reading load data (regions not selected yet).
-        load_dict, load_data = read_load_data(path_load_data, date_slice)
+    elif alpha_rule == 'time_dependent':
 
         if alpha_plan == 'centralized':
 
             for tech in critical_dict.keys():
 
-                # Extract lists of load subdivisions from load_dict.
-                # e.g.: for regions ['BL', 'DE'] => ['BE', 'NL', 'LU', 'DE']
-                regions_df = []
-                for key in regions:
-                    regions_df.extend(load_dict[key])
-
-                # Extract relevant data from the load dataframe
-                l = load_data[regions_df].sum(axis=1)
-                l_norm = return_filtered_and_normed(l, delta, alpha_load_norm)
+                l_norm = retrieve_load_data(path_load_data, date_slice, delta, regions,
+                                            alpha_plan, alpha_load_norm)
 
                 # Flip axes
                 alpha_reference = l_norm[:, newaxis]
@@ -804,17 +1026,17 @@ def critical_window_mapping(rolling_signal_dict,
                 critical_windows = (rolling_signal_dict[tech] <= alpha_reference)
                 critical_array.append(critical_windows)
 
-
-
         elif alpha_plan == 'partitioned':
 
             for tech in critical_dict.keys():
 
                 critical_windows_subsets = []
+
                 # Extract lists of load subdivisions from load_dict.
                 for subregion in regions:
-                    l = load_data[load_dict[subregion]].sum(axis=1)
-                    l_norm = return_filtered_and_normed(l, delta, alpha_load_norm)
+
+                    l_norm = retrieve_load_data(path_load_data, date_slice, delta, subregion,
+                                                alpha_plan, alpha_load_norm)
 
                     # Select region of interest within the dict value with 'tech' key.
                     local_filtered_signal = rolling_signal_dict[tech].sel(locations=region_coordinates[subregion])
@@ -830,11 +1052,186 @@ def critical_window_mapping(rolling_signal_dict,
 
 
     else:
-        sys.exit('No such alpha value. Retry.')
+        sys.exit('No such alpha rule. Retry.')
 
     critical_windows_overall = xr.concat(critical_array, dim='locations')
 
     return critical_windows_overall.astype(int)
+
+
+
+
+
+
+
+def retrieve_load_data(path_load_data, date_slice, delta, regions, alpha_plan, alpha_load_norm):
+    """Function retrieving relevant load data (time dependent alpha)
+    for time-dependent critical window mapping. Load data acquired from i) ENTSO-E, on a country basis
+    and ii) EIA (US Electric System Operating Data tool) on a regional basis.
+
+    Parameters:
+
+    ------------
+
+    path_load data : string
+        Path towards the land-sea mask files.
+
+    date_slice : tuple
+        Tuple containing start and end of time horizon to be sliced.
+
+    delta : int
+        Time window length
+
+    regions : list
+        Regions to be considered.
+
+    alpha_plan : str
+
+    alpha_load_norm : str
+
+
+
+    Returns:
+
+    ------------
+
+    vector_load_norm : ndarray
+        Vector of normalized load data.
+
+    """
+
+    dict_regions = {'EU': ['AT', 'BE', 'CH', 'DE', 'DK', 'ES',
+                             'FR', 'GB', 'IE', 'IT', 'LU',
+                             'NL', 'NO', 'PT','SE', 'CZ',
+                             'BA', 'BG', 'CH', 'EE',
+                             'FI', 'GR', 'HR', 'HU', 'LT', 'LV', 'ME',
+                             'MK', 'PL', 'RO', 'RS', 'SI', 'SK'],
+                    'EU_W': ['AT', 'BE', 'CH', 'DE', 'DK', 'ES',
+                                'FR', 'GB', 'IE', 'IT', 'LU',
+                                'NL', 'NO', 'PT','SE'],
+                    'EU_E': ['BA', 'BG', 'CH', 'EE',
+                                'FI', 'GR', 'HR', 'HU', 'LT', 'LV', 'ME',
+                                'MK', 'PL', 'RO', 'RS', 'SI', 'SK'],
+                    'ContEU': ['PL', 'SK', 'SI', 'HU', 'HR', 'RO', 'GR',
+                               'RS', 'BG', 'BA', 'IT', 'ES', 'PT', 'FR',
+                               'BE', 'NL', 'PT', 'ES', 'LU', 'DE', 'CZ',
+                               'CH', 'AT'],
+                    'EastEU': ['PL', 'SK', 'SI', 'HU', 'HR', 'RO', 'GR',
+                               'RS', 'BG', 'BA'],
+                    'SouthEU': ['IT', 'ES', 'PT'],
+                    'NorthEU': ['DK', 'SE', 'NO', 'FI'],
+                    'WestEU': ['FR', 'BE', 'NL', 'PT', 'ES', 'LU'],
+                    'CentralEU': ['DE', 'CZ', 'CH', 'AT'],
+                    'US_E': ['NEISO', 'NYISO', 'MIDATLANTIC', 'CAROLINAS',
+                               'MIDWEST', 'CENTRAL', 'SOUTHEAST', 'FLORIDA', 'TENNESSEE'],
+                    'TX': ['ERCOT'],
+                    'US_W': ['CALIFORNIA', 'SOUTHWEST', 'NORTHWEST'],
+                    'US': ['NEISO', 'NYISO', 'MIDATLANTIC', 'CAROLINAS',
+                           'SOUTHEAST', 'FLORIDA', 'TENNESSEE',
+                           'CALIFORNIA', 'SOUTHWEST', 'NORTHWEST',
+                           'MIDWEST', 'CENTRAL', 'ERCOT'],
+                    'NPCC': ['NEISO', 'NYISO'],
+                    'RF': ['MIDATLANTIC'],
+                    'SERC': ['CAROLINAS', 'SOUTHEAST', 'FLORIDA', 'TENNESSEE'],
+                    'MRO': ['CENTRAL', 'MIDWEST'],
+                    'US-ND': ['CENTRAL'],'US-SD': ['CENTRAL'],'US-NE': ['CENTRAL'],'US-KS': ['CENTRAL'],
+                    'US-OK': ['CENTRAL'],'US-MN': ['MIDWEST'],'US-IA': ['MIDWEST'],'US-MO': ['MIDWEST'],
+                    'US-AR': ['MIDWEST'],'US-LA': ['SOUTHEAST'],'US-MS': ['SOUTHEAST'],'US-AL': ['SOUTHEAST'],
+                    'US-TE': ['TENNESSEE'],'US-IL': ['MIDWEST'],'US-WI': ['MIDWEST'],'US-MI': ['MIDWEST'],
+                    'US-IN': ['MIDWEST'],'US-OH': ['MIDATLANTIC'],'US-KY': ['MIDATLANTIC'],'US-GA': ['SOUTHEAST'],
+                    'US-FL': ['FLORIDA'],'US-PA': ['MIDATLANTIC'],'US-SC': ['CAROLINAS'],'US-NC': ['CAROLINAS'],
+                    'US-VA': ['MIDATLANTIC'],'US-WV': ['MIDATLANTIC'],'US-MD': ['MIDATLANTIC'],'US-DE': ['MIDATLANTIC'],
+                    'US-NJ': ['MIDATLANTIC'],'US-NY': ['NYISO'],'US-CT': ['NEISO'],'US-RI': ['NEISO'],'US-MA': ['NEISO'],
+                    'US-VT': ['NEISO'],'US-ME': ['NEISO'],'US-NH': ['NEISO'],'US-AZ': ['SOUTHWEST'],
+                    'US-CA': ['CALIFORNIA'],'US-CO': ['NORTHWEST'],'US-MT': ['NORTHWEST'],'US-WY': ['NORTHWEST'],
+                    'US-NM': ['SOUTHWEST'],'US-UT': ['NORTHWEST'],'US-ID': ['NORTHWEST'],'US-WA': ['NORTHWEST'],
+                    'US-NV': ['SOUTHWEST'],'US-OR': ['NORTHWEST'],'US-TX': ['ERCOT'],
+                    'CWE': ['FR', 'BE', 'LU', 'NL', 'DE'],
+                    'BL': ['BE', 'LU', 'NL'],
+                    'ME': ['NA']}
+
+    load_data = read_csv(join(path_load_data, 'Hourly_demand_2008_2018.csv'), index_col=0, sep=';')
+    load_data.index = date_range('2008-01-01T00:00', '2017-12-31T23:00', freq='H')
+
+    load_data_sliced = load_data.loc[date_slice[0]:date_slice[1]]
+
+    # Adding the stand-alone regions to load dict.
+    standalone_regions = list(load_data.columns)
+    for region in standalone_regions:
+        dict_regions.update({str(region): str(region)})
+
+    if alpha_plan == 'centralized':
+
+        # Extract lists of load subdivisions from load_dict.
+        # e.g.: for regions ['BL', 'DE'] => ['BE', 'NL', 'LU', 'DE']
+        regions_list = []
+        for key in regions:
+            if isinstance(dict_regions[key], str):
+                regions_list.append(str(dict_regions[key]))
+            elif isinstance(dict_regions[key], list):
+                regions_list.extend(dict_regions[key])
+            else:
+                raise TypeError('Check again the type. Should be str or list.')
+
+        load_vector = load_data_sliced[regions_list].sum(axis=1)
+        load_vector_norm = return_filtered_and_normed(load_vector, delta, alpha_load_norm)
+
+    elif alpha_plan == 'partitioned':
+
+        load_vector = load_data_sliced[dict_regions[regions]].sum(axis=1)
+        load_vector_norm = return_filtered_and_normed(load_vector, delta, alpha_load_norm)
+
+    return load_vector_norm
+
+
+
+
+
+
+
+def return_filtered_and_normed(signal, delta, load_norm):
+    """Filters and normalizes load data (for time-dependent alpha definition).
+
+    Parameters:
+
+    ------------
+
+    signal : TimeSeries
+
+    delta : int
+        Length of time window.
+
+    load_norm : str
+        Normalization approach for alpha.
+        "min" - (x-xmin)/(xmax-xmin)
+        "max" - (x/xmax)
+
+
+
+    Returns:
+
+    ------------
+
+    l_norm : array
+        Rolling and normalized profile of load.
+
+
+    """
+
+    l_smooth = signal.rolling(window=delta, center=True).mean().dropna()
+
+    if load_norm == 'max':
+
+        l_norm = l_smooth / l_smooth.max()
+
+    elif load_norm == 'min':
+
+        l_norm = (l_smooth - l_smooth.min()) / (l_smooth.max() - l_smooth.min())
+
+    else:
+        sys.exit('No such norm available. Retry.')
+
+    return l_norm.values
 
 
 
@@ -911,7 +1308,7 @@ def spatiotemporal_criticality_mapping(data_array, beta):
 
 
 
-def get_indices(technologies, deployments, coordinates_dict):
+def get_matrix_indices(technologies, deployments, coordinates_dict):
     """Returns indices of locations within the optimization matrix (treat this carefully!).
 
     Parameters:
@@ -997,7 +1394,7 @@ def get_indices(technologies, deployments, coordinates_dict):
 
 
 def build_parametric_dataset(path_landseamask, path_population, path_buses,
-                             coordinates_dict, technologies, spatial_resolution):
+                             coordinates_dict, technologies, spatial_resolution, distance_assessment=False):
 
     """Function assessing capacity potential, cost estimates, distance from buses.
 
@@ -1099,30 +1496,36 @@ def build_parametric_dataset(path_landseamask, path_population, path_buses,
     d = (sin(lat_2) - sin(lat_1)) * (lon_2 - lon_1) * R ** 2
     data['area'] = d.round(1)
 
-    full_path_bus_data = join(path_buses, 'buses_EU_MENA.csv')
-    # Read network topology data.
-    bus = read_csv(full_path_bus_data, sep=';', index_col=0)
-    
-    # Define set of bus coordinates.
-    bus_coordinate_array = array(list(zip(bus.x, bus.y)))
-    # Define a 2D array with all grid points.
-    locations_coordinate_array = array(list(data.stack(locations=('longitude', 'latitude')).locations.values))
+    if distance_assessment:
 
-    # Compute distance to the buses for the full regular grid. Adds up to cost estimation.
-    distance_from_grid_full = distance.cdist(locations_coordinate_array, bus_coordinate_array).min(axis=1)
+        full_path_bus_data = join(path_buses, 'buses_all.csv')
+        # Read network topology data.
+        bus = read_csv(full_path_bus_data, sep=';', index_col=0)
 
-    df_distance = DataFrame(index=MultiIndex.from_tuples(
-                                            data.stack(locations=('longitude', 'latitude')).locations.values,
-                                            names=('longitude', 'latitude')
-                                            ),
-                                      data=distance_from_grid_full, columns=['dist_grid'])
+        # Define set of bus coordinates.
+        bus_coordinate_array = array(list(zip(bus.x, bus.y)))
+        # Define a 2D array with all grid points.
+        locations_coordinate_array = array(list(data.stack(locations=('longitude', 'latitude')).locations.values))
+
+        # Compute distance to the buses for the full regular grid. Adds up to cost estimation.
+        distance_from_grid_full = distance.cdist(locations_coordinate_array, bus_coordinate_array).min(axis=1)
+
+        df_distance = DataFrame(index=MultiIndex.from_tuples(
+                                                data.stack(locations=('longitude', 'latitude')).locations.values,
+                                                names=('longitude', 'latitude')
+                                                ),
+                                          data=distance_from_grid_full, columns=['dist_grid'])
 
 
-    # Add distance to grid to the dataset.
-    data = data.merge(df_distance.to_xarray(), join='left')
+        # Add distance to grid to the dataset.
+        data = data.merge(df_distance.to_xarray(), join='left')
 
-    # Normalize data
-    data['dist_grid'] = data['dist_grid'] / data['dist_grid'].max()
+        # Normalize data
+        data['dist_grid'] = data['dist_grid'] / data['dist_grid'].max()
+
+    else:
+
+        data['dist_grid'] = 0.
 
     # Base capacity share (1% of area) for wind deployments. Source: Brown et al. (2018).
     wind_cap_mult_by_area = 0.01
@@ -1167,133 +1570,6 @@ def build_parametric_dataset(path_landseamask, path_population, path_buses,
 
 
     return asarray(capacity_array), asarray(cost_array)
-
-
-
-
-
-
-def read_load_data(path_load_data, date_slice):
-    """Function retrieving relevant load data (time dependent alpha)
-    for critical window mapping.
-
-    Parameters:
-
-    ------------
-
-    path_load data : string
-        Path towards the land-sea mask files.
-
-    date_slice : tuple
-        Tuple containing start and end of time horizon to be sliced.
-
-
-
-    Returns:
-
-    ------------
-
-    dict_regions : dict
-        Dictionary containing (k, v) pairs of regions and their
-        associate sub-divisions.
-
-    load_data_sliced : DataFrame
-        DataFrame containing sliced (time and space) load data.
-
-    """
-
-    dict_regions = {'EU': ['AT', 'BE', 'CH', 'DE', 'DK', 'ES',
-                             'FR', 'GB', 'IE', 'IT', 'LU',
-                             'NL', 'NO', 'PT','SE', 'CZ',
-                             'BA', 'BG', 'CH', 'EE',
-                             'FI', 'GR', 'HR', 'HU', 'LT', 'LV', 'ME',
-                             'MK', 'PL', 'RO', 'RS', 'SI', 'SK'],
-                    'EU_W': ['AT', 'BE', 'CH', 'DE', 'DK', 'ES',
-                                'FR', 'GB', 'IE', 'IT', 'LU',
-                                'NL', 'NO', 'PT','SE'],
-                    'EU_E': ['BA', 'BG', 'CH', 'EE',
-                                'FI', 'GR', 'HR', 'HU', 'LT', 'LV', 'ME',
-                                'MK', 'PL', 'RO', 'RS', 'SI', 'SK'],
-                    'ContEU': ['PL', 'SK', 'SI', 'HU', 'HR', 'RO', 'GR',
-                               'RS', 'BG', 'BA', 'IT', 'ES', 'PT', 'FR',
-                               'BE', 'NL', 'PT', 'ES', 'LU', 'DE', 'CZ',
-                               'CH', 'AT'],
-                    'EastEU': ['PL', 'SK', 'SI', 'HU', 'HR', 'RO', 'GR',
-                               'RS', 'BG', 'BA'],
-                    'SouthEU': ['IT', 'ES', 'PT'],
-                    'NorthEU': ['DK', 'SE', 'NO', 'FI'],
-                    'WestEU': ['FR', 'BE', 'NL', 'PT', 'ES', 'LU'],
-                    'CentralEU': ['DE', 'CZ', 'CH', 'AT'],
-                    'EastUS': ['NEISO', 'NYISO', 'MIDATLANTIC', 'CAROLINAS',
-                               'SOUTHEAST', 'FLORIDA', 'TENNESSEE'],
-                    'CentralUS': ['MIDWEST', 'CENTRAL', 'ERCOT'],
-                    'WestUS': ['CALIFORNIA', 'SOUTHWEST', 'NORTHWEST'],
-                    'CWE': ['FR', 'BE', 'LU', 'NL', 'DE'],
-                    'FR': ['FR'],
-                    'DE': ['DE'],
-                    'BE': ['BE'],
-                    'BL': ['BE', 'LU', 'NL'],
-                    'NA': ['NA'],
-                    'GR': ['GR'],
-                    'IS': ['IS'],
-                    'ME': ['NA']}
-
-    load_data = read_csv(join(path_load_data, 'Hourly_demand_2008_2018.csv'), index_col=0, sep=';')
-    load_data.index = date_range('2008-01-01T00:00', '2017-12-31T23:00', freq='H')
-
-    load_data_sliced = load_data.loc[date_slice[0]:date_slice[1]]
-
-    return dict_regions, load_data_sliced
-
-
-
-
-
-
-def build_load_vectors(load_dict, load_data, regions):
-    """Computing load-related arrays (normalized profile and weights)
-    relevant for the load-following formulation.
-
-    Parameters:
-
-    ------------
-
-    dict_regions : dict
-        Dictionary containing (k, v) pairs of regions and their
-        associate sub-divisions.
-
-    load_data_sliced : DataFrame
-        DataFrame containing sliced (time and space) load data.
-
-    regions : list
-        List containing regions of interest.
-
-
-
-    Returns:
-
-    ------------
-
-    load_vector : array
-        Vector containing the normalized load.
-
-    weight_vector : array
-        Vector containing the load weight per timestep.
-
-    """
-
-    subregions = []
-    for item in regions:
-        subregions.extend(load_dict[item])
-
-    load_vector = load_data[subregions].sum(axis=1)
-    load_vector_norm = (load_vector - load_vector.min()) / (load_vector.max() - load_vector.min())
-
-    # Function chosen to approximate the weights per time stamp.
-    weight_vector = 1 / (1 - load_vector_norm + 0.05)
-    weight_vector = weight_vector.round(2)
-
-    return load_vector.values, weight_vector.values
 
 
 
@@ -1408,60 +1684,6 @@ def retrieve_deployed_capacities(model, technologies, capacity_array):
 
 
 
-
-
-
-
-
-def return_filtered_and_normed(signal, delta, load_norm):
-    """Filters and normalizes load data (for time-dependent alpha definition).
-
-    Parameters:
-
-    ------------
-
-    signal : TimeSeries
-
-    delta : int
-        Length of time window.
-
-    load_norm : str
-        Normalization approach for alpha.
-        "min" - (x-xmin)/(xmax-xmin)
-        "max" - (x/xmax)
-
-
-
-    Returns:
-
-    ------------
-
-    l_norm : array
-        Rolling and normalized profile of load.
-
-
-    """
-
-    l_smooth = signal.rolling(window=delta, center=True).mean().dropna()
-
-    if load_norm == 'max':
-
-        l_norm = l_smooth / l_smooth.max()
-
-    elif load_norm == 'min':
-
-        l_norm = (l_smooth - l_smooth.min()) / (l_smooth.max() - l_smooth.min())
-
-    else:
-        sys.exit('No such norm available. Retry.')
-
-    return l_norm.values
-
-
-
-
-
-
 def dist_to_grid_as_penalty(path_buses, coordinates_dict, technologies):
     """Computes distance from subset of points within the regular grid representing
     the regions of interest to the existing buses.
@@ -1490,7 +1712,7 @@ def dist_to_grid_as_penalty(path_buses, coordinates_dict, technologies):
 
     """
 
-    full_path_bus_data = join(path_buses, 'buses_EU_MENA.csv')
+    full_path_bus_data = join(path_buses, 'buses_all.csv')
     # Read network topology data.
     bus = read_csv(full_path_bus_data, sep=';', index_col=0)
 
@@ -1522,30 +1744,29 @@ def dist_to_grid_as_penalty(path_buses, coordinates_dict, technologies):
 def apply_rolling_transformations(output_data, load_array, delta):
     """Computes rolling transformation on the capacity factor matrix for the load-based formulation.
 
-    Parameters:
+        Parameters:
 
-    ------------
+        ------------
 
-    output_data : ndarray
-        Capacity factor matrix.
+        output_data : ndarray
+            Capacity factor matrix.
 
-    load_array : ndarray
-        Load data matrix.
+        load_array : ndarray
+            Load data matrix.
 
-    delta : int
-        Length of time window.
+        delta : int
+            Length of time window.
 
 
 
-    Returns:
+        Returns:
 
-    ------------
+        ------------
 
-    outputs : dict
-        Dictionary with transformed matrices.
+        outputs : dict
+            Dictionary with transformed matrices.
 
-    """
-
+        """
 
     u_list = []
     for item in output_data.keys():
@@ -1585,24 +1806,24 @@ def apply_rolling_transformations(output_data, load_array, delta):
 def retrieve_y_idx(instance, share_random_keep=0.2):
     """Selecting constraints to be dualised.
 
-    Parameters:
+        Parameters:
 
-    ------------
+        ------------
 
-    instance : pyomo ConcreteModel
+        instance : pyomo ConcreteModel
 
-    share_random_keep : float
-        Between 0 and 1, defines the number of constraints to be randomly selected.
+        share_random_keep : float
+            Between 0 and 1, defines the number of constraints to be randomly selected.
 
 
-    Returns:
+        Returns:
 
-    ------------
+        ------------
 
-    y_idx_dual, y_idx_keep : list
-        Lists of constraints to i) be dualised and ii) be kept for BB.
+        y_idx_dual, y_idx_keep : list
+            Lists of constraints to i) be dualised and ii) be kept for BB.
 
-    """
+        """
 
     all_ys = array(list(instance.y.extract_values().values()))
 
@@ -1616,8 +1837,6 @@ def retrieve_y_idx(instance, share_random_keep=0.2):
             if item == 1.0:
                 y_idx_dual.append(i + 1)
         else:
-            # Basically, if i) the window is non-critical in the partial convex relaxation and
-            # ii) in its vicinity there is another non-critical window, we dualise it.
             if item == 1.0:
                 if not ((all_ys[i - 1] != 1.0) or (all_ys[i + 1] != 1.0)):
                     y_idx_dual.append(i + 1)
@@ -1644,24 +1863,24 @@ def retrieve_y_idx(instance, share_random_keep=0.2):
 def concatenate_and_filter_arrays(list_of_arrays, ys_keep):
     """Concatenate a list of 1d arrays and keep only rows associated with ys that are dualized.
 
-    Parameters:
+        Parameters:
 
-    ------------
+        ------------
 
-    list_of_arrays : list
-        List of 1d arrays.
+        list_of_arrays : list
+            List of 1d arrays.
 
-    ys_keep : list
-        List of contraint indices kept in the problem.
+        ys_keep : list
+            List of contraint indices kept in the problem.
 
 
-    Returns:
+        Returns:
 
-    ------------
+        ------------
 
-    ndarray: array
+        ndarray: array
 
-    """
+        """
 
     ndarray = delete(vstack(list_of_arrays), [i - 1 for i in ys_keep], axis=1)
 
@@ -1679,25 +1898,25 @@ def concatenate_and_filter_arrays(list_of_arrays, ys_keep):
 def build_init_multiplier(ys_dual, range=0.5):
     """Function initializing the Langrangian multiplier.
 
-    Parameters:
+        Parameters:
 
-    ------------
+        ------------
 
-    ys_dual : list
-        List constraints to be dualised.
+        ys_dual : list
+            List constraints to be dualised.
 
-    range : float
-        Float determining the range in which the multiplier is defined
+        range : float
+            Float determining the range in which the multiplier is defined
 
 
-    Returns:
+        Returns:
 
-    ------------
+        ------------
 
-    dict_values: dict
-        Dictionary containing (index, value) pairs of the Lagrange multiplier.
+        dict_values: dict
+            Dictionary containing (index, value) pairs of the Lagrange multiplier.
 
-    """
+        """
 
     values = clip(uniform(-range, range, size=len(ys_dual)), 0., range)
 
@@ -1719,47 +1938,45 @@ def retrieve_next_multiplier(instance, init_multplier, y_idx_keep, y_idx_dual,
                              a = 0.1, share_of_iter=1.0):
     """Update of the Lagrange multiplier.
 
-    Parameters:
+        Parameters:
 
-    ------------
+        ------------
 
-    instance : pyomo ConcreteModel
+        instance : pyomo ConcreteModel
 
-    init_multiplier : array
-        Incumbent Lagrange multipler.
+        init_multiplier : array
+            Incumbent Lagrange multipler.
 
-    y_idx_keep: list
-        List of indices of the kept constraints.
+        y_idx_keep: list
+            List of indices of the kept constraints.
 
-    y_idx_dual: list
-        List of indices of dualised constraints.
+        y_idx_dual: list
+            List of indices of dualised constraints.
 
-    iter_no: int
-        Iteration counter.
+        iter_no: int
+            Iteration counter.
 
-    iter_total: int
-        Number of total iterations.
+        iter_total: int
+            Number of total iterations.
 
-    subgradient_method: str
-        Subgradient method applied (Inexact/Exact). Influences the stepping policy.
+        subgradient_method: str
+            Subgradient method applied (Inexact/Exact). Influences the stepping policy.
 
-    a: float
-        Paramter of the stepping policy
+        a: float
+            Paramter of the stepping policy
 
-    share_of_iter: float
-        Between 0.0 and 1.0, used in the "Inexact" method and defines the beginning of non-constant stepping.
-
-
-    Returns:
-
-    ------------
-
-    multiplier: array
-        Updated Lagrange multiplier.
-
-    """
+        share_of_iter: float
+            Between 0.0 and 1.0, used in the "Inexact" method and defines the beginning of non-constant stepping.
 
 
+        Returns:
+
+        ------------
+
+        multiplier: array
+            Updated Lagrange multiplier.
+
+        """
     d = delete(instance.D, [i - 1 for i in y_idx_keep], axis=0)
 
     x_array = array(list(instance.x.extract_values().values()))
@@ -1798,34 +2015,33 @@ def retrieve_next_multiplier(instance, init_multplier, y_idx_keep, y_idx_dual,
 
 def new_cost_rule(instance, y_idx_keep, y_idx_dual, multiplier, low_memory=False):
     """Update of the objective function, based on the new multiplier value.
-    Parameters:
+        Parameters:
 
-    ------------
+        ------------
 
-    instance : pyomo ConcreteModel
+        instance : pyomo ConcreteModel
 
-    multiplier : array
-        Incumbent Lagrange multipler.
+        multiplier : array
+            Incumbent Lagrange multipler.
 
-    y_idx_keep: list
-        List of indices of the kept constraints.
+        y_idx_keep: list
+            List of indices of the kept constraints.
 
-    y_idx_dual: list
-        List of indices of dualised constraints.
+        y_idx_dual: list
+            List of indices of dualised constraints.
 
-    low_memory: boolean
-        If True, pypsa framework used for objective construction.
+        low_memory: boolean
+            If True, pypsa framework used for objective construction.
 
 
-    Returns:
+        Returns:
 
-    ------------
+        ------------
 
-    instance.objective: pyomo object
-        Updated objective function.
+        instance.objective: pyomo object
+            Updated objective function.
 
-    """
-
+        """
     if low_memory == True:
 
         instance.objective = Objective(expr=sum(instance.y[w] for w in instance.W) + \
@@ -1855,32 +2071,73 @@ def new_cost_rule(instance, y_idx_keep, y_idx_dual, multiplier, low_memory=False
 
 
 
+def new_cost_rule_penalty(input_data, instance, y_idx_keep, y_idx_dual, multiplier, low_memory=False):
+
+    critical_windows = input_data['critical_window_matrix']
+    no_locations = critical_windows.shape[1]
+    no_windows = critical_windows.shape[0]
+
+    n = input_data['number_of_deployments']
+
+    no_critwind_per_location = full(no_locations, float(no_windows)) - instance.D.sum(axis=0)
+    lamda = 1e-3 / sum(n)
+    penalty = multiply(lamda, no_critwind_per_location)
+
+
+    if low_memory == True:
+
+        instance.objective = Objective(expr=sum(instance.y[w] for w in instance.W) + \
+                                            sum(instance.x[l] * penalty[l - 1] for l in instance.L) + \
+                                            sum(multiplier[w] * (
+                                            sum(instance.D[w - 1, l - 1] * instance.x[l] for l in instance.L) - instance.c * instance.y[w]) for w in y_idx_dual),
+                                       sense=maximize)
+
+
+
+    else:
+
+        lc = dict(zip(y_idx_dual, multiply(instance.c, array(list(multiplier.values())))))
+        dx = dot(array(list(multiplier.values())),
+                 delete(instance.D, [i - 1 for i in y_idx_keep], axis=0))
+
+        objective = LExpression()
+        objective.variables.extend([(1, instance.y[w]) for w in instance.W])
+        objective.variables.extend([(penalty[l - 1], instance.x[l]) for l in instance.L])
+        objective.variables.extend([dx[l - 1], instance.x[l]] for l in instance.L)
+        objective.variables.extend([(-lc[w], instance.y[w]) for w in y_idx_dual])
+
+        instance.objective = Objective(expr=0., sense=maximize)
+        instance.objective._expr = _build_sum_expression(objective.variables)
+
+    return instance.objective
+
+
+
 
 
 
 
 def generate_neighbor(x, N):
     """Generation of neighbours in the Simulated Annealing algorithm.
-    Parameters:
+        Parameters:
 
-    ------------
+        ------------
 
-    x : array
-        Initial solution.
+        x : array
+            Initial solution.
 
-    N : int
-        Number of swaps (i.e., the Hamming distance).
+        N : int
+            Number of swaps (i.e., the Hamming distance).
 
 
-    Returns:
+        Returns:
 
-    ------------
+        ------------
 
-    x_array: array
-        Updated solution.
+        x_array: array
+            Updated solution.
 
-    """
-
+        """
     x_array = array(list(x))
 
     ones = where(x_array == 1)[0]
@@ -1897,41 +2154,40 @@ def generate_neighbor(x, N):
 
 def simulated_annealing_epoch(no_windows, xs_incumbent, D, c, N, T, i):
     """The Simulated Annealing process.
-    Parameters:
+        Parameters:
 
-    ------------
+        ------------
 
-    no_windows: int
-        Number of time windows
+        no_windows: int
+            Number of time windows
 
-    xs_incumbent: array
-        Incumbent solution.
+        xs_incumbent: array
+            Incumbent solution.
 
-    D: array
-        Criticality matrix.
+        D: array
+            Criticality matrix.
 
-    c: int
-        Real parameter in the optimisation problem.
+        c: int
+            Real parameter in the optimisation problem.
 
-    N: int
-        The Hamming distance within the SA algorithm.
+        N: int
+            The Hamming distance within the SA algorithm.
 
-    T: float
-        Temperature, as defined in the SA algorithm.
+        T: float
+            Temperature, as defined in the SA algorithm.
 
-    i: int
-        Iteration count. Used solely in the multiprocessing set-up.
+        i: int
+            Iteration count. Used solely in the multiprocessing set-up.
 
 
-    Returns:
+        Returns:
 
-    ------------
+        ------------
 
-    xs_inucmbent, sum(ys_incumbent): array, int
-        Updated integer solution and its score within the SA algorithm.
+        xs_inucmbent, sum(ys_incumbent): array, int
+            Updated integer solution and its score within the SA algorithm.
 
-    """
-
+        """
     ys_incumbent = ones(no_windows)
     ys_incumbent[where(sum(multiply(D, xs_incumbent), axis=1) < multiply(c, ys_incumbent))] = 0.
 
@@ -1966,44 +2222,43 @@ def simulated_annealing_epoch(no_windows, xs_incumbent, D, c, N, T, i):
 def retrieve_lower_bound(input_data, instance, method, multiprocess=True,
                                  N = 2, T_init=100., no_iter = 1000, no_epoch = 50):
     """Computing the LB of the problem.
-    Parameters:
+        Parameters:
 
-    ------------
+        ------------
 
-    input_data: dict
-        Dictionary containing various strucures with problem-related information.
+        input_data: dict
+            Dictionary containing various strucures with problem-related information.
 
-    instance: pyomo ConcreteModel
+        instance: pyomo ConcreteModel
 
-    method: str
-        Method deployed to compute the LB.
-        Choices are: the simple "Projection" or the more intensive "SimulatedAnnealing"
+        method: str
+            Method deployed to compute the LB.
+            Choices are: the simple "Projection" or the more intensive "SimulatedAnnealing"
 
-    multiprocess: boolean
-        Whether to deploy or not multiprocessing capabilities. Worth only on (very) large SA set-ups.
+        multiprocess: boolean
+            Whether to deploy or not multiprocessing capabilities. Worth only on (very) large SA set-ups.
 
-    N: int
-        The Hamming distance.
+        N: int
+            The Hamming distance.
 
-    T_init: float
-        Temperature, as defined in the SA algorithm.
+        T_init: float
+            Temperature, as defined in the SA algorithm.
 
-    no_iter: int
-        Number of epochs within the SA.
+        no_iter: int
+            Number of epochs within the SA.
 
-    no_epoch: int
-        Number of computations within one epoch.
+        no_epoch: int
+            Number of computations within one epoch.
 
 
-    Returns:
+        Returns:
 
-    ------------
+        ------------
 
-    lower_bound: int
-        Updated lower bound of the problem.
+        lower_bound: int
+            Updated lower bound of the problem.
 
-    """
-
+        """
     critical_windows = input_data['critical_window_matrix']
     no_locations = critical_windows.shape[1]
     no_windows = critical_windows.shape[0]
@@ -2085,9 +2340,7 @@ def retrieve_lower_bound(input_data, instance, method, multiprocess=True,
 
     custom_log(' Lower bound improved by {} windows. LB = {}.'.format(sum(ys_incumbent) - sum(ys_init), sum(ys_incumbent)))
 
-    lower_bound = sum(ys_incumbent)
-
-    return lower_bound
+    return sum(ys_incumbent)
 
 
 
@@ -2127,29 +2380,123 @@ def retrieve_upper_bound(instance_results):
 
 
 
+# def retrieve_lower_bound(input_data, instance):
+#
+#     critical_windows = input_data['critical_window_matrix']
+#     no_locations = critical_windows.shape[1]
+#     no_windows = critical_windows.shape[0]
+#     beta = input_data['geographical_coverage']
+#     n = input_data['number_of_deployments']
+#
+#     D = ones((no_windows, no_locations)) - critical_windows.values
+#     c = int(floor(sum(n) * round((1 - beta), 2)) + 1)
+#
+#     xs = array(list(instance.x.extract_values().values()))
+#     ys = ones((no_windows))
+#
+#     ys[where(sum(multiply(D, xs), axis=1) < multiply(c, ys))] = 0
+#
+#     return sum(ys)
+
+
+
+
+
+
+
+# def retrieve_lower_bound_sa(input_data, instance, N, T_init = 100., epoch_count=20, iter_count=100):
+#
+#     critical_windows = input_data['critical_window_matrix']
+#     no_locations = critical_windows.shape[1]
+#     no_windows = critical_windows.shape[0]
+#     beta = input_data['geographical_coverage']
+#     n = input_data['number_of_deployments']
+#
+#     if N > sum(n):
+#         raise ValueError(' Number of swaps greater than the cardinality.')
+#
+#     D = ones((no_windows, no_locations)) - critical_windows.values
+#     c = int(floor(sum(n) * round((1 - beta), 2)) + 1)
+#
+#     xs_incumbent = array(list(instance.x.extract_values().values()))
+#
+#     ys_init = ones((no_windows))
+#     ys_init[where(sum(multiply(D, xs_incumbent), axis=1) < multiply(c, ys_init))] = 0.
+#     init_lb = sum(ys_init)
+#
+#     T = T_init
+#     a = 0.95
+#
+#     for i in tqdm(arange(1, iter_count + 1), desc='Simulated Annealing Loop'):
+#
+#         for iter in arange(epoch_count):
+#
+#             ys_incumbent = ones((no_windows))
+#             ys_incumbent[where(sum(multiply(D, xs_incumbent), axis=1) < multiply(c, ys_incumbent))] = 0.
+#
+#             xs_next = generate_neighbor(xs_incumbent, N)
+#
+#             ys_next = ones((no_windows))
+#             ys_next[where(sum(multiply(D, xs_next), axis=1) < multiply(c, ys_next))] = 0.
+#
+#             delta = sum(ys_next) - sum(ys_incumbent)
+#
+#             if delta > 0.:
+#
+#                 xs_incumbent = xs_next
+#
+#             else:
+#
+#                 if nr.binomial(n=1, p=exp(delta/T)) == 1.:
+#
+#                     xs_incumbent = xs_next
+#
+#
+#         if i == iter_count - 1:
+#
+#             ys_incumbent = ones((no_windows))
+#             ys_incumbent[where(sum(multiply(D, xs_incumbent), axis=1) < multiply(c, ys_incumbent))] = 0.
+#
+#         T *= a
+#
+#
+#     custom_log(' Lower bound improved by {} windows.'.format(sum(ys_incumbent) - init_lb))
+#
+#     if init_lb > sum(ys_incumbent):
+#
+#         ys_incumbent = ys_init
+#
+#     return sum(ys_incumbent)
+
+
+
+
+
+
+
+
 def retrieve_feasible_solution_projection(input_data, instance, instance_results, problem):
     """Computation of a feasible solution for the "Projection" solution method.
-    Parameters:
+        Parameters:
 
-    ------------
+        ------------
 
-    input_data: dict
-        Dictionary containing various strucures with problem-related information.
+        input_data: dict
+            Dictionary containing various strucures with problem-related information.
 
-    instance: pyomo ConcreteModel
+        instance: pyomo ConcreteModel
 
-    instance_results: dict
-        Results of instance.
+        instance_results: dict
+            Results of instance.
 
-    problem: str
-        Selected problem class.
+        problem: str
+            Selected problem class.
 
-    Returns:
+        Returns:
 
-    ------------
+        ------------
 
-    """
-
+        """
 
     if problem == 'Covering':
 
@@ -2221,7 +2568,38 @@ def retrieve_feasible_solution_projection(input_data, instance, instance_results
 
 
 
-def init_folder(keepfiles, run_type):
+
+
+
+
+
+
+
+
+
+# def retrieve_lagrangian_multipliers(input_data, model):
+#
+#     duals = array([model.dual[model.criticality_activation_constraint[w]] for w in model.W])
+#     indices = arange(1, input_data['critical_window_matrix'].shape[0] + 1)
+#     dual_array = list(zip(indices, duals))
+#
+#     selected = [x for (x, y) in dual_array if y != 0.0]
+#
+#     return {'all_duals': duals,
+#             'selected_duals': selected}
+
+
+
+
+
+
+
+
+
+
+
+
+def init_folder(keepfiles):
     """Initilize an output folder.
 
     Parameters:
@@ -2230,10 +2608,6 @@ def init_folder(keepfiles, run_type):
 
     keepfiles : boolean
         If False, folder previously built is deleted.
-
-    run_type : str
-        'C' - criticality indicator calculation
-        'O' - optimization problem.
 
     Returns:
 
@@ -2251,11 +2625,11 @@ def init_folder(keepfiles, run_type):
     if not isdir("../output_data"):
         makedirs(abspath("../output_data"))
 
-        path = abspath('../output_data/' + str(date) + '_' + str(time) + '_' + str(run_type))
+        path = abspath('../output_data/' + str(date) + '_' + str(time))
         makedirs(path)
 
     else:
-        path = abspath('../output_data/' + str(date) + '_' + str(time) + '_' + str(run_type))
+        path = abspath('../output_data/' + str(date) + '_' + str(time))
         makedirs(path)
 
     custom_log(' Folder path is: {}'.format(str(path)))
@@ -2342,21 +2716,5 @@ def read_inputs(inputs):
 
 
 def custom_log(message):
-    """Custom log currently replacing the logging module.
-
-    Parameters:
-
-    ------------
-
-    message : str
-        Custom message to print.
-
-    Returns:
-
-    ------------
-
-
-    """
-
 
     print(datetime.now().strftime('%H:%M:%S')+' --- '+str(message))

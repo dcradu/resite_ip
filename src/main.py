@@ -16,7 +16,7 @@ def main():
     keepfiles = parameters['keep_files']
     lowmem = parameters['low_memory']
 
-    output_folder = tl.init_folder(keepfiles, 'O')
+    output_folder = tl.init_folder(keepfiles)
 
     # Copy parameter file to the output folder for future reference.
     copy('parameters.yml', output_folder)
@@ -35,19 +35,12 @@ def main():
 
     input_dict = gg.preprocess_input_data(parameters)
 
-    if solver == 'gurobi':
-        opt = SolverFactory(solver)
-        opt.options['MIPGap'] = MIPGap
-        opt.options['Threads'] = 0
-        opt.options['TimeLimit'] = 3600
-        opt.options['DisplayInterval'] = 600
-
-    elif solver == 'cplex':
-        opt = SolverFactory(solver)
-        opt.options['mipgap'] = MIPGap
-        opt.options['threads'] = 0
-        opt.options['mip_limits_treememory'] = 1e3
-
+    # Solver options for the MIP problem
+    opt = SolverFactory(solver)
+    opt.options['MIPGap'] = MIPGap
+    opt.options['Threads'] = 0
+    opt.options['TimeLimit'] = 3600
+    opt.options['DisplayInterval'] = 600
     # Solver options for the relaxations.
     opt_relaxation = SolverFactory(solver)
     opt_relaxation.options['MIPGap'] = 0.02
@@ -58,7 +51,6 @@ def main():
     opt_integer.options['TimeLimit'] = 18000
     opt_integer.options['MIPFocus'] = 3
     opt_integer.options['DisplayInterval'] = 600
-
     # Solver options for the iterative procedure
     opt_persistent = SolverFactory('gurobi_persistent')
     opt_persistent.options['mipgap'] = 0.02
@@ -213,7 +205,6 @@ def main():
                                                               technologies, problem)
 
 
-
     else:
 
         raise ValueError(' This solution method is not available. Retry.')
@@ -229,6 +220,12 @@ def main():
         deployed_capacities = tl.retrieve_deployed_capacities(instance, technologies,
                                                               input_dict['capacity_potential_per_node'])
         output_dict.update({'deployed_capacities_dict': deployed_capacities})
+
+    # counter = 0
+    # for k in instance.W:
+    #     counter += instance.y[k].value
+    # print ('Time window part is: {}'.format(counter))
+    # print ('Penalty term part is: {}'.format(round(abs(instance.objective()) - counter, 2)))
 
     pickle.dump(output_dict, open(join(output_folder, 'output_model.p'), 'wb'))
 

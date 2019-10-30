@@ -1,17 +1,19 @@
+import matplotlib
+matplotlib.use('pdf')
 import matplotlib.pyplot as plt
 import pandas as pd
 from os.path import join, abspath
-from src.tools import read_database, get_global_coordinates, return_output, return_coordinates_from_countries, selected_data, read_load_data, filter_offshore_coordinates
-from output_tools import read_output, read_inputs_plotting, plot_basemap
+from src.tools import read_database, get_global_coordinates, return_output, return_coordinates_from_countries, \
+                            selected_data, retrieve_load_data
+from src_postprocessing.output_tools import read_output, read_inputs_plotting, plot_basemap, \
+                                                assess_firmness, clip_revenue, \
+                                                assess_capacity_credit, return_coordinates
 from itertools import chain, combinations, cycle, islice
-from collections import defaultdict
 from random import randint
 from copy import deepcopy
-from numpy import array, where, tile, quantile, ceil, nonzero, split, diff, sum, arange, histogram, cumsum, max, searchsorted, append
+from numpy import array, tile, ceil, sum, arange, fromiter
 from xarray import concat
-import seaborn as sns
-from matplotlib.lines import Line2D
-import numpy as np
+import matplotlib.dates as mdates
 
 
 class Output(object):
@@ -61,19 +63,18 @@ class Output(object):
         print('beta: {}'.format(self.parameters_yaml['beta']))
 
         path_resource_data = self.parameters_yaml['path_resource_data'] + str(self.parameters_yaml['spatial_resolution']) + '/'
-        horizon = self.parameters_yaml['time_slice']
-        technologies = self.parameters_yaml['technologies']
         path_transfer_function_data = self.parameters_yaml['path_transfer_function_data']
         path_load_data = self.parameters_yaml['path_load_data']
+
+        horizon = self.parameters_yaml['time_slice']
+        delta = self.parameters_yaml['delta']
+        technologies = self.parameters_yaml['technologies']
         regions = self.parameters_yaml['regions']
         no_sites = self.parameters_yaml['cardinality_constraint']
 
         price_ts = pd.read_csv('../input_data/el_price/elix_2014_2018.csv', index_col=0, sep=';')
         price_ts = price_ts['price']
         length_timeseries = self.outputs_pickle['capacity_factors_dict'][technologies[0]].shape[0]
-        threshold_depth = self.parameters_yaml['depth_threshold']
-        spatial_resolution = self.parameters_yaml['spatial_resolution']
-        path_landseamask = self.parameters_yaml['path_landseamask']
 
         if length_timeseries <= price_ts.size:
             price_ts = price_ts[:length_timeseries]
@@ -82,13 +83,8 @@ class Output(object):
             price_ts = tile(price_ts, el_ts_multiplier)
             price_ts = price_ts[:length_timeseries]
 
-        load_dict, load_data = read_load_data(path_load_data, horizon)
-
-        regions_df = []
-        for item in regions:
-            regions_df.extend(load_dict[item])
-
-        load_ts = load_data[regions_df].sum(axis=1)
+        load_ts = retrieve_load_data(path_load_data, horizon, delta, regions,
+                                       alpha_plan='centralized', alpha_load_norm='min')
 
         signal_dict = dict.fromkeys(choice, None)
         firmness_dict = dict.fromkeys(choice, None)
@@ -99,17 +95,20 @@ class Output(object):
         database = read_database(path_resource_data)
         global_coordinates = get_global_coordinates(database, self.parameters_yaml['spatial_resolution'],
                                                     self.parameters_yaml['population_density_threshold'],
-                                                    self.parameters_yaml['path_population_density_data'],
                                                     self.parameters_yaml['protected_areas_selection'],
                                                     self.parameters_yaml['protected_areas_threshold'],
+                                                    self.parameters_yaml['altitude_threshold'],
+                                                    self.parameters_yaml['forestry_threshold'],
+                                                    self.parameters_yaml['depth_threshold'],
+                                                    self.parameters_yaml['path_population_density_data'],
                                                     self.parameters_yaml['path_protected_areas_data'],
-                                                    population_density_layer=False, protected_areas_layer=False)
-        coordinates_filtered_depth = filter_offshore_coordinates(global_coordinates,
-                                                                    threshold_depth,
-                                                                    spatial_resolution,
-                                                                    path_landseamask)
-
-
+                                                    self.parameters_yaml['path_orogrpahy_data'],
+                                                    self.parameters_yaml['path_landseamask'],
+                                                    population_density_layer=self.parameters_yaml['population_density_layer'],
+                                                    protected_areas_layer=self.parameters_yaml['protected_areas_layer'],
+                                                    orography_layer=self.parameters_yaml['orography_layer'],
+                                                    forestry_layer=self.parameters_yaml['forestry_layer'],
+                                                    bathymetry_layer=self.parameters_yaml['bathymetry_layer'])
 
         for c in choice:
 
@@ -123,7 +122,7 @@ class Output(object):
 
             elif c == 'RAND':
 
-                region_coordinates = return_coordinates_from_countries(regions, coordinates_filtered_depth, add_offshore=True)
+                region_coordinates = return_coordinates_from_countries(regions, global_coordinates, add_offshore=True)
                 truncated_data = selected_data(database, region_coordinates, horizon)
                 output_data = return_output(truncated_data, technologies, path_transfer_function_data)
 
@@ -136,8 +135,7 @@ class Output(object):
                 output_overall = concat(output, dim='locations')
 
                 score_init = 0.
-
-                for i in range(500):
+                for i in range(10000):
 
                     location_list = []
                     ts_list = []
@@ -169,7 +167,9 @@ class Output(object):
 
                     for key in suboptimal_dict.keys():
 
-                        region_coordinates = return_coordinates_from_countries(key, coordinates_filtered_depth, add_offshore=True)
+                        region_coordinates = return_coordinates_from_countries(key, global_coordinates,
+                                                                               add_offshore=self.parameters_yaml[
+                                                                                   'add_offshore'])
                         truncated_data = selected_data(database, region_coordinates, horizon)
 
                         for k in technologies:
@@ -206,7 +206,9 @@ class Output(object):
                         output_data_list = []
                         truncated_data_list_per_region = []
 
-                        region_coordinates = return_coordinates_from_countries(key, global_coordinates)
+                        region_coordinates = return_coordinates_from_countries(key, global_coordinates,
+                                                                               add_offshore=self.parameters_yaml[
+                                                                                   'add_offshore'])
                         truncated_data = selected_data(database, region_coordinates, horizon)
 
                         for k in technologies:
@@ -244,7 +246,7 @@ class Output(object):
                 location_list = []
                 ts_list = []
 
-                region_coordinates = return_coordinates('NSea', coordinates_filtered_depth)
+                region_coordinates = return_coordinates('NSea', global_coordinates)
                 truncated_data = selected_data(database, region_coordinates, horizon)
                 output_data = return_output(truncated_data, technologies, path_transfer_function_data)
 
@@ -305,6 +307,180 @@ class Output(object):
 
 
 
+
+    def plot_numerics(self, result_dict, plot_cdf=False, plot_boxplot=True, plot_signal=False, plot_cdfirm=True, signal_range=[0, 8760]):
+
+        """Plotting different results.
+
+            Parameters:
+
+            ------------
+
+            result_dict : dict
+                Dictionary containing various indexed indicators to be plotted.
+
+            plot_cdf : boolean
+                Plot the cdf in its own frame.
+
+            boxplot : boolean
+                Plot boxplot in its own frame.
+
+
+            plot_signal : boolean
+                Plot the resource time series in its own frame.
+
+            signal_range : list
+                List of integers defining range of signal to be displayed.
+
+            one_plot : boolean
+                Plot all subplots in one frame.
+
+        """
+
+        if plot_cdf == True:
+
+            colors = islice(cycle(('royalblue', 'crimson', 'forestgreen', 'goldenrod')), 0, len(result_dict['signal'].keys()))
+            plt.clf()
+            ax = plt.subplot(111)
+
+            for c in list({str(j) for i in result_dict.values() for j in i}):
+                ax.hist(result_dict['signal'][c], bins=1000, density=True, cumulative=True, label=str(c), color=next(colors),
+                         histtype='step', alpha=0.8, linewidth=1.0)
+
+            ax.set_xlabel('Aggregated output [-]')
+            ax.set_xticks(array([0., 10., 15., 20.]))
+            ax.set_ylabel('Probability [-]')
+            ax.set_yticks(arange(0.2, 1.1, step=0.2))
+
+            ax.legend(fontsize='medium', frameon=False, bbox_to_anchor=(0, 1.02, 1, 0.2), loc="lower left",
+                       mode="expand", borderaxespad=0, ncol=len(result_dict['signal'].keys()))
+
+            plt.savefig('cdf.pdf', dpi=200, bbox_inches='tight')
+            plt.show()
+
+
+        if plot_signal == True:
+            colors = islice(cycle(('royalblue', 'crimson', 'forestgreen', 'goldenrod')), 0, len(result_dict['signal'].keys()))
+            plt.clf()
+            for c in result_dict['signal'].keys():
+
+                plt.plot(range(signal_range[0], signal_range[1]), result_dict['signal'][c][signal_range[0]:signal_range[1]], label=str(c), color=next(colors))
+            plt.legend(loc='best')
+            plt.show()
+
+
+        if plot_cdfirm == True:
+
+            colors = islice(cycle(('royalblue', 'crimson', 'forestgreen', 'goldenrod')), 0, len(result_dict['signal'].keys()))
+            linestyles = islice(cycle(('-', '--', '-.', ':')), 0, len(result_dict['signal'].keys()))
+
+            plt.clf()
+
+            fig = plt.figure(figsize=(5, 7))
+
+            ax1 = fig.add_subplot(211)
+            ax1.set_xlabel('Aggregated output [-]', fontsize=10)
+            ax1.set_ylabel('Probability [-]', fontsize=10)
+            ax1.set_yticks(arange(0.2, 1.1, step=0.2))
+
+            ax2 = fig.add_subplot(212)
+            ax2.set_xlabel('Firm window length [h]', fontsize=10)
+            ax2.set_ylabel('Occurrences [-]', fontsize=10)
+            ax2.set_yscale('log', nonposy='clip')
+
+            for c in result_dict['signal'].keys():
+
+                color = next(colors)
+                linestyle = next(linestyles)
+
+                ax1.hist(result_dict['signal'][c], bins=1000, density=True, cumulative=True, label=str(c), color=color,
+                         histtype='step', alpha=1.0, linewidth=1.0, linestyle=linestyle)
+                ax2.hist(result_dict['firmness'][c], bins=50, label=str(c), color=color, cumulative=False, alpha=1.0,
+                         histtype='step', linewidth=1.0, linestyle=linestyle)
+
+            ax1.legend(fontsize='medium', frameon=False, bbox_to_anchor=(0, 1.02, 1, 0.2), loc="lower left",
+                       mode="expand", borderaxespad=0, ncol=len(result_dict['signal'].keys()))
+
+            fig.tight_layout()
+            fig.savefig(abspath(join(self.output_folder_path,
+                                 'numerics_plot.pdf')), bbox_inches='tight', dpi=300)
+
+
+        if plot_boxplot == True:
+
+            df = pd.DataFrame(columns=list(result_dict['signal'].keys()))
+
+            for c in df.columns:
+                df[str(c)] = result_dict['signal'][c]
+
+            datetime_idx = pd.date_range('2008-01-01', periods=df.shape[0], freq='H')
+            df.index = datetime_idx
+            hour = df.index.hour
+
+            df_filtered = df.iloc[(hour == 6) | (hour == 9) | (hour == 12) | (hour == 15) | (hour == 18) | (hour == 21)]
+
+            fig, axs = plt.subplots(1, len(df.columns), figsize=(13,3), facecolor='w', edgecolor='k')
+            fig.subplots_adjust(wspace=.0001)
+
+            axs = axs.ravel()
+
+            for i, name in enumerate(df.columns):
+                axs[i].title.set_text(str(name))
+                axs[i].set_xlabel('Hour of the day')
+                axs[i].tick_params(axis='y', which='both', length=0)
+                axs[i].xaxis.set_major_formatter(mdates.DateFormatter('%H:%M'))
+                axs[i].set_ylim([-1, float(result_dict['no_sites'])+1])
+
+                if i == 0:
+                    axs[i].set_ylabel('Aggregated output [-]')
+
+                if (i != 0) & (i != len(df.columns) - 1):
+                    axs[i].set_yticklabels([])
+                if i == len(df.columns) - 1:
+                    axs[i].yaxis.tick_right()
+                    axs[i].yaxis.set_label_position("right")
+                    axs[i].set_ylabel('Aggregated output [-]')
+                df_filtered.set_index(df_filtered.index.hour, append=True)[name].unstack().plot.box(ax=axs[i], sym='+',
+                                                                                                    color=dict(
+                                                                                                        boxes='royalblue',
+                                                                                                        whiskers='royalblue',
+                                                                                                        medians='forestgreen',
+                                                                                                        caps='royalblue'),
+                                                                                                    boxprops=dict(
+                                                                                                        linestyle='-',
+                                                                                                        linewidth=1.5),
+                                                                                                    flierprops=dict(
+                                                                                                        linewidth=1.5,
+                                                                                                        markeredgecolor='crimson',
+                                                                                                        color='crimson'),
+                                                                                                    medianprops=dict(
+                                                                                                        linestyle='-',
+                                                                                                        linewidth=1.5),
+                                                                                                    whiskerprops=dict(
+                                                                                                        linestyle='-',
+                                                                                                        linewidth=1.5),
+                                                                                                    capprops=dict(
+                                                                                                        linestyle='-',
+                                                                                                        linewidth=1.5)
+                                                                                                    )
+                axs[i].yaxis.grid(True, linestyle='-', which='major', color='lightgrey', alpha=0.5)
+            fig.tight_layout()
+            fig.savefig(abspath(join(self.output_folder_path,
+                                     'boxplot.pdf')), bbox_inches='tight', dpi=300)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     def optimal_locations_plot(self):
 
         """Plotting the optimal locations."""
@@ -344,7 +520,7 @@ class Output(object):
             else:
                 locations_plot[key] = list(init)
 
-        markers = islice(cycle(('.', 'X')), 0, len(locations_plot.keys()))
+        markers = islice(cycle(('.')), 0, len(locations_plot.keys()))
         colors = islice(cycle(('royalblue','crimson','forestgreen','goldenrod')), 0, len(locations_plot.keys()))
         for key in locations_plot.keys():
 
@@ -353,8 +529,15 @@ class Output(object):
             map.scatter(longitudes, latitudes, transform=base['projection'], marker=next(markers), color=next(colors),
                         s=base['width']/(1e5), zorder=3, alpha=0.9, label=str(key))
 
+
+
+        L = plt.legend(loc='lower left', fontsize='medium')
+        L.get_texts()[0].set_text('Wind')
+        L.get_texts()[1].set_text('PV')
+        L.get_texts()[2].set_text('Wind & PV')
+
         plt.savefig(abspath(join(self.output_folder_path,
-                                 'optimal_deployment_'+str('&'.join(tuple(self.outputs_pickle['coordinates_dict'].keys())))+'.pdf')),
+                                 'optimal_deployment.pdf')),
                                  bbox_inches='tight', dpi=300)
 
 
@@ -365,26 +548,30 @@ class Output(object):
     def retrieve_max_locations(self):
 
         path_resource_data = self.parameters_yaml['path_resource_data'] + str(self.parameters_yaml['spatial_resolution']) + '/'
+        path_transfer_function_data = self.parameters_yaml['path_transfer_function_data']
+
         horizon = self.parameters_yaml['time_slice']
         technologies = self.parameters_yaml['technologies']
-        path_transfer_function_data = self.parameters_yaml['path_transfer_function_data']
         no_sites = self.parameters_yaml['cardinality_constraint']
-        threshold_depth = self.parameters_yaml['depth_threshold']
-        spatial_resolution = self.parameters_yaml['spatial_resolution']
-        path_landseamask = self.parameters_yaml['path_landseamask']
 
         database = read_database(path_resource_data)
         global_coordinates = get_global_coordinates(database, self.parameters_yaml['spatial_resolution'],
                                                     self.parameters_yaml['population_density_threshold'],
-                                                    self.parameters_yaml['path_population_density_data'],
                                                     self.parameters_yaml['protected_areas_selection'],
                                                     self.parameters_yaml['protected_areas_threshold'],
+                                                    self.parameters_yaml['altitude_threshold'],
+                                                    self.parameters_yaml['forestry_threshold'],
+                                                    self.parameters_yaml['depth_threshold'],
+                                                    self.parameters_yaml['path_population_density_data'],
                                                     self.parameters_yaml['path_protected_areas_data'],
-                                                    population_density_layer=False, protected_areas_layer=False)
-        coordinates_filtered_depth = filter_offshore_coordinates(global_coordinates,
-                                                                    threshold_depth,
-                                                                    spatial_resolution,
-                                                                    path_landseamask)
+                                                    self.parameters_yaml['path_orogrpahy_data'],
+                                                    self.parameters_yaml['path_landseamask'],
+                                                    population_density_layer=self.parameters_yaml[
+                                                        'population_density_layer'],
+                                                    protected_areas_layer=self.parameters_yaml['protected_areas_layer'],
+                                                    orography_layer=self.parameters_yaml['orography_layer'],
+                                                    forestry_layer=self.parameters_yaml['forestry_layer'],
+                                                    bathymetry_layer=self.parameters_yaml['bathymetry_layer'])
 
         suboptimal_dict = dict.fromkeys(self.parameters_yaml['regions'], None)
 
@@ -396,8 +583,7 @@ class Output(object):
 
             for key in suboptimal_dict.keys():
 
-                region_coordinates = return_coordinates_from_countries(key, coordinates_filtered_depth, add_offshore=True)
-                # region_coordinates = return_coordinates(key, coordinates_filtered_depth)
+                region_coordinates = return_coordinates_from_countries(key, global_coordinates, add_offshore=True)
                 truncated_data = selected_data(database, region_coordinates, horizon)
 
                 for k in technologies:
@@ -488,17 +674,3 @@ class Output(object):
 
         else:
             raise TypeError('WARNING! No such plotting capabilities for a basic deployment problem.')
-
-
-
-
-
-
-
-
-
-
-
-
-
-
