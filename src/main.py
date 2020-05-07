@@ -1,235 +1,160 @@
-import sys
-import models as gg
-import tools as tl
 from pyomo.opt import SolverFactory
 from shutil import copy
 from os.path import join
 import pickle
 from tqdm import tqdm
-
-sys.tracebacklimit = 100
+from src.helpers import read_inputs, init_folder, custom_log
+from src.models import preprocess_input_data, build_model
+from src.tools import new_cost_rule, retrieve_location_dict, retrieve_site_data, retrieve_max_run_criticality, \
+    retrieve_lower_bound, retrieve_y_idx, build_init_multiplier, retrieve_next_multiplier, retrieve_upper_bound
 
 def main():
 
-    parameters = tl.read_inputs('parameters.yml')
-
+    parameters = read_inputs('../config_model.yml')
     keepfiles = parameters['keep_files']
-    lowmem = parameters['low_memory']
+    output_folder = init_folder(keepfiles)
+    copy('../config_model.yml', output_folder)
 
-    output_folder = tl.init_folder(keepfiles)
-
-    # Copy parameter file to the output folder for future reference.
-    copy('parameters.yml', output_folder)
-
-    problem = parameters['main_problem']
-    objective = parameters['main_objective']
     solution_method = parameters['solution_method']
-    iterations_Lagrange = parameters['no_iterations_Lagrange']
-    iterations_SA = parameters['no_iterations_SA']
-    explorations_SA = parameters['no_explorations_SA']
-    subgradient = parameters['subgradient_approximation']
+
     solver = parameters['solver']
     MIPGap = parameters['mipgap']
+    TimeLimit = parameters['timelimit']
+    Threads = parameters['threads']
+    # technologies = parameters['technologies']
 
-    technologies = parameters['technologies']
-
-    input_dict = gg.preprocess_input_data(parameters)
+    input_dict = preprocess_input_data(parameters)
 
     # Solver options for the MIP problem
     opt = SolverFactory(solver)
     opt.options['MIPGap'] = MIPGap
-    opt.options['Threads'] = 0
-    opt.options['TimeLimit'] = 3600
-    opt.options['DisplayInterval'] = 600
+    opt.options['Threads'] = Threads
+    opt.options['TimeLimit'] = TimeLimit
     # Solver options for the relaxations.
     opt_relaxation = SolverFactory(solver)
     opt_relaxation.options['MIPGap'] = 0.02
     # Solver options for the integer Lagrangian
     opt_integer = SolverFactory(solver)
     opt_integer.options['MIPGap'] = MIPGap
-    opt_integer.options['Threads'] = 0
-    opt_integer.options['TimeLimit'] = 18000
+    opt_integer.options['Threads'] = Threads
+    opt_integer.options['TimeLimit'] = TimeLimit
     opt_integer.options['MIPFocus'] = 3
-    opt_integer.options['DisplayInterval'] = 600
     # Solver options for the iterative procedure
     opt_persistent = SolverFactory('gurobi_persistent')
     opt_persistent.options['mipgap'] = 0.02
 
     if solution_method == 'None':
 
-        if problem == 'Covering':
+        custom_log(' BB chosen to solve the IP.')
 
-            instance = gg.build_model(input_dict, problem, objective, output_folder,
-                                      low_memory=lowmem, write_lp=False)
-            tl.custom_log(' Sending model to solver.')
+        instance, indices = build_model(parameters, input_dict, output_folder, write_lp=False)
+        custom_log(' Sending model to solver.')
 
-            results = opt.solve(instance, tee=True, keepfiles=False, report_timing=False,
-                                logfile=join(output_folder, 'solver_log.log'),)
-            optimal_locations = tl.retrieve_optimal_locations(instance, input_dict['critical_window_matrix'],
-                                                              technologies, problem)
+        results = opt.solve(instance, tee=True, keepfiles=False, report_timing=False,
+                            logfile=join(output_folder, 'solver_log.log'),)
 
-        elif problem == 'Load':
+        comp_location_dict = retrieve_location_dict(instance, parameters, input_dict, indices)
+        max_location_dict = retrieve_site_data(parameters, input_dict, output_folder, comp_location_dict)
+        no_windows_max = retrieve_max_run_criticality(max_location_dict, input_dict, parameters)
+        print('Number of non-critical windows for the MAX case: ', no_windows_max)
 
-            raise ValueError(' This problem should be solved with a solution method.')
+    # elif solution_method == 'ASM':
+    #
+    #     iterations_Lagrange = 500
+    #     subgradient = 'Inexact'
+    #
+    #     # Build PCR to extract i) the set of ys to dualize
+    #     instance_pcr = build_model_relaxation(parameters, input_dict, formulation='PartialConvex')
+    #
+    #     custom_log(' Solving the partial convex relaxation...')
+    #     results_pcr = opt_relaxation.solve(instance_pcr,
+    #                                         tee=False, keepfiles=False, report_timing=False)
+    #
+    #     lb = retrieve_lower_bound(input_dict, instance_pcr,
+    #                                  method='SimulatedAnnealing', multiprocess=False,
+    #                                  N = 1, T_init=100., no_iter = 100, no_epoch = 500)
+    #
+    #     # Build sets of constraints to keep and dualize, respectively.
+    #     ys_dual, ys_keep = retrieve_y_idx(instance_pcr, share_random_keep=0.2)
+    #
+    #     # Build (random sampling within range) initial multiplier (\lambda_0). Affects the estimation of the first UB.
+    #     init_multiplier = build_init_multiplier(ys_dual, range=0.5)
+    #
+    #     # Build PCLR/ILR within the "persistent" interface.
+    #     instance_Lagrange = build_model_relaxation(input_dict, formulation='Lagrangian',
+    #                                                     subgradient_method=subgradient,
+    #                                                     y_dual=ys_dual, y_keep=ys_keep,
+    #                                                     multiplier=init_multiplier)
+    #     opt_persistent.set_instance(instance_Lagrange)
+    #
+    #     custom_log(' Solving the Lagrangian relaxations...')
+    #     # Iteratively solve and post-process data.
+    #     for i in tqdm(range(1, iterations_Lagrange + 1), desc='Lagrangean Relaxation Loop'):
+    #
+    #         results_Lagrange = opt_persistent.solve(tee=False, keepfiles=False, report_timing=False)
+    #
+    #         # Compute next multiplier.
+    #         incumbent_multiplier = retrieve_next_multiplier(instance_Lagrange, init_multiplier,
+    #                                                            ys_keep, ys_dual, i, iterations_Lagrange,
+    #                                                            subgradient, a=0.01, share_of_iter=0.8)
+    #
+    #         # Replace multiplier, hence the objective.
+    #         instance_Lagrange.del_component(instance_Lagrange.objective)
+    #         instance_Lagrange.objective = new_cost_rule(instance_Lagrange,
+    #                                                        ys_keep, ys_dual,
+    #                                                        incumbent_multiplier)
+    #         opt_persistent.set_objective(instance_Lagrange.objective)
+    #
+    #         # Assign new value to init_multiplier to use in the iterative multiplier calculation.
+    #         init_multiplier = incumbent_multiplier
+    #
+    #     # Create nd array from list of 1d multipliers from each iteration.
+    #     # multiplier_array = concatenate_and_filter_arrays(multiplier_list, ys_keep)
+    #
+    #     # Build and solve ILP with the incumbent_multiplier.
+    #     instance_integer = build_model_relaxation(input_dict, formulation='Lagrangian',
+    #                                          subgradient_method='Exact', y_dual=ys_dual, y_keep=ys_keep)
+    #
+    #     custom_log(' Solving the integer Lagrangian problem...')
+    #     results = opt_integer.solve(instance_integer, logfile=join(output_folder, 'solver_log.log'),
+    #                                                             tee=True, keepfiles=False, report_timing=False)
+    #
+    #     custom_log(' UB = {}, LB = {}, gap = {}%'.format(retrieve_upper_bound(results),
+    #                                                        lb,
+    #                                                        round((retrieve_upper_bound(results) - lb) / lb * 100., 2)))
 
-        else:
-
-            raise ValueError(' This problem does not exist.')
-
-
-
-
-
-
-
-
-    elif solution_method == 'Projection':
-
-        if problem == 'Covering':
-
-            instance = gg.build_model_relaxation(input_dict, formulation='PartialConvex', low_memory=lowmem)
-
-        elif problem == 'Load':
-
-            instance = gg.build_model(input_dict, problem, objective, output_folder,
-                                      low_memory=lowmem)
-
-        else:
-
-            raise ValueError(' This problem does not exist.')
-
-        tl.custom_log(' Solving...')
-        results = opt.solve(instance, logfile=join(output_folder, 'solver_log.log'),
-                            tee=True, keepfiles=False, report_timing=False)
-
-        tl.custom_log(' Relaxation solved and passed to the projection problem.')
-        tl.retrieve_feasible_solution_projection(input_dict, instance, results, problem)
-
-        optimal_locations = tl.retrieve_optimal_locations(instance,
-                                                          input_dict['critical_window_matrix'],
-                                                          technologies,
-                                                          problem)
-
-
-
-
-
-
-
-
-
-    elif solution_method == 'Lagrange':
-
-        # Initialize some list objects to be dumped in the output dict.
-        # objective_list = []
-        # gap_list = []
-        # multiplier_list = []
-
-        # Build PCR to extract i) the set of ys to dualize
-        instance_pcr = gg.build_model_relaxation(input_dict, formulation='PartialConvex', low_memory=lowmem)
-
-        tl.custom_log(' Solving the partial convex relaxation...')
-        results_pcr = opt_relaxation.solve(instance_pcr,
-                                            tee=False, keepfiles=False, report_timing=False)
-
-        lb = tl.retrieve_lower_bound(input_dict, instance_pcr,
-                                     method='SimulatedAnnealing', multiprocess=False,
-                                     N = 1, T_init=100., no_iter = iterations_SA, no_epoch = explorations_SA)
-
-        # Build sets of constraints to keep and dualize, respectively.
-        ys_dual, ys_keep = tl.retrieve_y_idx(instance_pcr, share_random_keep=0.2)
-
-        # Build (random sampling within range) initial multiplier (\lambda_0). Affects the estimation of the first UB.
-        init_multiplier = tl.build_init_multiplier(ys_dual, range=0.5)
-
-        # Build PCLR/ILR within the "persistent" interface.
-        instance_Lagrange = gg.build_model_relaxation(input_dict, formulation='Lagrangian',
-                                                        subgradient_method=subgradient,
-                                                        y_dual=ys_dual, y_keep=ys_keep,
-                                                        multiplier=init_multiplier, low_memory=lowmem)
-        opt_persistent.set_instance(instance_Lagrange)
-
-        tl.custom_log(' Solving the Lagrangian relaxations...')
-        # Iteratively solve and post-process data.
-        for i in tqdm(range(1, iterations_Lagrange + 1), desc='Lagrangean Relaxation Loop'):
-
-            results_Lagrange = opt_persistent.solve(tee=False, keepfiles=False, report_timing=False)
-
-            # multiplier_list.append(array(list(init_multiplier.values())))
-            # objective_list.append(tl.retrieve_upper_bound(results_lagrange))
-            # gap_list.append(round((tl.retrieve_upper_bound(results_lagrange) - lb) / lb * 100., 2))
-
-            # Compute next multiplier.
-            incumbent_multiplier = tl.retrieve_next_multiplier(instance_Lagrange, init_multiplier,
-                                                               ys_keep, ys_dual, i, iterations_Lagrange,
-                                                               subgradient, a=0.01, share_of_iter=0.8)
-
-            # Replace multiplier, hence the objective.
-            instance_Lagrange.del_component(instance_Lagrange.objective)
-            instance_Lagrange.objective = tl.new_cost_rule(instance_Lagrange,
-                                                           ys_keep, ys_dual,
-                                                           incumbent_multiplier,
-                                                           low_memory=lowmem)
-            opt_persistent.set_objective(instance_Lagrange.objective)
-
-            # Assign new value to init_multiplier to use in the iterative multiplier calculation.
-            init_multiplier = incumbent_multiplier
-
-        # Create nd array from list of 1d multipliers from each iteration.
-        # multiplier_array = tl.concatenate_and_filter_arrays(multiplier_list, ys_keep)
-
-        if subgradient == 'Inexact':
-
-            # Build and solve ILP with the incumbent_multiplier.
-            instance_integer = gg.build_model_relaxation(input_dict, formulation='Lagrangian',
-                                                 subgradient_method='Exact', y_dual=ys_dual, y_keep=ys_keep,
-                                                 multiplier=incumbent_multiplier, low_memory=lowmem)
-
-            tl.custom_log(' Solving the integer Lagrangian problem...')
-            results = opt_integer.solve(instance_integer, logfile=join(output_folder, 'solver_log.log'),
-                                                                    tee=True, keepfiles=False, report_timing=False)
-
-            tl.custom_log(' UB = {}, LB = {}, gap = {}%'.format(tl.retrieve_upper_bound(results),
-                                                               lb,
-                                                               round((tl.retrieve_upper_bound(results) - lb) / lb * 100., 2)))
-            optimal_locations = tl.retrieve_optimal_locations(instance_integer, input_dict['critical_window_matrix'],
-                                                              technologies, problem)
-
-        else:
-
-            tl.custom_log(' UB = {}, LB = {}, gap = {}%'.format(tl.retrieve_upper_bound(results_Lagrange),
-                                                               lb,
-                                                               round((tl.retrieve_upper_bound(results_Lagrange) - lb) / lb * 100., 2)))
-
-            optimal_locations = tl.retrieve_optimal_locations(instance_Lagrange, input_dict['critical_window_matrix'],
-                                                              technologies, problem)
-
-
-    else:
-
-        raise ValueError(' This solution method is not available. Retry.')
-
-
-    output_dict = {k: v for k, v in input_dict.items() if k in ('region_list', 'coordinates_dict', 'technologies',
-                                                                'capacity_factors_dict', 'critical_window_matrix',
-                                                                'capacity_potential_per_node')}
-
-    output_dict.update({'optimal_location_dict': optimal_locations})
-
-    if (problem == 'Covering' and 'capacities' in objective) or (problem == 'Load' and objective == 'following'):
-        deployed_capacities = tl.retrieve_deployed_capacities(instance, technologies,
-                                                              input_dict['capacity_potential_per_node'])
-        output_dict.update({'deployed_capacities_dict': deployed_capacities})
-
-    # counter = 0
-    # for k in instance.W:
-    #     counter += instance.y[k].value
-    # print ('Time window part is: {}'.format(counter))
-    # print ('Penalty term part is: {}'.format(round(abs(instance.objective()) - counter, 2)))
-
-    pickle.dump(output_dict, open(join(output_folder, 'output_model.p'), 'wb'))
-
-    tl.remove_garbage(keepfiles, output_folder)
+        # optimal_locations = tl.retrieve_optimal_locations(instance_integer, input_dict['critical_window_matrix'],
+        #                                                   technologies, problem)
+    #
+    #
+    #
+    # elif solution_method == 'Heuristic':
+    # #TODO: set this up.
+    #     pass
+    #
+    # elif solution_method == 'Warmstart':
+    # #TODO: set this up.
+    #     pass
+    #
+    # else:
+    #
+    #     raise ValueError(' This solution method is not available. Retry.')
+    #
+    #
+    # output_dict = {k: v for k, v in input_dict.items() if k in ('region_list', 'coordinates_dict', 'technologies',
+    #                                                             'capacity_factors_dict', 'critical_window_matrix',
+    #                                                             'capacity_potential_per_node')}
+    #
+    # output_dict.update({'optimal_location_dict': optimal_locations})
+    #
+    # if (problem == 'Covering' and 'capacities' in objective) or (problem == 'Load' and objective == 'following'):
+    #     deployed_capacities = tl.retrieve_deployed_capacities(instance, technologies,
+    #                                                           input_dict['capacity_potential_per_node'])
+    #     output_dict.update({'deployed_capacities_dict': deployed_capacities})
+    #
+    # pickle.dump(output_dict, open(join(output_folder, 'output_model.p'), 'wb'))
+    #
+    # tl.remove_garbage(keepfiles, output_folder)
 
 
 if __name__ == "__main__":

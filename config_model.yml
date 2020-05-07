@@ -1,0 +1,64 @@
+# Spatial resolution (in degrees) of the potential sites.
+spatial_resolution: 0.5
+
+# Path towards the various input data.
+path_resource_data: '../input_data/resource_data'
+path_transfer_function_data: '../input_data/transfer_functions'
+path_population_density_data: '../input_data/population_density'
+path_protected_areas_data: '../input_data/protected_areas'
+path_land_data: '../input_data/land_data'
+path_load_data: '../input_data/load_data'
+path_transmission_data: '../input_data/transmission_data'
+path_potential_data: '../input_data/potentials'
+path_legacy_data : '../input_data/legacy'
+path_shapefile_data: '../input_data/shapefiles'
+
+# Various data layers to be taken into account in potential site selection.
+resource_quality_layer: True
+population_density_layer: True
+protected_areas_layer: False
+bathymetry_layer: True
+orography_layer: True
+forestry_layer: True
+water_mask_layer: True
+latitude_layer: True
+legacy_layer: True
+distance_layer: True
+
+# Start time and end time of the analysis.
+time_slice: ['2015-01-01T00:00', '2015-01-31T23:00']
+# List of regions to be considered in the optimization. To note that a list of pre-defined regions is available
+# in tools.py, within the `return_coordinates_from_countries` function. Yet, if additional regions are defined,
+# an associated load signal should be assigned in the `read_load_data` function.
+regions: ['DE']
+# Technologies to deploy. Must have a 'RESOURCE_CONVERTER' structure. Only two technologies available for now.
+technologies: ['wind_onshore', 'wind_offshore']
+
+
+# Assessment measure for each time window. Available: mean, median or percentiles.
+smooth_measure: 'mean'
+# Defines how \alpha is considered in space and time.
+alpha: 'load_central'
+# Normalization procedures (detailed in tools.py). (min, max)
+norm_type: 'min'
+# Time-window length used to compute the criticality indicator. Integer value.
+delta: 1
+# Geographical coverage threshold used to compute the criticality indicator. Float value between 0.0 and 1.0
+beta: 0.8
+
+# Choice of solver. Available: 'gurobi' and 'cplex'.
+solver: 'gurobi'
+# MIP gap --- 0.01 = 1%
+mipgap: 0.05
+timelimit: 1800
+threads: 0
+
+# Solution method: None, ASM, Warm, Heuristic, etc.
+solution_method: 'None'
+
+# Dict of deployments per partition (ordered as the 'regions' list above)
+deployment_vector: {'DE':{'wind_onshore': 10, 'wind_offshore':3}}
+
+
+# Keeping files at the end of the run.
+keep_files: True

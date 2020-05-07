@@ -1,6 +1,7 @@
 name: resite
 channels:
   - conda-forge
+  - defaults
 dependencies:
   - bottleneck
   - cdsapi
@@ -16,3 +17,6 @@ dependencies:
   - xlrd
   - tqdm
   - joblib
+  - geopy
+  - pypsa
+  - shapely
