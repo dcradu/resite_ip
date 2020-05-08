@@ -30,7 +30,7 @@ time_slice: ['2015-01-01T00:00', '2015-01-31T23:00']
 # List of regions to be considered in the optimization. To note that a list of pre-defined regions is available
 # in tools.py, within the `return_coordinates_from_countries` function. Yet, if additional regions are defined,
 # an associated load signal should be assigned in the `read_load_data` function.
-regions: ['DE']
+regions: ['DE', 'UK']
 # Technologies to deploy. Must have a 'RESOURCE_CONVERTER' structure. Only two technologies available for now.
 technologies: ['wind_onshore', 'wind_offshore']
 
@@ -57,7 +57,8 @@ threads: 0
 solution_method: 'None'
 
 # Dict of deployments per partition (ordered as the 'regions' list above)
-deployment_vector: {'DE':{'wind_onshore': 10, 'wind_offshore':3}}
+deployment_vector: {'DE':{'wind_onshore': 10, 'wind_offshore':3},
+                    'UK':{'wind_onshore': 5, 'wind_offshore':8}}
 
 
 # Keeping files at the end of the run.

@@ -1,10 +1,9 @@
 from os.path import join
 
-from numpy import ones, floor, sum, arange, multiply, dot, delete, array
-from pyomo.environ import ConcreteModel, Var, Objective, Binary, \
-    maximize, NonNegativeReals
+from numpy import floor, sum, arange
+from pyomo.environ import ConcreteModel, Var, Binary, maximize
 from pyomo.opt import ProblemFormat
-from pypsa.opt import l_constraint, LConstraint, l_objective, LExpression, _build_sum_expression
+from pypsa.opt import l_constraint, LConstraint, l_objective, LExpression
 
 from src.helpers import custom_log, xarray_to_ndarray, concatenate_dict_keys, get_partition_index
 from src.tools import read_database, return_filtered_coordinates, selected_data, return_output, \
@@ -177,124 +176,3 @@ def build_model(model_parameters, input_data, output_folder, write_lp=False):
                     io_options={'symbolic_solver_labels': True})
 
     return model, indices
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-# def build_model_relaxation(model_parameters, input_data, formulation,
-#                            subgradient_method=None, y_dual=None, y_keep=None, multiplier=None,
-#                            output_folder=None, write_lp=False):
-#
-#     D = input_data['criticality_data']
-#     no_locations = D.shape[1]
-#     no_windows = D.shape[0]
-#
-#     partitions = [item for item in model_parameters['deployment_vector']]
-#     n = sum(dict_deployment[item] for item in dict_deployment)
-#
-#     indices = input_data['location_indices']
-#     beta = input_data['geographical_coverage']
-#
-#     model = ConcreteModel()
-#
-#     model.W = arange(1, no_windows + 1)
-#     model.L = arange(1, no_locations + 1)
-#     model.partitions = arange(1, k + 1)
-#
-#     model.c = int(floor(sum(n) * round((1 - beta), 2)) + 1)
-#
-#     if formulation == 'PartialConvex':
-#
-#         model.x = Var(model.L, within=Binary)
-#         model.y = Var(model.W, within=NonNegativeReals, bounds=(0,1))
-#
-#         activation_constraint = {}
-#
-#         for w in model.W:
-#             lhs = LExpression([(D[w - 1, l - 1], model.x[l]) for l in model.L])
-#             rhs = LExpression([(model.c, model.y[w])])
-#
-#             activation_constraint[w] = LConstraint(lhs, ">=", rhs)
-#
-#         l_constraint(model, "activation_constraint", activation_constraint, list(model.W))
-#
-#         cardinality_constraint = {}
-#
-#         for i in model.partitions:
-#             lhs = LExpression([(1, model.x[l]) for l in indices[i - 1]])
-#             rhs = LExpression(constant=n[i - 1])
-#
-#             cardinality_constraint[i] = LConstraint(lhs, "==", rhs)
-#
-#         l_constraint(model, "cardinality_constraint", cardinality_constraint, list(model.partitions))
-#
-#         objective = LExpression([(1, model.y[w]) for w in model.W])
-#         l_objective(model, objective, sense=maximize)
-#
-#
-#     elif formulation == 'Lagrangian':
-#
-#         model.x = Var(model.L, within=Binary)
-#
-#         if subgradient_method == 'Inexact':
-#             model.y = Var(model.W, within=NonNegativeReals, bounds=(0, 1))
-#         elif subgradient_method == 'Exact':
-#             model.y = Var(model.W, within=Binary)
-#         else:
-#             raise ValueError(' This case is not available.')
-#
-#         activation_constraint = {}
-#
-#         for w in y_keep:
-#
-#             lhs = LExpression([(model.D[w - 1, l - 1], model.x[l]) for l in model.L])
-#             rhs = LExpression([(model.c, model.y[w])])
-#
-#             activation_constraint[w] = LConstraint(lhs, ">=", rhs)
-#
-#         l_constraint(model, "activation_constraint", activation_constraint, y_keep)
-#
-#         cardinality_constraint = {}
-#
-#         for i in model.partitions:
-#             lhs = LExpression([(1, model.x[l]) for l in indices[i - 1]])
-#             rhs = LExpression(constant=n[i - 1])
-#
-#             cardinality_constraint[i] = LConstraint(lhs, "==", rhs)
-#
-#         l_constraint(model, "cardinality_constraint", cardinality_constraint, list(model.partitions))
-#
-#         lc = dict(zip(y_dual, multiply(model.c, array(list(multiplier.values())))))
-#         dx = dot(array(list(multiplier.values())),
-#                  delete(model.D, [i - 1 for i in y_keep], axis=0))
-#
-#         objective = LExpression()
-#         objective.variables.extend([(1, model.y[w]) for w in model.W])
-#         objective.variables.extend([(dx[l - 1], model.x[l]) for l in model.L])
-#         objective.variables.extend([(-lc[w], model.y[w]) for w in y_dual])
-#
-#         model.objective = Objective(expr=0., sense=maximize)
-#         model.objective._expr = _build_sum_expression(objective.variables)
-#
-#
-#     else:
-#         raise ValueError(' This optimization setup is not available yet. Retry.')
-#
-#
-#     if write_lp:
-#         model.write(filename=join(output_folder, 'model.lp'),
-#                     format=ProblemFormat.cpxlp,
-#                     io_options={'symbolic_solver_labels': True})
-#
-#     return model
