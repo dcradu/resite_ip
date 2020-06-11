@@ -1,13 +1,13 @@
 from os.path import join
 
-from numpy import floor, sum, arange
+from numpy import floor, arange
 from pyomo.environ import ConcreteModel, Var, Binary, maximize
 from pyomo.opt import ProblemFormat
 from pypsa.opt import l_constraint, LConstraint, l_objective, LExpression
 
-from src.helpers import custom_log, xarray_to_ndarray, concatenate_dict_keys, get_partition_index
+from src.helpers import custom_log, xarray_to_ndarray
 from src.tools import read_database, return_filtered_coordinates, selected_data, return_output, \
-    resource_quality_mapping, critical_window_mapping
+    resource_quality_mapping, critical_window_mapping, retrieve_index_dict
 
 
 def preprocess_input_data(model_parameters):
@@ -113,20 +113,7 @@ def build_model(model_parameters, input_data, output_folder, write_lp=False):
     no_windows = D.shape[0]
     no_locations = D.shape[1]
 
-    d = model_parameters['deployment_vector']
-    if isinstance(d[list(d.keys())[0]], int):
-        dict_deployment = d
-        n = sum(dict_deployment[item] for item in dict_deployment)
-        partitions = [item for item in d]
-        if model_parameters['constraint'] == 'country':
-            indices = concatenate_dict_keys(get_partition_index(coordinate_dict, d, capacity_split='per_country'))
-        elif model_parameters['constraint'] == 'tech':
-            indices = concatenate_dict_keys(get_partition_index(coordinate_dict, d, capacity_split='per_tech'))
-    else:
-        dict_deployment = concatenate_dict_keys(d)
-        n = sum(dict_deployment[item] for item in dict_deployment)
-        partitions = [item for item in dict_deployment]
-        indices = concatenate_dict_keys(get_partition_index(coordinate_dict, d, capacity_split='per_country_and_tech'))
+    n, dict_deployment, partitions, indices = retrieve_index_dict(model_parameters, coordinate_dict)
 
     c = int(floor(n*round((1 - model_parameters['beta']), 2)) + 1)
 

@@ -26,13 +26,14 @@ legacy_layer: True
 distance_layer: True
 
 # Start time and end time of the analysis.
-time_slice: ['2015-01-01T00:00', '2015-01-31T23:00']
+time_slice: ['2014-01-01T00:00', '2018-12-31T23:00']
 # List of regions to be considered in the optimization. To note that a list of pre-defined regions is available
 # in tools.py, within the `return_coordinates_from_countries` function. Yet, if additional regions are defined,
 # an associated load signal should be assigned in the `read_load_data` function.
-regions: ['DE', 'UK']
+regions: ['DE', 'FR', 'ES', 'UK', 'IT', 'SE', 'PL', 'NL', 'PT', 'AT', 'EL', 'IE', 'DK', 'FI',
+          'RO', 'BE', 'BG', 'LT', 'CZ', 'EE', 'LV', 'HR', 'NO']
 # Technologies to deploy. Must have a 'RESOURCE_CONVERTER' structure. Only two technologies available for now.
-technologies: ['wind_onshore', 'wind_offshore']
+technologies: ['wind_offshore']
 
 
 # Assessment measure for each time window. Available: mean, median or percentiles.
@@ -40,11 +41,11 @@ smooth_measure: 'mean'
 # Defines how \alpha is considered in space and time.
 alpha: 'load_central'
 # Normalization procedures (detailed in tools.py). (min, max)
-norm_type: 'min'
+norm_type: 'max'
 # Time-window length used to compute the criticality indicator. Integer value.
 delta: 1
 # Geographical coverage threshold used to compute the criticality indicator. Float value between 0.0 and 1.0
-beta: 0.8
+beta: 1.0
 
 # Choice of solver. Available: 'gurobi' and 'cplex'.
 solver: 'gurobi'
@@ -53,13 +54,66 @@ mipgap: 0.05
 timelimit: 1800
 threads: 0
 
-# Solution method: None, ASM, Warm, Heuristic, etc.
-solution_method: 'None'
+# Solution method: BB, etc.
+solution_method: 'jl_test'
 
 # Dict of deployments per partition (ordered as the 'regions' list above)
-deployment_vector: {'DE':{'wind_onshore': 10, 'wind_offshore':3},
-                    'UK':{'wind_onshore': 5, 'wind_offshore':8}}
+#deployment_vector: {'DE':{'wind_offshore':6},
+#                    'FR':{'wind_offshore':10},
+#                    'ES':{'wind_offshore':3},
+#                    'UK':{'wind_offshore':13},
+#                    'IT':{'wind_offshore':3},
+#                    'SE':{'wind_offshore':4},
+#                    'PL':{'wind_offshore':5},
+#                    'NL':{'wind_offshore':10},
+#                    'PT':{'wind_offshore':2},
+#                    'EL':{'wind_offshore':1},
+#                    'IE':{'wind_offshore':4},
+#                    'DK':{'wind_offshore':6},
+#                    'FI':{'wind_offshore':3},
+#                    'BE':{'wind_offshore':1},
+#                    'LT':{'wind_offshore':1},
+#                    'EE':{'wind_offshore':1},
+#                    'LV':{'wind_offshore':1},
+#                    'NO':{'wind_offshore':5}}
 
+deployment_vector: {'DE':{'wind_offshore':3},
+                    'FR':{'wind_offshore':4},
+                    'ES':{'wind_offshore':1},
+                    'UK':{'wind_offshore':6},
+                    'IT':{'wind_offshore':2},
+                    'SE':{'wind_offshore':2},
+                    'PL':{'wind_offshore':2},
+                    'NL':{'wind_offshore':4},
+                    'PT':{'wind_offshore':1},
+                    'EL':{'wind_offshore':1},
+                    'IE':{'wind_offshore':2},
+                    'DK':{'wind_offshore':3},
+                    'FI':{'wind_offshore':1},
+                    'BE':{'wind_offshore':1},
+                    'LT':{'wind_offshore':1},
+                    'EE':{'wind_offshore':1},
+                    'LV':{'wind_offshore':1},
+                    'NO':{'wind_offshore':2}}
+
+#deployment_vector: {'DE':{'wind_onshore':15},
+#                    'FR':{'wind_onshore':15},
+#                    'ES':{'wind_onshore':15},
+#                    'UK':{'wind_onshore':15},
+#                    'IT':{'wind_onshore':10},
+#                    'SE':{'wind_onshore':10},
+#                    'PL':{'wind_onshore':10},
+#                    'NL':{'wind_onshore':10},
+#                    'PT':{'wind_onshore':5},
+#                    'EL':{'wind_onshore':5},
+#                    'IE':{'wind_onshore':5},
+#                    'DK':{'wind_onshore':5},
+#                    'FI':{'wind_onshore':5},
+#                    'BE':{'wind_onshore':5},
+#                    'LT':{'wind_onshore':5},
+#                    'EE':{'wind_onshore':5},
+#                    'LV':{'wind_onshore':5},
+#                    'NO':{'wind_onshore':5}}
 
 # Keeping files at the end of the run.
 keep_files: True

@@ -1,34 +1,27 @@
+import pickle
 from ast import literal_eval
 from copy import deepcopy
 from glob import glob
 from os import listdir
 from os.path import join, isfile
-from random import choice, sample
 
 import dask.array as da
 import geopy.distance
 import xarray as xr
-import pickle
 import xarray.ufuncs as xu
 from geopandas import read_file
-from joblib import Parallel, delayed
-from numpy import arange, interp, float32, datetime64, where, sqrt, floor, \
-    asarray, ones, clip, array, newaxis, multiply, sum, \
-    delete, dot, vstack, take, exp, max, unique, radians, cos, sin, arctan2
-from numpy import random as nr
-from numpy.random import uniform
+from numpy import arange, interp, float32, datetime64, sqrt, floor, \
+    asarray, newaxis, sum, \
+    max, unique, radians, cos, sin, arctan2
 from pandas import read_csv, Series, DataFrame, date_range
-from pyomo.environ import maximize, Objective
-from pypsa.opt import LExpression, _build_sum_expression
 from shapely.geometry import Point
 from shapely.ops import nearest_points
-from tqdm import tqdm
 from windpowerlib import power_curves, wind_speed
 
 from src.helpers import filter_onshore_offshore_locations, union_regions, return_coordinates_from_shapefiles_light, \
-    return_region_divisions, read_legacy_capacity_data, retrieve_nodes_with_legacy_units, concatenate_dict_keys,\
-    return_dict_keys, chunk_split, collapse_dict_region_level, dict_to_xarray, custom_log, read_inputs, plot_basemap,\
-    retrieve_load_data_partitions
+    return_region_divisions, read_legacy_capacity_data, retrieve_nodes_with_legacy_units, concatenate_dict_keys, \
+    return_dict_keys, chunk_split, collapse_dict_region_level, dict_to_xarray, read_inputs, \
+    retrieve_load_data_partitions, get_partition_index
 
 
 def read_database(file_path):
@@ -530,7 +523,20 @@ def return_filtered_coordinates(dataset, spatial_resolution, technologies, regio
     for key, value in output_dict.items():
         output_dict[key] = {k: v for k, v in output_dict[key].items() if len(v) > 0}
 
-    return output_dict
+    result_dict = {r: {t: [] for t in technologies} for r in regions}
+    added_items = []
+    for region, tech in return_dict_keys(output_dict):
+        coords_region_tech = output_dict[region][tech]
+        for item in coords_region_tech:
+            if item in added_items:
+                continue
+            else:
+                result_dict[region][tech].append(item)
+                added_items.append(item)
+
+    print('total no of points:', len(added_items))
+
+    return result_dict
 
 
 def selected_data(dataset, input_dict, time_slice):
@@ -816,7 +822,43 @@ def retrieve_location_dict(instance, model_parameters, model_data, indices):
     return output_dict
 
 
-def retrieve_site_data(model_parameters, model_data, output_folder, site_coordinates):
+def retrieve_location_dict_jl(jl_output, model_parameters, model_data, indices):
+
+    output_dict = {key: [] for key in model_parameters['technologies']}
+
+    coordinates = concatenate_dict_keys(model_data['coordinates_data'])
+    for item, val in enumerate(jl_output, start=1):
+        if val == 1.0:
+            for key, index_list in indices.items():
+                if item in index_list:
+                    pos = [i for i, x in enumerate(index_list) if x == item][0]
+                    output_dict[key[1]].append(coordinates[key][pos])
+
+    return output_dict
+
+
+def retrieve_index_dict(model_parameters, coordinate_dict):
+
+    d = model_parameters['deployment_vector']
+    if isinstance(d[list(d.keys())[0]], int):
+        dict_deployment = d
+        n = sum(dict_deployment[item] for item in dict_deployment)
+        partitions = [item for item in d]
+        if model_parameters['constraint'] == 'country':
+            indices = concatenate_dict_keys(get_partition_index(coordinate_dict, d, capacity_split='per_country'))
+        elif model_parameters['constraint'] == 'tech':
+            indices = concatenate_dict_keys(get_partition_index(coordinate_dict, d, capacity_split='per_tech'))
+    else:
+        dict_deployment = concatenate_dict_keys(d)
+        n = sum(dict_deployment[item] for item in dict_deployment)
+        partitions = [item for item in dict_deployment]
+        indices = concatenate_dict_keys(get_partition_index(coordinate_dict, d, capacity_split='per_country_and_tech'))
+
+    return n, dict_deployment, partitions, indices
+
+
+def retrieve_site_data(model_parameters, model_data, output_folder, site_coordinates, suffix=None):
+
     deployment_dict = model_parameters['deployment_vector']
     output_by_tech = collapse_dict_region_level(model_data['capacity_factor_data'])
     time_slice = model_parameters['time_slice']
@@ -827,7 +869,6 @@ def retrieve_site_data(model_parameters, model_data, output_folder, site_coordin
         output_by_tech[tech] = output_by_tech[tech].isel(locations=index)
 
     # Retrieve complementary sites
-
     comp_site_data = {key: None for key in site_coordinates}
     for item in site_coordinates:
         comp_site_data[item] = {key: None for key in site_coordinates[item]}
@@ -840,10 +881,13 @@ def retrieve_site_data(model_parameters, model_data, output_folder, site_coordin
               innerDict.items()}
     comp_site_data_df = DataFrame(reform, index=time_dt)
 
-    pickle.dump(comp_site_data_df, open(join(output_folder, 'comp_site_data.p'), 'wb'))
+    if not suffix is None:
+        name = 'comp_site_data'+str(suffix)+'.p'
+    else:
+        name = 'comp_site_data.p'
+    pickle.dump(comp_site_data_df, open(join(output_folder, name), 'wb'))
 
     # Retrieve max sites
-
     output_data = model_data['capacity_factor_data']
     key_list = return_dict_keys(output_data)
     output_location = deepcopy(output_data)
@@ -879,7 +923,6 @@ def retrieve_site_data(model_parameters, model_data, output_folder, site_coordin
     pickle.dump(max_site_data_df, open(join(output_folder, 'max_site_data.p'), 'wb'))
 
     # Init coordinate set.
-
     coordinates_dict = model_data['coordinates_data']
 
     tech_dict = {key: [] for key in list(comp_site_data.keys())}

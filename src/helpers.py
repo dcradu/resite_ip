@@ -172,7 +172,7 @@ def get_offshore_shapes(region_name_list, country_shapes, path_shapefile_data, m
     offshore_shapes = offshore_shapes.reindex(countries_names)
     offshore_shapes['geometry'].fillna(Polygon([]), inplace=True)  # Fill nan geometries with empty Polygons
 
-    country_shapes_union = unary_union(country_shapes['geometry'].values)
+    country_shapes_union = unary_union(country_shapes['geometry'].buffer(0).values)
 
     # Keep only offshore 'close' to onshore
     offshore_shapes['geometry'] = offshore_shapes['geometry'].map(lambda x: filter_offshore_polys(x,
@@ -1110,6 +1110,7 @@ def init_folder(keepfiles):
 
 
 def generate_jl_output(deployment_dict, criticality_matrix, filtered_coordinates, output_folder, name):
+
     concat_deployment_dict = concatenate_dict_keys(deployment_dict)
     region_list = [tuple for tuple in concat_deployment_dict.keys()]
 

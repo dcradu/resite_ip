@@ -1,32 +1,26 @@
 import cdsapi
 import os
 
-regions = {'EU':'70/-10/35/30',
-           'NA':'38/-14/28/25',
-           'IC':'66/-25/63/-14',
-           'GR':'62/-49/59/-42',
-           'US':'50/-125/25/-65'}
+regions = {'EU': '75/-20/30/40'}
 
-years = ['2008', '2009','2010','2011','2012','2013','2014','2015','2016','2017']
+years = ['2014','2015','2016','2017', '2018']
 months = ['01','02','03','04','05','06','07','08','09','10','11','12']
 
-spatial_resolution = 0.5
+spatial_resolution = 0.28
 
 for region in regions.keys():
-    directory = '../input_data/resource_data/' + str(spatial_resolution) + '/' + region + '/'
+    directory = '../input_data/resource_data/' + str(spatial_resolution) + '/'
     if not os.path.exists(directory):
         os.makedirs(directory)
-
+c = cdsapi.Client()
 for key, value in regions.items():
     for year in years:
         for month in months:
-
-                c = cdsapi.Client()
                 c.retrieve(
                     'reanalysis-era5-single-levels',
                     {
                         'variable':['100m_u_component_of_wind','100m_v_component_of_wind',
-                                    '2m_temperature', 'surface_solar_radiation_downwards'],
+                                    '2m_temperature', 'surface_solar_radiation_downwards', 'forecast_surface_roughness'],
                         'product_type':'reanalysis',
                         'area': str(value),
                         'grid': str(spatial_resolution)+'/'+str(spatial_resolution),
@@ -39,7 +33,7 @@ for key, value in regions.items():
                                 '18:00', '19:00', '20:00','21:00', '22:00', '23:00'],
                         'format':'netcdf'
                     },
-                directory+'/'+key+'_'+year+'_'+month+'.nc')
+                    f"{directory}/{region}_{year}_{month}.nc")
 
 
 
