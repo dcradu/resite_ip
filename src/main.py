@@ -28,7 +28,7 @@ if solution_method == 'BB':
     if not isinstance(parameters['c'], int):
         raise ValueError(' Values of c have to be integers for the Branch & Bound set-up.')
 
-    output_folder = init_folder(parameters, suffix='_c' + str(parameters['c']))
+    output_folder = init_folder(parameters, input_dict, suffix='_c' + str(parameters['c']))
     copy('../config_model.yml', output_folder)
 
     # Solver options for the MIP problem
@@ -47,13 +47,6 @@ if solution_method == 'BB':
     max_location_dict = retrieve_site_data(parameters, input_dict, output_folder, comp_location_dict)
     no_windows_max = retrieve_max_run_criticality(max_location_dict, input_dict, parameters)
     print('Number of non-critical windows for the MAX case: ', no_windows_max)
-
-    # input_dict.update({'comp_location_dict': comp_location_dict})
-    # input_dict.update({'max_location_dict': max_location_dict})
-    # input_dict.update({'region_list': parameters['regions']})
-    # input_dict.update({'technologies': parameters['technologies']})
-    #
-    # pickle.dump(input_dict, open(join(output_folder, 'output_model.p'), 'wb'))
 
 elif solution_method == 'HEU':
 
@@ -75,7 +68,7 @@ elif solution_method == 'HEU':
 
     for c in parameters['c']:
         print('Running heuristic for c value of', c)
-        output_folder = init_folder(parameters, suffix='_c' + str(c))
+        output_folder = init_folder(parameters, input_dict, suffix='_c' + str(c))
         copy('../config_model.yml', output_folder)
 
         jl_selected = fn(jl_dict['index_dict'], jl_dict['deployment_dict'], jl_dict['criticality_matrix'], c,
