@@ -1086,19 +1086,19 @@ def init_folder(parameters, input_dict, suffix=None):
 
     """
     prefix = str(parameters['name_prefix'])
-    no_locs = sum(parameters['deployment_dict'].values())
-    no_part = len(parameters['deployment_dict'])
+    no_locs = sum({k: sum(v.values()) for k, v in parameters['deployment_vector'].items()}.values())
+    no_part = len(parameters['deployment_vector'])
     total_locs = input_dict['criticality_data'].shape[1]
     no_yrs = round((to_datetime(parameters['time_slice'][1]) - to_datetime(parameters['time_slice'][0])) / timedelta64(1, 'Y'), 0)
 
     if not isdir("../output_data"):
         makedirs(abspath("../output_data"))
 
-        path = abspath('../output_data/' + prefix + total_locs + 'locs_' + no_yrs + 'y_n' + no_locs + 'k_' + no_part + suffix)
+        path = abspath('../output_data/' + prefix + str(total_locs) + 'locs_' + str(no_yrs) + 'y_n' + str(no_locs) + 'k_' + str(no_part) + suffix)
         makedirs(path)
 
     else:
-        path = abspath('../output_data/' + prefix + total_locs + 'locs_' + no_yrs + 'y_n' + no_locs + 'k_' + no_part + suffix)
+        path = abspath('../output_data/' + prefix + str(total_locs) + 'locs_' + str(no_yrs) + 'y_n' + str(no_locs) + 'k_' + str(no_part) + suffix)
         makedirs(path)
 
     custom_log(' Folder path is: {}'.format(str(path)))
