@@ -67,12 +67,19 @@ elif solution_method == 'jl_test':
 
     _, _, _, indices = retrieve_index_dict(parameters, input_dict['coordinates_data'])
 
+    jl_dict = generate_jl_output(parameters['deployment_vector'], input_dict['criticality_data'], input_dict['coordinates_data'])
+
+    import julia
+    from julia.api import Julia
+    print('Opening Julia instance')
+    jl = julia.Julia(compiled_modules=False)
+    fn = jl.include("jl/main_heuristics.jl")
+
     cs = [8, 12, 16, 20, 38]
     for c in cs:
-        path_to_sol = '../output_data/offshore_country_5y_'+str(parameters['norm_type'])+'_SALS_n38_c'+str(c)+'.p'
-        jl_sol = pickle.load(open(path_to_sol, 'rb'))
-        # Retrieve solution with best objective and ditch first element (objective)
-        jl_selected = jl_sol[np.argmax(jl_sol[:, 0]), :][1:]
+        print('c:', c)
+        jl_selected = fn(jl_dict['index_dict'], jl_dict['deployment_dict'], jl_dict['criticality_matrix'],
+                         c, 1, 150, 500, 200, 1, "SALS")
         jl_locations = retrieve_location_dict_jl(jl_selected, parameters, input_dict, indices)
 
         retrieve_site_data(parameters, input_dict, output_folder, jl_locations,

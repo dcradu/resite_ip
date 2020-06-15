@@ -12,7 +12,7 @@ import pickle
 import xarray as xr
 import yaml
 from geopandas import read_file
-from numpy import sqrt, hstack, arange, dtype, array
+from numpy import sqrt, hstack, arange, dtype, array, float64, int64
 from pandas import DataFrame, read_excel, notnull, read_csv, date_range
 from scipy.spatial import distance
 from shapely import prepared
@@ -1109,7 +1109,7 @@ def init_folder(keepfiles):
     return path
 
 
-def generate_jl_output(deployment_dict, criticality_matrix, filtered_coordinates, output_folder, name):
+def generate_jl_output(deployment_dict, criticality_matrix, filtered_coordinates):
 
     concat_deployment_dict = concatenate_dict_keys(deployment_dict)
     region_list = [tuple for tuple in concat_deployment_dict.keys()]
@@ -1130,7 +1130,9 @@ def generate_jl_output(deployment_dict, criticality_matrix, filtered_coordinates
                    'criticality_matrix': criticality_matrix,
                    'index_dict': index_dict_swap}
 
-    pickle.dump(output_dict, open(join(output_folder, str(name) + '.p'), 'wb'))
+    return output_dict
+
+#    pickle.dump(output_dict, open(join(output_folder, str(name) + '.p'), 'wb'))
 
 
 def remove_garbage(keepfiles, output_folder, lp=True, script=True, sol=True):
