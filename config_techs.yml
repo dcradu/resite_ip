@@ -25,19 +25,19 @@ wind_offshore:
   converter_I: 'V164'
   resource: 'wind'
   deployment: 'offshore'
-  resource_threshold: 7. #m/s
+  resource_threshold: 6. #m/s
   population_density_threshold_low: 0.
   population_density_threshold_high: 100.
   protected_areas_selection: ['Ia', 'Ib', 'II', 'V']
   protected_areas_distance_threshold: 5.
-  depth_threshold_low: 5.
-  depth_threshold_high: 299.
+  depth_threshold_low: 10.
+  depth_threshold_high: 999.
   altitude_threshold: 0.
   terrain_slope_threshold: 1.
   forestry_ratio_threshold: 1.
   latitude_threshold: 65.
-  distance_threshold_min: 23.
-  distance_threshold_max: 111.
+  distance_threshold_min: 22.2
+  distance_threshold_max: 222.2 # 111.
 
 wind_floating:
   converter_IV: 'V90'

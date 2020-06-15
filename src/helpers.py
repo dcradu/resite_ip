@@ -6,14 +6,12 @@ from operator import attrgetter
 from os import remove, getcwd, makedirs
 from os.path import join, isdir, abspath
 from shutil import rmtree
-from time import strftime
 
-import pickle
 import xarray as xr
 import yaml
 from geopandas import read_file
-from numpy import sqrt, hstack, arange, dtype, array, float64, int64
-from pandas import DataFrame, read_excel, notnull, read_csv, date_range
+from numpy import sqrt, hstack, arange, dtype, array, timedelta64
+from pandas import DataFrame, read_excel, notnull, read_csv, date_range, to_datetime
 from scipy.spatial import distance
 from shapely import prepared
 from shapely.geometry import Point, MultiPolygon, Polygon
@@ -1068,15 +1066,15 @@ def read_inputs(inputs):
     return data
 
 
-def init_folder(keepfiles):
+def init_folder(parameters, suffix=None):
     """Initilize an output folder.
 
     Parameters:
 
     ------------
 
-    keepfiles : boolean
-        If False, folder previously built is deleted.
+    parameters : dict
+        Parameters dictionary.
 
     Returns:
 
@@ -1087,23 +1085,24 @@ def init_folder(keepfiles):
 
 
     """
-
-    date = strftime("%Y%m%d")
-    time = strftime("%H%M%S")
+    prefix = str(parameters['name_prefix'])
+    no_locs = sum(parameters['deployment_dict'].values())
+    no_part = len(parameters['deployment_dict'])
+    no_yrs = round((to_datetime(parameters['time_slice'][1]) - to_datetime(parameters['time_slice'][0])) / timedelta64(1, 'Y'), 0)
 
     if not isdir("../output_data"):
         makedirs(abspath("../output_data"))
 
-        path = abspath('../output_data/' + str(date) + '_' + str(time))
+        path = abspath('../output_data/' + prefix + no_yrs + 'y_n' + no_locs + 'k_' + no_part + suffix)
         makedirs(path)
 
     else:
-        path = abspath('../output_data/' + str(date) + '_' + str(time))
+        path = abspath('../output_data/' + prefix + no_yrs + 'y_n' + no_locs + 'k_' + no_part + suffix)
         makedirs(path)
 
     custom_log(' Folder path is: {}'.format(str(path)))
 
-    if keepfiles == False:
+    if parameters['keep_files'] == False:
         custom_log(' WARNING! Files will be deleted at the end of the run.')
 
     return path
@@ -1131,8 +1130,6 @@ def generate_jl_output(deployment_dict, criticality_matrix, filtered_coordinates
                    'index_dict': index_dict_swap}
 
     return output_dict
-
-#    pickle.dump(output_dict, open(join(output_folder, str(name) + '.p'), 'wb'))
 
 
 def remove_garbage(keepfiles, output_folder, lp=True, script=True, sol=True):

@@ -115,7 +115,7 @@ def build_model(model_parameters, input_data, output_folder, write_lp=False):
 
     n, dict_deployment, partitions, indices = retrieve_index_dict(model_parameters, coordinate_dict)
 
-    c = int(floor(n*round((1 - model_parameters['beta']), 2)) + 1)
+    c = model_parameters['c']
 
     for item in partitions:
         if item in indices:

@@ -501,8 +501,9 @@ def return_filtered_coordinates(dataset, spatial_resolution, technologies, regio
 
             final_coordinates[tech] = updated_coordinates
 
-        # if len(final_coordinates[tech]) > 0:
-        #     plot_basemap(final_coordinates[tech], title=tech)
+        if len(final_coordinates[tech]) > 0:
+            from src.helpers import plot_basemap
+            plot_basemap(final_coordinates[tech], title=tech)
 
     for region in regions:
 
@@ -795,11 +796,10 @@ def critical_window_mapping(input_dict,
 
     return output_dict
 
-def spatiotemporal_criticality_mapping(data_array, beta, n):
-    # Checks beta-criticality (returns 0 if critical, 1 otherwise) and computes
+def spatiotemporal_criticality_mapping(data_array, c, n):
+    # Checks global criticality (returns 0 if critical, 1 otherwise) and computes
     # the criticality index for a given region by dividing the sum on dimension
     # 'windows' to its length.
-    c = int(floor(n * round((1 - beta), 2)) + 1)
 
     temporal_noncriticality = data_array.sum(dim='locations')
     spatiotemporal_noncriticality = (temporal_noncriticality >= c).astype(int).sum(dim='windows')
@@ -941,7 +941,7 @@ def retrieve_max_run_criticality(max_sites, input_dict, parameters):
     capacity_factors_dict = input_dict['capacity_factor_data']
     alpha = parameters['alpha']
     delta = parameters['delta']
-    beta = parameters['beta']
+    c = parameters['c']
     measure = parameters['smooth_measure']
     regions = parameters['regions']
     time_horizon = parameters['time_slice']
@@ -968,6 +968,6 @@ def retrieve_max_run_criticality(max_sites, input_dict, parameters):
                                                norm_type)
 
     xarray_critical_windows = dict_to_xarray(critical_windows)
-    no_windows = spatiotemporal_criticality_mapping(xarray_critical_windows, beta, n)
+    no_windows = spatiotemporal_criticality_mapping(xarray_critical_windows, c, n)
 
     return no_windows.values

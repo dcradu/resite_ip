@@ -15,14 +15,14 @@ path_shapefile_data: '../input_data/shapefiles'
 
 # Various data layers to be taken into account in potential site selection.
 resource_quality_layer: True
-population_density_layer: True
+population_density_layer: False
 protected_areas_layer: False
 bathymetry_layer: True
-orography_layer: True
-forestry_layer: True
+orography_layer: False
+forestry_layer: False
 water_mask_layer: True
-latitude_layer: True
-legacy_layer: True
+latitude_layer: False
+legacy_layer: False
 distance_layer: True
 
 # Start time and end time of the analysis.
@@ -45,7 +45,7 @@ norm_type: 'max'
 # Time-window length used to compute the criticality indicator. Integer value.
 delta: 1
 # Geographical coverage threshold used to compute the criticality indicator. Float value between 0.0 and 1.0
-beta: 1.0
+c: 1
 
 # Choice of solver. Available: 'gurobi' and 'cplex'.
 solver: 'gurobi'
@@ -54,8 +54,16 @@ mipgap: 0.05
 timelimit: 1800
 threads: 0
 
-# Solution method: BB, etc.
-solution_method: 'jl_test'
+# Heuristics parameters
+neigborhood: 1
+no_interations: 150
+no_epochs: 500
+initial_temp: 200.
+no_runs: 5
+algorithm: 'SALS' #'GLS'
+
+# Solution method: BB or EU.
+solution_method: 'BB'
 
 # Dict of deployments per partition (ordered as the 'regions' list above)
 #deployment_vector: {'DE':{'wind_offshore':6},
@@ -117,3 +125,5 @@ deployment_vector: {'DE':{'wind_offshore':3},
 
 # Keeping files at the end of the run.
 keep_files: True
+# Run name
+name_prefix: 'offshore_'
