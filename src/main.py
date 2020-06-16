@@ -46,7 +46,7 @@ if solution_method == 'BB':
     comp_location_dict = retrieve_location_dict(instance, parameters, input_dict, indices)
     max_location_dict = retrieve_site_data(parameters, input_dict, output_folder, comp_location_dict)
     no_windows_max = retrieve_max_run_criticality(max_location_dict, input_dict, parameters)
-    print('Number of non-critical windows for the MAX case: ', no_windows_max)
+    # print('Number of non-critical windows for the MAX case: ', no_windows_max)
 
 elif solution_method == 'HEU':
 

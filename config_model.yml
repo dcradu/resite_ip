@@ -56,7 +56,7 @@ threads: 0
 
 # Heuristics parameters
 neigborhood: 1
-no_interations: 150
+no_iterations: 150
 no_epochs: 500
 initial_temp: 200.
 no_runs: 5

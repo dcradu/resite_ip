@@ -1090,15 +1090,16 @@ def init_folder(parameters, input_dict, suffix=None):
     no_part = len(parameters['deployment_vector'])
     total_locs = input_dict['criticality_data'].shape[1]
     no_yrs = round((to_datetime(parameters['time_slice'][1]) - to_datetime(parameters['time_slice'][0])) / timedelta64(1, 'Y'), 0)
+    norm = parameters['norm_type']
 
     if not isdir("../output_data"):
         makedirs(abspath("../output_data"))
 
-        path = abspath('../output_data/' + prefix + str(total_locs) + 'locs_' + str(no_yrs) + 'y_n' + str(no_locs) + 'k_' + str(no_part) + suffix)
+        path = abspath('../output_data/' + prefix + str(total_locs) + 'locs_' + str(no_yrs) + 'y_n' + str(no_locs) + 'k_' + str(no_part) + '_' + str(norm) + suffix)
         makedirs(path)
 
     else:
-        path = abspath('../output_data/' + prefix + str(total_locs) + 'locs_' + str(no_yrs) + 'y_n' + str(no_locs) + 'k_' + str(no_part) + suffix)
+        path = abspath('../output_data/' + prefix + str(total_locs) + 'locs_' + str(no_yrs) + 'y_n' + str(no_locs) + 'k_' + str(no_part) + '_' + str(norm) + suffix)
         makedirs(path)
 
     custom_log(' Folder path is: {}'.format(str(path)))

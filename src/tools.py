@@ -504,6 +504,9 @@ def return_filtered_coordinates(dataset, spatial_resolution, technologies, regio
         # if len(final_coordinates[tech]) > 0:
         #     from src.helpers import plot_basemap
         #     plot_basemap(final_coordinates[tech], title=tech)
+        #
+        # import sys
+        # sys.exit()
 
     for region in regions:
 

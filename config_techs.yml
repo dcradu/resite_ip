@@ -25,7 +25,7 @@ wind_offshore:
   converter_I: 'V164'
   resource: 'wind'
   deployment: 'offshore'
-  resource_threshold: 6. #m/s
+  resource_threshold: 7. #m/s
   population_density_threshold_low: 0.
   population_density_threshold_high: 100.
   protected_areas_selection: ['Ia', 'Ib', 'II', 'V']
