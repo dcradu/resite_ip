@@ -1095,11 +1095,11 @@ def init_folder(parameters, input_dict, suffix=None):
     if not isdir("../output_data"):
         makedirs(abspath("../output_data"))
 
-        path = abspath('../output_data/' + prefix + str(total_locs) + 'locs_' + str(no_yrs) + 'y_n' + str(no_locs) + 'k_' + str(no_part) + '_' + str(norm) + suffix)
+        path = abspath('../output_data/' + prefix + str(total_locs) + 'locs_' + str(no_yrs) + 'y_n' + str(no_locs) + '_k' + str(no_part) + '_' + str(norm) + suffix)
         makedirs(path)
 
     else:
-        path = abspath('../output_data/' + prefix + str(total_locs) + 'locs_' + str(no_yrs) + 'y_n' + str(no_locs) + 'k_' + str(no_part) + '_' + str(norm) + suffix)
+        path = abspath('../output_data/' + prefix + str(total_locs) + 'locs_' + str(no_yrs) + 'y_n' + str(no_locs) + '_k' + str(no_part) + '_' + str(norm) + suffix)
         makedirs(path)
 
     custom_log(' Folder path is: {}'.format(str(path)))
