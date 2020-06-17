@@ -891,7 +891,7 @@ def filter_onshore_offshore_locations(coordinates_in_region, spatial_resolution,
     updated_coordinates : list
         Coordinates filtered via land/water mask.
     """
-    filename = 'ERA5_land_sea_mask_20181231_' + str(spatial_resolution) + '.nc'
+    filename = 'ERA5_surface_characteristics_20181231_' + str(spatial_resolution) + '.nc'
     path_land_data = '../input_data/land_data'
 
     dataset = xr.open_dataset(join(path_land_data, filename))
@@ -1089,17 +1089,17 @@ def init_folder(parameters, input_dict, suffix=None):
     no_locs = sum({k: sum(v.values()) for k, v in parameters['deployment_vector'].items()}.values())
     no_part = len(parameters['deployment_vector'])
     total_locs = input_dict['criticality_data'].shape[1]
-    no_yrs = round((to_datetime(parameters['time_slice'][1]) - to_datetime(parameters['time_slice'][0])) / timedelta64(1, 'Y'), 0)
+    no_yrs = int(round((to_datetime(parameters['time_slice'][1]) - to_datetime(parameters['time_slice'][0])) / timedelta64(1, 'Y'), 0))
     norm = parameters['norm_type']
 
     if not isdir("../output_data"):
         makedirs(abspath("../output_data"))
 
-        path = abspath('../output_data/' + prefix + str(total_locs) + 'locs_' + str(no_yrs) + 'y_n' + str(no_locs) + '_k' + str(no_part) + '_' + str(norm) + suffix)
+        path = abspath('../output_data/' + prefix + str(total_locs) + 'loc_' + str(no_yrs) + 'y_n' + str(no_locs) + '_k' + str(no_part) + '_' + str(norm) + suffix)
         makedirs(path)
 
     else:
-        path = abspath('../output_data/' + prefix + str(total_locs) + 'locs_' + str(no_yrs) + 'y_n' + str(no_locs) + '_k' + str(no_part) + '_' + str(norm) + suffix)
+        path = abspath('../output_data/' + prefix + str(total_locs) + 'loc_' + str(no_yrs) + 'y_n' + str(no_locs) + '_k' + str(no_part) + '_' + str(norm) + suffix)
         makedirs(path)
 
     custom_log(' Folder path is: {}'.format(str(path)))
