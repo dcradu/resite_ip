@@ -436,7 +436,7 @@ def return_filtered_coordinates(dataset, spatial_resolution, technologies, regio
                 coords_to_remove_forestry = []
 
             if water_mask_layer:
-                filename = 'ERA5_land_sea_mask_20181231_' + str(spatial_resolution) + '.nc'
+                filename = 'ERA5_surface_characteristics_20181231_' + str(spatial_resolution) + '.nc'
                 coords_to_remove_water = \
                     filter_locations_by_layer(tech_dict, regions, start_coordinates, spatial_resolution,
                                               path_land_data, path_resource_data, path_population_data,
@@ -459,7 +459,7 @@ def return_filtered_coordinates(dataset, spatial_resolution, technologies, regio
         elif tech_dict['deployment'] in ['offshore', 'floating']:
 
             if bathymetry_layer:
-                filename = 'ERA5_land_sea_mask_20181231_' + str(spatial_resolution) + '.nc'
+                filename = 'ERA5_surface_characteristics_20181231_' + str(spatial_resolution) + '.nc'
                 coords_to_remove_bathymetry = \
                     filter_locations_by_layer(tech_dict, regions, start_coordinates, spatial_resolution,
                                               path_land_data, path_resource_data, path_population_data,
