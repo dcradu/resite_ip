@@ -30,9 +30,9 @@ time_slice: ['2016-01-01T00:00', '2018-12-31T23:00']
 # List of regions to be considered in the optimization. To note that a list of pre-defined regions is available
 # in tools.py, within the `return_coordinates_from_countries` function. Yet, if additional regions are defined,
 # an associated load signal should be assigned in the `read_load_data` function.
-#regions: ['DE', 'FR', 'ES', 'UK', 'IT', 'SE', 'PL', 'NL', 'PT', 'AT', 'EL', 'IE', 'DK', 'FI',
-#          'RO', 'BE', 'BG', 'LT', 'CZ', 'EE', 'LV', 'HR', 'NO']
-regions: ['EU']
+regions: ['DE', 'FR', 'ES', 'UK', 'IT', 'SE', 'PL', 'NL', 'PT', 'AT', 'EL', 'IE', 'DK', 'FI',
+          'RO', 'BE', 'BG', 'LT', 'CZ', 'EE', 'LV', 'HR', 'NO']
+#regions: ['EU']
 # Technologies to deploy.
 technologies: ['wind_offshore']
 
@@ -42,13 +42,13 @@ smooth_measure: 'mean'
 # Defines how \alpha is considered in space and time.
 alpha: 'load_central'
 # Normalization procedures (detailed in tools.py). (min, max)
-norm_type: 'max'
+norm_type: 'min'
 # Time-window length used to compute the criticality indicator. Integer value.
 delta: 1
 # Geographical coverage threshold used to compute the criticality indicator. Float value between 0.0 and 1.0
 c: [8, 16, 24, 32, 40, 48, 62]
 # c: [20, 40, 60, 80, 100, 120, 171]
-# c: [40, 80, 120, 160, 200, 240, 332]
+# c: [40, 80, 120, 160, 200, 240, 330]
 
 # Choice of solver. Available: 'gurobi' and 'cplex'.
 solver: 'gurobi'
@@ -70,7 +70,26 @@ solution_method: 'HEU'
 
 # Dict of deployments per partition (ordered as the 'regions' list above)
 
-deployment_vector: {'EU':{'wind_offshore':62}}
+#deployment_vector: {'EU':{'wind_offshore':62}}
+
+deployment_vector: {'UK':{'wind_offshore':10},
+                    'NL':{'wind_offshore':7},
+                    'FR':{'wind_offshore':7},
+                    'DE':{'wind_offshore':5},
+                    'DK':{'wind_offshore':4},
+                    'NO':{'wind_offshore':4},
+                    'PL':{'wind_offshore':4},
+                    'IE':{'wind_offshore':3},
+                    'IT':{'wind_offshore':3},
+                    'SE':{'wind_offshore':3},
+                    'FI':{'wind_offshore':2},
+                    'ES':{'wind_offshore':2},
+                    'EL':{'wind_offshore':2},
+                    'PT':{'wind_offshore':2},
+                    'BE':{'wind_offshore':1},
+                    'LT':{'wind_offshore':1},
+                    'LV':{'wind_offshore':1},
+                    'EE':{'wind_offshore':1}}
 
 #deployment_vector: {'UK':{'wind_offshore':29},
 #                    'NL':{'wind_offshore':22},
@@ -84,7 +103,7 @@ deployment_vector: {'EU':{'wind_offshore':62}}
 #                    'SE':{'wind_offshore':8},
 #                    'FI':{'wind_offshore':6},
 #                    'ES':{'wind_offshore':5},
-#                    'GR':{'wind_offshore':4},
+#                    'EL':{'wind_offshore':4},
 #                    'PT':{'wind_offshore':4},
 #                    'BE':{'wind_offshore':3},
 #                    'LT':{'wind_offshore':2},
@@ -99,13 +118,13 @@ deployment_vector: {'EU':{'wind_offshore':62}}
 #                    'NO':{'wind_offshore':22},
 #                    'PL':{'wind_offshore':21},
 #                    'IE':{'wind_offshore':16},
-#                    'IT':{'wind_offshore':16},
+#                    'IT':{'wind_offshore':15},
 #                    'SE':{'wind_offshore':15},
 #                    'FI':{'wind_offshore':11},
 #                    'ES':{'wind_offshore':10},
-#                    'GR':{'wind_offshore':8},
+#                    'EL':{'wind_offshore':8},
 #                    'PT':{'wind_offshore':7},
-#                    'BE':{'wind_offshore':5},
+#                    'BE':{'wind_offshore':3},
 #                    'LT':{'wind_offshore':3},
 #                    'LV':{'wind_offshore':3},
 #                    'EE':{'wind_offshore':1}}

@@ -29,7 +29,8 @@ if solution_method == 'BB':
         raise ValueError(' Values of c have to be integers for the Branch & Bound set-up.')
 
     output_folder = init_folder(parameters, input_dict, suffix='_c' + str(parameters['c']))
-    copy('../config_model.yml', output_folder)
+    pickle.dump(parameters, open(join(output_folder, 'config.yaml'), 'wb'))
+    # copy('../config_model.yml', output_folder)
 
     # Solver options for the MIP problem
     opt = SolverFactory(solver)
@@ -69,7 +70,8 @@ elif solution_method == 'HEU':
     for c in parameters['c']:
         print('Running heuristic for c value of', c)
         output_folder = init_folder(parameters, input_dict, suffix='_c' + str(c))
-        copy('../config_model.yml', output_folder)
+        pickle.dump(parameters, open(join(output_folder, 'config.yaml'), 'wb'))
+        # copy('../config_model.yml', output_folder)
 
         jl_selected = fn(jl_dict['index_dict'], jl_dict['deployment_dict'], jl_dict['criticality_matrix'], c,
                          parameters['neighborhood'], parameters['no_iterations'], parameters['no_epochs'],
