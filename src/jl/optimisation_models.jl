@@ -7,7 +7,7 @@ function solve_MILP(D::Array{Float64, 2}, c::Float64, n::Float64, solver::String
   L = size(D)[2]
 
   if solver == "Gurobi"
-    MILP_model = Model(optimizer_with_attributes(Gurobi.Optimizer, "TimeLimit" => 360., "MIPGap" => 0.05))
+    MILP_model = Model(optimizer_with_attributes(Gurobi.Optimizer, "TimeLimit" => 1800., "MIPGap" => 0.05))
   else
       println("Please use Cbc or Gurobi")
       throw(ArgumentError)
@@ -50,7 +50,7 @@ function solve_MILP_partitioning(D::Array{Float64, 2}, c::Float64, n::Array{Int6
 
   # Selects solver
   if solver == "Gurobi"
-    MILP_model = Model(optimizer_with_attributes(Gurobi.Optimizer, "TimeLimit" => 120., "MIPGap" => 0.01))
+    MILP_model = Model(optimizer_with_attributes(Gurobi.Optimizer, "TimeLimit" => 1800., "MIPGap" => 0.01))
   else
       println("Please use Cbc or Gurobi")
       throw(ArgumentError)
