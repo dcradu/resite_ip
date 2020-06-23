@@ -166,9 +166,7 @@ def filter_locations_by_layer(tech_dict, regions,
     elif which == 'latitude':
 
         latitude_threshold = tech_dict['latitude_threshold']
-
         coords_mask_latitude = [item for item in start_coordinates if item[1] > latitude_threshold]
-        # print(coords_mask_latitude)
         coords_to_remove = list(set(start_coordinates).intersection(set(coords_mask_latitude)))
 
     elif which == 'distance':
@@ -178,7 +176,9 @@ def filter_locations_by_layer(tech_dict, regions,
 
         offshore_points = filter_onshore_offshore_locations(start_coordinates,
                                                             spatial_resolution,
+                                                            tech_dict,
                                                             'wind_offshore')
+
         onshore_shape = union_regions(regions, path_shapefile_data, which='onshore', prepped=False)
 
         offshore_distances = {key: None for key in offshore_points}
@@ -249,10 +249,9 @@ def filter_locations_by_layer(tech_dict, regions,
             # Careful with this one because max depth is 999.
             array_bathymetry = dataset['wmb'].fillna(0.)
 
-            mask_offshore = array_bathymetry.where((
-                                                           (array_bathymetry.data < depth_threshold_low) | (
-                                                               array_bathymetry.data > depth_threshold_high)) | \
-                                                   (array_watermask.data > 0.1))
+            mask_offshore = array_bathymetry.where(((array_bathymetry.data < depth_threshold_low) |
+                                                    (array_bathymetry.data > depth_threshold_high)) |
+                                                    (array_watermask.data > 0.1))
             coords_mask_offshore = mask_offshore[mask_offshore.notnull()].locations.values.tolist()
 
             coords_to_remove = list(set(start_coordinates).intersection(set(coords_mask_offshore)))
@@ -482,7 +481,8 @@ def return_filtered_coordinates(dataset, spatial_resolution, technologies, regio
 
             list_coords_to_remove = [coords_to_remove_resource,
                                      coords_to_remove_bathymetry,
-                                     coords_to_remove_distance]
+                                     coords_to_remove_distance,
+                                     coords_to_remove_latitude]
             coords_to_remove = set().union(*list_coords_to_remove)
             updated_coordinates = set(start_coordinates) - coords_to_remove
 

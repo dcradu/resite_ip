@@ -30,12 +30,12 @@ wind_offshore:
   population_density_threshold_high: 100.
   protected_areas_selection: ['Ia', 'Ib', 'II', 'V']
   protected_areas_distance_threshold: 5.
-  depth_threshold_low: 10.
+  depth_threshold_low: 0.
   depth_threshold_high: 999.
   altitude_threshold: 0.
   terrain_slope_threshold: 1.
   forestry_ratio_threshold: 1.
-  latitude_threshold: 65.
+  latitude_threshold: 70.
   distance_threshold_min: 22.2
   distance_threshold_max: 222.2 # 111.
 

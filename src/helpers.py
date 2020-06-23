@@ -526,9 +526,9 @@ def return_region_divisions(region_list, path_shapefile_data):
             region_subdivisions = ['AT', 'BE', 'DE', 'DK', 'ES',
                                    'FR', 'UK', 'IE', 'IT', 'LU',
                                    'NL', 'NO', 'PT', 'SE', 'CH', 'CZ',
-                                   'AL', 'BG', 'EE', 'LV',
+                                   'AL', 'EE', 'LV',
                                    'FI', 'EL', 'HR', 'HU', 'LT',
-                                   'PL', 'RO', 'SI', 'SK']
+                                   'PL', 'SI', 'SK']
         elif region == 'NA':
             region_subdivisions = ['DZ', 'EG', 'MA', 'LY', 'TN']
         elif region == 'ME':
@@ -579,9 +579,9 @@ def return_region_shapefile(region, path_shapefile_data):
         region_subdivisions = ['AT', 'BE', 'DE', 'DK', 'ES',
                                'FR', 'UK', 'IE', 'IT', 'LU',
                                'NL', 'NO', 'PT', 'SE', 'CH', 'CZ',
-                               'AL', 'BG', 'EE', 'LV',
+                               'AL', 'EE', 'LV',
                                'FI', 'EL', 'HR', 'HU', 'LT',
-                               'PL', 'RO', 'SI', 'SK']
+                               'PL', 'SI', 'SK']
     elif region == 'NA':
         region_subdivisions = ['DZ', 'EG', 'MA', 'LY', 'TN']
     elif region == 'ME':
@@ -876,7 +876,7 @@ def retrieve_nodes_with_legacy_units(input_dict, region, tech, path_shapefile_da
     return existing_locations_filtered
 
 
-def filter_onshore_offshore_locations(coordinates_in_region, spatial_resolution, tech):
+def filter_onshore_offshore_locations(coordinates_in_region, spatial_resolution, tech_dict, tech):
     """
     Filters on- and offshore coordinates.
 
@@ -900,22 +900,30 @@ def filter_onshore_offshore_locations(coordinates_in_region, spatial_resolution,
     dataset = dataset.assign_coords(longitude=(((dataset.longitude
                                                  + 180) % 360) - 180)).sortby('longitude')
     dataset = dataset.drop('time').squeeze().stack(locations=('longitude', 'latitude'))
+
+    depth_threshold_low = tech_dict['depth_threshold_low']
+    depth_threshold_high = tech_dict['depth_threshold_high']
+
     array_watermask = dataset['lsm']
+    # Careful with this one because max depth is 999.
+    array_bathymetry = dataset['wmb'].fillna(0.)
+
+    mask_offshore = array_bathymetry.where(((array_bathymetry.data < depth_threshold_low) |
+                                            (array_bathymetry.data > depth_threshold_high)) |
+                                           (array_watermask.data > 0.1))
+
+    coords_mask_offshore = mask_offshore[mask_offshore.notnull()].locations.values.tolist()
 
     if tech in ['wind_onshore', 'solar_utility', 'solar_residential']:
 
-        mask_watermask = array_watermask.where(array_watermask.data >= 0.2)
+        updated_coordinates = list(set(coordinates_in_region).intersection(set(coords_mask_offshore)))
 
     elif tech in ['wind_offshore', 'wind_floating']:
 
-        mask_watermask = array_watermask.where(array_watermask.data < 0.2)
+        updated_coordinates = list(set(coordinates_in_region).difference(set(coords_mask_offshore)))
 
     else:
         raise ValueError(' This technology does not exist.')
-
-    coords_mask_watermask = mask_watermask[mask_watermask.notnull()].locations.values.tolist()
-
-    updated_coordinates = list(set(coordinates_in_region).intersection(set(coords_mask_watermask)))
 
     return updated_coordinates
 
@@ -1322,7 +1330,7 @@ def plot_basemap(coordinate_list, title):
     ax.add_feature(cfeature.LAKES, facecolor='white')
     ax.add_feature(cfeature.BORDERS.with_scale('50m'), edgecolor='darkgrey', linewidth=0.5)
 
-    ax.scatter(longitudes, latitudes, transform=proj, marker='x', color='red', s=mapW / 1e6, zorder=10, alpha=1.0)
+    ax.scatter(longitudes, latitudes, transform=proj, marker='x', color='red', s=mapW / 1e7, zorder=10, alpha=1.0)
     ax.set_extent([-15., 45., 30., 75.], crs=proj)
     ax.set_title(title)
 
