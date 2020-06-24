@@ -47,8 +47,8 @@ norm_type: 'min'
 delta: 1
 # Geographical coverage threshold used to compute the criticality indicator. Float value between 0.0 and 1.0
 c: [8, 16, 24, 32, 40, 48, 62]
-# c: [20, 40, 60, 80, 100, 120, 171]
-# c: [40, 80, 120, 160, 200, 240, 330]
+#c: [20, 40, 60, 80, 100, 120, 171]
+#c: [40, 80, 120, 160, 200, 240, 330]
 
 # Choice of solver. Available: 'gurobi' and 'cplex'.
 solver: 'gurobi'

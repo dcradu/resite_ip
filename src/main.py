@@ -1,4 +1,5 @@
 import pickle
+import yaml
 from os.path import join
 from shutil import copy
 
@@ -29,7 +30,8 @@ if solution_method == 'BB':
         raise ValueError(' Values of c have to be integers for the Branch & Bound set-up.')
 
     output_folder = init_folder(parameters, input_dict, suffix='_c' + str(parameters['c']))
-    pickle.dump(parameters, open(join(output_folder, 'config.yaml'), 'wb'))
+    with open(join(output_folder, 'config_model.yaml'), 'w') as outfile:
+        yaml.dump(parameters, outfile, default_flow_style=False, sort_keys=False)
     # copy('../config_model.yml', output_folder)
 
     # Solver options for the MIP problem
@@ -70,7 +72,8 @@ elif solution_method == 'HEU':
     for c in parameters['c']:
         print('Running heuristic for c value of', c)
         output_folder = init_folder(parameters, input_dict, suffix='_c' + str(c))
-        pickle.dump(parameters, open(join(output_folder, 'config.yaml'), 'wb'))
+        with open(join(output_folder, 'config_model.yaml'), 'w') as outfile:
+            yaml.dump(parameters, outfile, default_flow_style=False, sort_keys=False)
         # copy('../config_model.yml', output_folder)
 
         jl_selected = fn(jl_dict['index_dict'], jl_dict['deployment_dict'], jl_dict['criticality_matrix'], c,
