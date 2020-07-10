@@ -71,17 +71,38 @@ elif solution_method == 'HEU':
 
     for c in parameters['c']:
         print('Running heuristic for c value of', c)
-        output_folder = init_folder(parameters, input_dict, suffix='_c' + str(c))
-        with open(join(output_folder, 'config_model.yaml'), 'w') as outfile:
-            yaml.dump(parameters, outfile, default_flow_style=False, sort_keys=False)
 
         jl_selected = fn(jl_dict['index_dict'], jl_dict['deployment_dict'], jl_dict['criticality_matrix'], c,
                          parameters['neighborhood'], parameters['no_iterations'], parameters['no_epochs'],
                          parameters['initial_temp'], parameters['no_runs'], parameters['algorithm'])
-        jl_locations, jl_objective = retrieve_location_dict_jl(jl_selected, parameters, input_dict, indices)
 
-        retrieve_site_data(parameters, input_dict, output_folder, jl_locations, jl_objective,
-                           suffix=None)
+        if parameters['which_sol'] == 'max':
+            print(jl_selected[:, 0])
+            jl_selected = jl_selected[max(jl_selected[:, 0]), :]
+            print(jl_selected[max(jl_selected[:, 0]), :])
+            output_folder = init_folder(parameters, input_dict, suffix='_c' + str(c))
+            with open(join(output_folder, 'config_model.yaml'), 'w') as outfile:
+                yaml.dump(parameters, outfile, default_flow_style=False, sort_keys=False)
+
+            jl_locations, jl_objective = retrieve_location_dict_jl(jl_selected, parameters, input_dict, indices)
+            retrieve_site_data(parameters, input_dict, output_folder, jl_locations, jl_objective, suffix=None)
+
+        else: # 'rand'
+            seed = 1
+            print(jl_selected.shape[0])
+            for i in range(jl_selected.shape[0]):
+
+                output_folder = init_folder(parameters, input_dict, suffix='_c' + str(c) + '_seed' + str(seed))
+                seed += 1
+
+                with open(join(output_folder, 'config_model.yaml'), 'w') as outfile:
+                    yaml.dump(parameters, outfile, default_flow_style=False, sort_keys=False)
+
+                jl_selected_seed = jl_selected[i, :]
+                print(jl_selected_seed)
+
+                jl_locations, jl_objective = retrieve_location_dict_jl(jl_selected_seed, parameters, input_dict, indices)
+                retrieve_site_data(parameters, input_dict, output_folder, jl_locations, jl_objective, suffix=None)
 
 else:
     raise ValueError(' This solution method is not available. Retry.')

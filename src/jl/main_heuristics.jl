@@ -41,7 +41,6 @@ function main_call(index_dict, deployment_dict, D, c, N, I, E, T_init, R, run)
     throw(ArgumentError)
   end
 
-  x = x_sol[findmax(LB_sol)[2], :]
+  return x_sol
 
-  return x
 end

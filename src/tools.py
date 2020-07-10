@@ -939,7 +939,7 @@ def retrieve_site_data(model_parameters, model_data, output_folder, site_coordin
 
     pickle.dump(tech_dict, open(join(output_folder, 'init_coordinates_dict.p'), 'wb'))
 
-    with open("objective.txt", "w") as file:
+    with open(join(output_folder, 'objective.txt'), "w") as file:
         print(objective, file=file)
 
     return output_location

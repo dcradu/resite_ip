@@ -1,5 +1,5 @@
 # Spatial resolution (in degrees) of the potential sites.
-spatial_resolution: 0.5
+spatial_resolution: 0.28
 
 # Path towards the various input data.
 path_resource_data: '../input_data/resource_data'
@@ -26,7 +26,7 @@ legacy_layer: False
 distance_layer: True
 
 # Start time and end time of the analysis.
-time_slice: ['2016-01-01T00:00', '2018-12-31T23:00']
+time_slice: ['2018-01-01T00:00', '2018-01-31T23:00']
 # List of regions to be considered in the optimization. To note that a list of pre-defined regions is available
 # in tools.py, within the `return_coordinates_from_countries` function. Yet, if additional regions are defined,
 # an associated load signal should be assigned in the `read_load_data` function.
@@ -42,11 +42,11 @@ smooth_measure: 'mean'
 # Defines how \alpha is considered in space and time.
 alpha: 'load_central'
 # Normalization procedures (detailed in tools.py). (min, max)
-norm_type: 'min'
+norm_type: 'max'
 # Time-window length used to compute the criticality indicator. Integer value.
 delta: 1
 # Geographical coverage threshold used to compute the criticality indicator. Float value between 0.0 and 1.0
-c: [8, 16, 24, 32, 40, 48, 62]
+#c: [8, 16, 24, 32, 40, 48, 62]
 #c: [20, 40, 60, 80, 100, 120, 171]
 #c: [40, 80, 120, 160, 200, 240, 330]
 
@@ -64,6 +64,7 @@ no_epochs: 500
 initial_temp: 200.
 no_runs: 20
 algorithm: 'SALS' #'GLS'
+which_sol: 'max' #'rand'
 
 # Solution method: BB or HEU.
 solution_method: 'HEU'
@@ -71,12 +72,12 @@ solution_method: 'HEU'
 # Dict of deployments per partition (ordered as the 'regions' list above)
 
 #deployment_vector: {'EU':{'wind_offshore':62}}
-
+c: [32]
 deployment_vector: {'UK':{'wind_offshore':10},
-                    'NL':{'wind_offshore':7},
+                    'NL':{'wind_offshore':8},
                     'FR':{'wind_offshore':7},
                     'DE':{'wind_offshore':5},
-                    'DK':{'wind_offshore':4},
+                    'DK':{'wind_offshore':5},
                     'NO':{'wind_offshore':4},
                     'PL':{'wind_offshore':4},
                     'IE':{'wind_offshore':3},
@@ -91,42 +92,64 @@ deployment_vector: {'UK':{'wind_offshore':10},
                     'LV':{'wind_offshore':1},
                     'EE':{'wind_offshore':1}}
 
-#deployment_vector: {'UK':{'wind_offshore':29},
-#                    'NL':{'wind_offshore':22},
-#                    'FR':{'wind_offshore':21},
-#                    'DE':{'wind_offshore':13},
-#                    'DK':{'wind_offshore':13},
-#                    'NO':{'wind_offshore':11},
-#                    'PL':{'wind_offshore':11},
-#                    'IE':{'wind_offshore':8},
-#                    'IT':{'wind_offshore':8},
-#                    'SE':{'wind_offshore':8},
-#                    'FI':{'wind_offshore':6},
-#                    'ES':{'wind_offshore':5},
-#                    'EL':{'wind_offshore':4},
-#                    'PT':{'wind_offshore':4},
-#                    'BE':{'wind_offshore':3},
-#                    'LT':{'wind_offshore':2},
-#                    'LV':{'wind_offshore':2},
+#c: [41]
+#deployment_vector: {'UK':{'wind_offshore':14},
+#                    'NL':{'wind_offshore':10},
+#                    'FR':{'wind_offshore':10},
+#                    'DE':{'wind_offshore':6},
+#                    'DK':{'wind_offshore':6},
+#                    'NO':{'wind_offshore':5},
+#                    'PL':{'wind_offshore':5},
+#                    'IE':{'wind_offshore':4},
+#                    'IT':{'wind_offshore':4},
+#                    'SE':{'wind_offshore':4},
+#                    'FI':{'wind_offshore':3},
+#                    'ES':{'wind_offshore':3},
+#                    'EL':{'wind_offshore':2},
+#                    'PT':{'wind_offshore':2},
+#                    'BE':{'wind_offshore':1},
+#                    'LT':{'wind_offshore':1},
+#                    'LV':{'wind_offshore':1},
 #                    'EE':{'wind_offshore':1}}
 
-#deployment_vector: {'UK':{'wind_offshore':58},
-#                    'NL':{'wind_offshore':44},
-#                    'FR':{'wind_offshore':41},
-#                    'DE':{'wind_offshore':26},
-#                    'DK':{'wind_offshore':26},
-#                    'NO':{'wind_offshore':22},
-#                    'PL':{'wind_offshore':21},
-#                    'IE':{'wind_offshore':16},
-#                    'IT':{'wind_offshore':15},
-#                    'SE':{'wind_offshore':15},
-#                    'FI':{'wind_offshore':11},
-#                    'ES':{'wind_offshore':10},
-#                    'EL':{'wind_offshore':8},
-#                    'PT':{'wind_offshore':7},
+#c: [62]
+#deployment_vector: {'UK':{'wind_offshore':21},
+#                    'NL':{'wind_offshore':16},
+#                    'FR':{'wind_offshore':15},
+#                    'DE':{'wind_offshore':10},
+#                    'DK':{'wind_offshore':9},
+#                    'NO':{'wind_offshore':8},
+#                    'PL':{'wind_offshore':8},
+#                    'IE':{'wind_offshore'6},
+#                    'IT':{'wind_offshore':6},
+#                    'SE':{'wind_offshore':6},
+#                    'FI':{'wind_offshore':4},
+#                    'ES':{'wind_offshore':4},
+#                    'EL':{'wind_offshore':3},
+#                    'PT':{'wind_offshore':3},
+#                    'BE':{'wind_offshore':2},
+#                    'LT':{'wind_offshore':2},
+#                    'LV':{'wind_offshore':1},
+#                    'EE':{'wind_offshore':1}}
+
+#c: [136]
+#deployment_vector: {'UK':{'wind_offshore':48},
+#                    'NL':{'wind_offshore':36},
+#                    'FR':{'wind_offshore':35},
+#                    'DE':{'wind_offshore':22},
+#                    'DK':{'wind_offshore':21},
+#                    'NO':{'wind_offshore':18},
+#                    'PL':{'wind_offshore':17},
+#                    'IE':{'wind_offshore':14},
+#                    'IT':{'wind_offshore':12},
+#                    'SE':{'wind_offshore':12},
+#                    'FI':{'wind_offshore':9},
+#                    'ES':{'wind_offshore':8},
+#                    'EL':{'wind_offshore':6},
+#                    'PT':{'wind_offshore':6},
 #                    'BE':{'wind_offshore':3},
 #                    'LT':{'wind_offshore':3},
-#                    'LV':{'wind_offshore':3},
+#                    'LV':{'wind_offshore':2},
 #                    'EE':{'wind_offshore':1}}
 
 # Keeping files at the end of the run.
