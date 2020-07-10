@@ -837,7 +837,9 @@ def retrieve_location_dict_jl(jl_output, model_parameters, model_data, indices):
                     pos = [i for i, x in enumerate(index_list) if x == item][0]
                     output_dict[key[1]].append(coordinates[key][pos])
 
-    return output_dict
+    objective = jl_output[0]
+
+    return output_dict, objective
 
 
 def retrieve_index_dict(model_parameters, coordinate_dict):
@@ -860,7 +862,7 @@ def retrieve_index_dict(model_parameters, coordinate_dict):
     return n, dict_deployment, partitions, indices
 
 
-def retrieve_site_data(model_parameters, model_data, output_folder, site_coordinates, suffix=None):
+def retrieve_site_data(model_parameters, model_data, output_folder, site_coordinates, objective, suffix=None):
 
     deployment_dict = model_parameters['deployment_vector']
     output_by_tech = collapse_dict_region_level(model_data['capacity_factor_data'])
@@ -936,6 +938,9 @@ def retrieve_site_data(model_parameters, model_data, output_folder, site_coordin
                     tech_dict[tech].extend(sorted(coordinates_dict[region][t], key=lambda x: (x[0], x[1])))
 
     pickle.dump(tech_dict, open(join(output_folder, 'init_coordinates_dict.p'), 'wb'))
+
+    with open("objective.txt", "w") as file:
+        print(objective, file=file)
 
     return output_location
 

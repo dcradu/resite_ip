@@ -74,14 +74,13 @@ elif solution_method == 'HEU':
         output_folder = init_folder(parameters, input_dict, suffix='_c' + str(c))
         with open(join(output_folder, 'config_model.yaml'), 'w') as outfile:
             yaml.dump(parameters, outfile, default_flow_style=False, sort_keys=False)
-        # copy('../config_model.yml', output_folder)
 
         jl_selected = fn(jl_dict['index_dict'], jl_dict['deployment_dict'], jl_dict['criticality_matrix'], c,
                          parameters['neighborhood'], parameters['no_iterations'], parameters['no_epochs'],
                          parameters['initial_temp'], parameters['no_runs'], parameters['algorithm'])
-        jl_locations = retrieve_location_dict_jl(jl_selected, parameters, input_dict, indices)
+        jl_locations, jl_objective = retrieve_location_dict_jl(jl_selected, parameters, input_dict, indices)
 
-        retrieve_site_data(parameters, input_dict, output_folder, jl_locations,
+        retrieve_site_data(parameters, input_dict, output_folder, jl_locations, jl_objective,
                            suffix=None)
 
 else:
