@@ -837,9 +837,7 @@ def retrieve_location_dict_jl(jl_output, model_parameters, model_data, indices):
                     pos = [i for i, x in enumerate(index_list) if x == item][0]
                     output_dict[key[1]].append(coordinates[key][pos])
 
-    objective = jl_output[0]
-
-    return output_dict, objective
+    return output_dict
 
 
 def retrieve_index_dict(model_parameters, coordinate_dict):

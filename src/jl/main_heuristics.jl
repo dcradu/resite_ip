@@ -41,6 +41,6 @@ function main_call(index_dict, deployment_dict, D, c, N, I, E, T_init, R, run)
     throw(ArgumentError)
   end
 
-  return x_sol
+  return x_sol, LB_sol
 
 end
