@@ -1,6 +1,5 @@
 # Spatial resolution (in degrees) of the potential sites.
-spatial_resolution: 0.28
-
+spatial_resolution: 1.0
 # Path towards the various input data.
 path_resource_data: '../input_data/resource_data'
 path_transfer_function_data: '../input_data/transfer_functions'
@@ -26,16 +25,13 @@ legacy_layer: False
 distance_layer: True
 
 # Start time and end time of the analysis.
-time_slice: ['2018-01-01T00:00', '2018-01-31T23:00']
-# List of regions to be considered in the optimization. To note that a list of pre-defined regions is available
-# in tools.py, within the `return_coordinates_from_countries` function. Yet, if additional regions are defined,
-# an associated load signal should be assigned in the `read_load_data` function.
-regions: ['DE', 'FR', 'ES', 'UK', 'IT', 'SE', 'PL', 'NL', 'PT', 'AT', 'EL', 'IE', 'DK', 'FI',
-          'RO', 'BE', 'BG', 'LT', 'CZ', 'EE', 'LV', 'HR', 'NO']
-#regions: ['EU']
+time_slice: ['2016-01-01T00:00', '2016-12-31T23:00']
+# List of regions to be considered in the optimization.
+#regions: ['DE', 'FR', 'ES', 'UK', 'IT', 'SE', 'PL', 'NL', 'PT', 'AT', 'EL', 'IE', 'DK', 'FI',
+#          'RO', 'BE', 'BG', 'LT', 'CZ', 'EE', 'LV', 'HR', 'NO']
+regions: ['EU']
 # Technologies to deploy.
 technologies: ['wind_offshore']
-
 
 # Assessment measure for each time window. Available: mean, median or percentiles.
 smooth_measure: 'mean'
@@ -45,54 +41,61 @@ alpha: 'load_central'
 norm_type: 'max'
 # Time-window length used to compute the criticality indicator. Integer value.
 delta: 1
-# Geographical coverage threshold used to compute the criticality indicator. Float value between 0.0 and 1.0
-#c: [8, 16, 24, 32, 40, 48, 62]
-#c: [20, 40, 60, 80, 100, 120, 171]
-#c: [40, 80, 120, 160, 200, 240, 330]
 
-# Choice of solver. Available: 'gurobi' and 'cplex'.
-solver: 'gurobi'
-# MIP gap --- 0.01 = 1%
-mipgap: 0.05
-timelimit: 1800
-threads: 0
 
-# Heuristics parameters
-neighborhood: 1
-no_iterations: 150
-no_epochs: 500
-initial_temp: 200.
-no_runs: 20
-algorithm: 'SALS' #'GLS'
-which_sol: 'max' #'rand'
+# Keeping files at the end of the run.
+keep_files: True
+# Run name
+name_prefix: 'off_'
 
-# Solution method: BB or HEU.
-solution_method: 'HEU'
+# Solution method: BB or HEU or RAND.
+solution_method:
+  BB:
+    set: False
+    c: 1
+    solver: 'gurobi'
+    mipgap: 0.05
+    timelimit: 1800
+    threads: 0
+  HEU:
+    set: False
+    c: [8, 12, 24]
+    neighborhood: 1
+    no_iterations: 150
+    no_epochs: 500
+    initial_temp: 200.
+    no_runs: 5
+    algorithm: 'SALS' #'GLS'
+    which_sol: 'max' #'rand'
+    seed: 1
+  RAND:
+    set: True
+    c: [8]
+    no_runs: 5
+    seed: 1
 
-# Dict of deployments per partition (ordered as the 'regions' list above)
+#deployment_vector: {'EU':{'wind_offshore':30}}
 
-#deployment_vector: {'EU':{'wind_offshore':62}}
-c: [32]
-deployment_vector: {'UK':{'wind_offshore':10},
-                    'NL':{'wind_offshore':8},
-                    'FR':{'wind_offshore':7},
-                    'DE':{'wind_offshore':5},
-                    'DK':{'wind_offshore':5},
-                    'NO':{'wind_offshore':4},
-                    'PL':{'wind_offshore':4},
-                    'IE':{'wind_offshore':3},
-                    'IT':{'wind_offshore':3},
-                    'SE':{'wind_offshore':3},
-                    'FI':{'wind_offshore':2},
-                    'ES':{'wind_offshore':2},
-                    'EL':{'wind_offshore':2},
-                    'PT':{'wind_offshore':2},
-                    'BE':{'wind_offshore':1},
-                    'LT':{'wind_offshore':1},
-                    'LV':{'wind_offshore':1},
-                    'EE':{'wind_offshore':1}}
+# Dict of deployments per partition.
+#deployment_vector: {'UK':{'wind_offshore':10},
+#                    'NL':{'wind_offshore':8},
+#                    'FR':{'wind_offshore':7},
+#                    'DE':{'wind_offshore':5},
+#                    'DK':{'wind_offshore':5},
+#                    'NO':{'wind_offshore':4},
+#                    'PL':{'wind_offshore':4},
+#                    'IE':{'wind_offshore':3},
+#                    'IT':{'wind_offshore':3},
+#                    'SE':{'wind_offshore':3},
+#                    'FI':{'wind_offshore':2},
+#                    'ES':{'wind_offshore':2},
+#                    'EL':{'wind_offshore':2},
+#                    'PT':{'wind_offshore':2},
+#                    'BE':{'wind_offshore':1},
+#                    'LT':{'wind_offshore':1},
+#                    'LV':{'wind_offshore':1},
+#                    'EE':{'wind_offshore':1}}
 
-#c: [41]
 #deployment_vector: {'UK':{'wind_offshore':14},
 #                    'NL':{'wind_offshore':10},
 #                    'FR':{'wind_offshore':10},
@@ -112,7 +115,6 @@ deployment_vector: {'UK':{'wind_offshore':10},
 #                    'LV':{'wind_offshore':1},
 #                    'EE':{'wind_offshore':1}}
 
-#c: [62]
 #deployment_vector: {'UK':{'wind_offshore':21},
 #                    'NL':{'wind_offshore':16},
 #                    'FR':{'wind_offshore':15},
@@ -132,7 +134,6 @@ deployment_vector: {'UK':{'wind_offshore':10},
 #                    'LV':{'wind_offshore':1},
 #                    'EE':{'wind_offshore':1}}
 
-#c: [136]
 #deployment_vector: {'UK':{'wind_offshore':48},
 #                    'NL':{'wind_offshore':36},
 #                    'FR':{'wind_offshore':35},
@@ -151,8 +152,3 @@ deployment_vector: {'UK':{'wind_offshore':10},
 #                    'LT':{'wind_offshore':3},
 #                    'LV':{'wind_offshore':2},
 #                    'EE':{'wind_offshore':1}}
-
-# Keeping files at the end of the run.
-keep_files: True
-# Run name
-name_prefix: 'off_'

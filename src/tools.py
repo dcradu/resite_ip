@@ -799,7 +799,7 @@ def critical_window_mapping(input_dict,
 
     return output_dict
 
-def spatiotemporal_criticality_mapping(data_array, c, n):
+def spatiotemporal_criticality_mapping(data_array, c):
     # Checks global criticality (returns 0 if critical, 1 otherwise) and computes
     # the criticality index for a given region by dividing the sum on dimension
     # 'windows' to its length.
@@ -860,7 +860,7 @@ def retrieve_index_dict(model_parameters, coordinate_dict):
     return n, dict_deployment, partitions, indices
 
 
-def retrieve_site_data(model_parameters, model_data, output_folder, site_coordinates, objective, suffix=None):
+def retrieve_site_data(model_parameters, model_data, output_folder, site_coordinates, objective):
 
     deployment_dict = model_parameters['deployment_vector']
     output_by_tech = collapse_dict_region_level(model_data['capacity_factor_data'])
@@ -884,8 +884,8 @@ def retrieve_site_data(model_parameters, model_data, output_folder, site_coordin
               innerDict.items()}
     comp_site_data_df = DataFrame(reform, index=time_dt)
 
-    if not suffix is None:
-        name = 'comp_site_data'+str(suffix)+'.p'
+    if model_parameters['solution_method']['RAND']['set']:
+        name = 'rand_site_data.p'
     else:
         name = 'comp_site_data.p'
     pickle.dump(comp_site_data_df, open(join(output_folder, name), 'wb'))
@@ -974,6 +974,6 @@ def retrieve_max_run_criticality(max_sites, input_dict, parameters):
                                                norm_type)
 
     xarray_critical_windows = dict_to_xarray(critical_windows)
-    no_windows = spatiotemporal_criticality_mapping(xarray_critical_windows, c, n)
+    no_windows = spatiotemporal_criticality_mapping(xarray_critical_windows, c)
 
     return no_windows.values
