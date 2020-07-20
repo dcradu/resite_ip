@@ -70,7 +70,7 @@ elif parameters['solution_method']['RAND']['set']:
         seed = parameters['solution_method']['RAND']['seed']
         for run in range(parameters['solution_method']['RAND']['no_runs']):
 
-            output_folder = init_folder(parameters, input_dict, suffix='_rand_seed' + str(seed))
+            output_folder = init_folder(parameters, input_dict, suffix='_c'+ str(c) + '_rand_seed' + str(seed))
             seed += 1
 
             with open(join(output_folder, 'config_model.yaml'), 'w') as outfile:
@@ -109,7 +109,7 @@ elif parameters['solution_method']['HEU']['set']:
     custom_log(' HEU chosen to solve the IP. Opening a Julia instance.')
     import julia
 
-    if not isinstance(parameters['c'], list):
+    if not isinstance(parameters['solution_method']['HEU']['c'], list):
         raise ValueError(' Values of c have to elements of a list for the heuristic set-up.')
 
     _, _, _, indices = retrieve_index_dict(parameters, input_dict['coordinates_data'])
