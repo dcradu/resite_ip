@@ -71,6 +71,8 @@ solution_method:
   RAND:
     set: True
     c: [8]
+    no_iterations: 150
+    no_epochs: 500
     no_runs: 5
     seed: 1
 
@@ -122,7 +124,7 @@ solution_method:
 #                    'DK':{'wind_offshore':9},
 #                    'NO':{'wind_offshore':8},
 #                    'PL':{'wind_offshore':8},
-#                    'IE':{'wind_offshore'6},
+#                    'IE':{'wind_offshore':6},
 #                    'IT':{'wind_offshore':6},
 #                    'SE':{'wind_offshore':6},
 #                    'FI':{'wind_offshore':4},

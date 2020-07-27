@@ -23,6 +23,7 @@ if parameters['solution_method']['BB']['set']:
     MIPGap = parameters['solution_method']['BB']['mipgap']
     TimeLimit = parameters['solution_method']['BB']['timelimit']
     Threads = parameters['solution_method']['BB']['threads']
+    c = parameters['solution_method']['BB']['c']
 
     if not isinstance(parameters['solution_method']['BB']['c'], int):
         raise ValueError(' Values of c have to be integers for the Branch & Bound set-up.')
@@ -46,10 +47,8 @@ if parameters['solution_method']['BB']['set']:
     objective = instance.objective()
 
     comp_location_dict = retrieve_location_dict(instance, parameters, input_dict, indices)
-    retrieve_site_data(parameters, input_dict, output_folder, comp_location_dict, objective)
-    # max_location_dict = retrieve_site_data(solution_method, parameters, input_dict, output_folder, comp_location_dict, objective)
-    # no_windows_max = retrieve_max_run_criticality(max_location_dict, input_dict, parameters)
-    # print('Number of non-critical windows for the MAX case: ', no_windows_max)
+    retrieve_site_data(c, parameters, input_dict, output_folder, comp_location_dict, objective)
+
 
 elif parameters['solution_method']['RAND']['set']:
 
@@ -76,32 +75,42 @@ elif parameters['solution_method']['RAND']['set']:
             with open(join(output_folder, 'config_model.yaml'), 'w') as outfile:
                 yaml.dump(parameters, outfile, default_flow_style=False, sort_keys=False)
 
-            random_locations = []
-            for region in parameters['deployment_vector'].keys():
-                for tech in parameters['technologies']:
-                    population = input_dict['coordinates_data'][region][tech]
-                    k = parameters['deployment_vector'][region][tech]
-                    random_locations.extend(sample(population, k))
+            it = parameters['solution_method']['RAND']['no_iterations']*parameters['solution_method']['RAND']['no_epochs']
+            best_objective = 0.
+            best_random_locations = []
 
-            all_locations = []
-            for region in parameters['deployment_vector'].keys():
-                for tech in parameters['technologies']:
-                    all_locations.extend(input_dict['coordinates_data'][region][tech])
-            random_locations_index = []
-            for loc in random_locations:
-                idx = all_locations.index(loc)
-                random_locations_index.append(idx + 1)
+            for i in range(it):
 
-            random_locations_index = [i-1 for i in sorted(random_locations_index)]
+                random_locations = []
+                for region in parameters['deployment_vector'].keys():
+                    for tech in parameters['technologies']:
+                        population = input_dict['coordinates_data'][region][tech]
+                        k = parameters['deployment_vector'][region][tech]
+                        random_locations.extend(sample(population, k))
 
-            xs = zeros(shape=input_dict['criticality_data'].shape[1])
-            xs[random_locations_index] = 1
+                all_locations = []
+                for region in parameters['deployment_vector'].keys():
+                    for tech in parameters['technologies']:
+                        all_locations.extend(input_dict['coordinates_data'][region][tech])
+                random_locations_index = []
+                for loc in random_locations:
+                    idx = all_locations.index(loc)
+                    random_locations_index.append(idx + 1)
 
-            D = input_dict['criticality_data']
-            objective = (D.dot(xs) >= c).astype(int).sum()
+                random_locations_index = [i-1 for i in sorted(random_locations_index)]
 
-            random_locations_dict = {parameters['technologies'][0]: random_locations}
-            retrieve_site_data(parameters, input_dict, output_folder, random_locations_dict, objective)
+                xs = zeros(shape=input_dict['criticality_data'].shape[1])
+                xs[random_locations_index] = 1
+
+                D = input_dict['criticality_data']
+                objective = (D.dot(xs) >= c).astype(int).sum()
+
+                if objective > best_objective:
+                    best_objective = objective
+                    best_random_locations = random_locations
+
+            random_locations_dict = {parameters['technologies'][0]: best_random_locations}
+            retrieve_site_data(c, parameters, input_dict, output_folder, random_locations_dict, best_objective)
 
 
 elif parameters['solution_method']['HEU']['set']:
@@ -161,7 +170,7 @@ elif parameters['solution_method']['HEU']['set']:
                 jl_objective_seed = jl_objective[i]
 
                 jl_locations = retrieve_location_dict_jl(jl_selected_seed, parameters, input_dict, indices)
-                retrieve_site_data(parameters, input_dict, output_folder, jl_locations, jl_objective_seed)
+                retrieve_site_data(c, parameters, input_dict, output_folder, jl_locations, jl_objective_seed)
 
 else:
     raise ValueError(' This solution method is not available. Retry.')

@@ -12,7 +12,7 @@ import xarray.ufuncs as xu
 from geopandas import read_file
 from numpy import arange, interp, float32, datetime64, sqrt, floor, \
     asarray, newaxis, sum, \
-    max, unique, radians, cos, sin, arctan2
+    max, unique, radians, cos, sin, arctan2, zeros
 from pandas import read_csv, Series, DataFrame, date_range
 from shapely.geometry import Point
 from shapely.ops import nearest_points
@@ -860,7 +860,7 @@ def retrieve_index_dict(model_parameters, coordinate_dict):
     return n, dict_deployment, partitions, indices
 
 
-def retrieve_site_data(model_parameters, model_data, output_folder, site_coordinates, objective):
+def retrieve_site_data(c, model_parameters, model_data, output_folder, site_coordinates, objective):
 
     deployment_dict = model_parameters['deployment_vector']
     output_by_tech = collapse_dict_region_level(model_data['capacity_factor_data'])
@@ -923,7 +923,28 @@ def retrieve_site_data(model_parameters, model_data, output_folder, site_coordin
               innerDict.items()}
     max_site_data_df = DataFrame(reform, index=time_dt)
 
-    pickle.dump(max_site_data_df, open(join(output_folder, 'max_site_data.p'), 'wb'))
+    pickle.dump(max_site_data_df, open(join(output_folder, 'prod_site_data.p'), 'wb'))
+
+    prod_locations = [item[1] for item in max_site_data_df.keys()]
+    all_locations = []
+    for region in model_parameters['deployment_vector'].keys():
+        for tech in model_parameters['technologies']:
+            all_locations.extend(model_parameters['coordinates_data'][region][tech])
+    prod_locations_index = []
+    for loc in prod_locations:
+        idx = all_locations.index(loc)
+        prod_locations_index.append(idx + 1)
+
+    prod_locations_index = [i - 1 for i in sorted(prod_locations_index)]
+
+    xs = zeros(shape=model_data['criticality_data'].shape[1])
+    xs[prod_locations_index] = 1
+
+    D = model_data['criticality_data']
+    objective_prod = (D.dot(xs) >= c).astype(int).sum()
+
+    with open(join(output_folder, 'objective_prod.txt'), "w") as file:
+        print(objective_prod, file=file)
 
     # Init coordinate set.
     coordinates_dict = model_data['coordinates_data']
@@ -941,39 +962,3 @@ def retrieve_site_data(model_parameters, model_data, output_folder, site_coordin
         print(objective, file=file)
 
     return output_location
-
-
-def retrieve_max_run_criticality(max_sites, input_dict, parameters):
-    capacity_factors_dict = input_dict['capacity_factor_data']
-    alpha = parameters['alpha']
-    delta = parameters['delta']
-    c = parameters['c']
-    measure = parameters['smooth_measure']
-    regions = parameters['regions']
-    time_horizon = parameters['time_slice']
-    path_load_data = parameters['path_load_data']
-    deployment_constraints = parameters['deployment_vector']
-    norm_type = parameters['norm_type']
-
-    depl = concatenate_dict_keys(deployment_constraints)
-    n = sum(depl[item] for item in depl)
-
-    key_list = return_dict_keys(max_sites)
-    timeseries_dict = deepcopy(max_sites)
-
-    for region, tech in key_list:
-
-        if max_sites[region][tech] is not None:
-            timeseries_dict[region][tech] = capacity_factors_dict[region][tech].sel(locations=max_sites[region][tech])
-
-    for key, value in timeseries_dict.items():
-        timeseries_dict[key] = {k: v for k, v in timeseries_dict[key].items() if v is not None}
-
-    smooth_dict = resource_quality_mapping(timeseries_dict, delta, measure)
-    critical_windows = critical_window_mapping(smooth_dict, alpha, delta, regions, time_horizon, path_load_data,
-                                               norm_type)
-
-    xarray_critical_windows = dict_to_xarray(critical_windows)
-    no_windows = spatiotemporal_criticality_mapping(xarray_critical_windows, c)
-
-    return no_windows.values
