@@ -929,7 +929,7 @@ def retrieve_site_data(c, model_parameters, model_data, output_folder, site_coor
     all_locations = []
     for region in model_parameters['deployment_vector'].keys():
         for tech in model_parameters['technologies']:
-            all_locations.extend(model_parameters['coordinates_data'][region][tech])
+            all_locations.extend(model_data['coordinates_data'][region][tech])
     prod_locations_index = []
     for loc in prod_locations:
         idx = all_locations.index(loc)

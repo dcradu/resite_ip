@@ -10,7 +10,7 @@ from shutil import rmtree
 import xarray as xr
 import yaml
 from geopandas import read_file
-from numpy import sqrt, hstack, arange, dtype, array, timedelta64
+from numpy import sqrt, hstack, arange, dtype, array, timedelta64, pi
 from pandas import DataFrame, read_excel, notnull, read_csv, date_range, to_datetime
 from scipy.spatial import distance
 from shapely import prepared

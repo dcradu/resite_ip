@@ -1,5 +1,5 @@
 # Spatial resolution (in degrees) of the potential sites.
-spatial_resolution: 1.0
+spatial_resolution: 0.5
 # Path towards the various input data.
 path_resource_data: '../input_data/resource_data'
 path_transfer_function_data: '../input_data/transfer_functions'
@@ -25,7 +25,7 @@ legacy_layer: False
 distance_layer: True
 
 # Start time and end time of the analysis.
-time_slice: ['2016-01-01T00:00', '2016-12-31T23:00']
+time_slice: ['2016-01-01T00:00', '2016-01-31T23:00']
 # List of regions to be considered in the optimization.
 #regions: ['DE', 'FR', 'ES', 'UK', 'IT', 'SE', 'PL', 'NL', 'PT', 'AT', 'EL', 'IE', 'DK', 'FI',
 #          'RO', 'BE', 'BG', 'LT', 'CZ', 'EE', 'LV', 'HR', 'NO']
@@ -52,7 +52,7 @@ name_prefix: 'off_'
 solution_method:
   BB:
     set: False
-    c: 1
+    c: 8
     solver: 'gurobi'
     mipgap: 0.05
     timelimit: 1800
@@ -70,13 +70,13 @@ solution_method:
     seed: 1
   RAND:
     set: True
-    c: [8]
-    no_iterations: 150
-    no_epochs: 500
-    no_runs: 5
-    seed: 1
+    c: [50]
+    no_iterations: 5
+    no_epochs: 2
+    no_runs: 9
+    seed: 2
 
-#deployment_vector: {'EU':{'wind_offshore':30}}
+deployment_vector: {'EU':{'wind_offshore':100}}
 
 # Dict of deployments per partition.
 #deployment_vector: {'UK':{'wind_offshore':10},

@@ -7,8 +7,7 @@ from numpy import zeros, argmax
 
 from src.helpers import read_inputs, init_folder, custom_log, remove_garbage, generate_jl_output
 from src.models import preprocess_input_data, build_model
-from src.tools import retrieve_location_dict, retrieve_site_data, retrieve_max_run_criticality, \
-    retrieve_location_dict_jl, retrieve_index_dict
+from src.tools import retrieve_location_dict, retrieve_site_data, retrieve_location_dict_jl, retrieve_index_dict
 
 parameters = read_inputs('../config_model.yml')
 keepfiles = parameters['keep_files']
@@ -82,22 +81,23 @@ elif parameters['solution_method']['RAND']['set']:
             for i in range(it):
 
                 random_locations = []
+                random_locations_index = []
+                all_locations = []
+
                 for region in parameters['deployment_vector'].keys():
                     for tech in parameters['technologies']:
+
                         population = input_dict['coordinates_data'][region][tech]
                         k = parameters['deployment_vector'][region][tech]
+
+                        all_locations.extend(population)
                         random_locations.extend(sample(population, k))
 
-                all_locations = []
-                for region in parameters['deployment_vector'].keys():
-                    for tech in parameters['technologies']:
-                        all_locations.extend(input_dict['coordinates_data'][region][tech])
-                random_locations_index = []
                 for loc in random_locations:
                     idx = all_locations.index(loc)
-                    random_locations_index.append(idx + 1)
+                    random_locations_index.append(idx)
 
-                random_locations_index = [i-1 for i in sorted(random_locations_index)]
+                random_locations_index = sorted(random_locations_index)
 
                 xs = zeros(shape=input_dict['criticality_data'].shape[1])
                 xs[random_locations_index] = 1
@@ -108,7 +108,6 @@ elif parameters['solution_method']['RAND']['set']:
                 if objective > best_objective:
                     best_objective = objective
                     best_random_locations = random_locations
-
             random_locations_dict = {parameters['technologies'][0]: best_random_locations}
             retrieve_site_data(c, parameters, input_dict, output_folder, random_locations_dict, best_objective)
 
