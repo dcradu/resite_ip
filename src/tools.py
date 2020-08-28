@@ -55,8 +55,10 @@ def read_database(file_path):
         file_list = [file for file in glob(file_path + '/*.nc') if area in file]
         ds = xr.open_mfdataset(file_list,
                                combine='by_coords',
-                               chunks={'latitude': 20, 'longitude': 20}) \
-            .stack(locations=('longitude', 'latitude')).astype(float32)
+                               chunks={'latitude': 20, 'longitude': 20}).stack(locations=('longitude', 'latitude')).astype(float32)
+        # ds = ds.assign_coords(lon=ds.longitude.round(2), lat=ds.latitude.round(2))
+        # ds = ds.swap_dims({'longitude': 'lon', 'latitude': 'lat'})
+        # ds1 = ds.stack(locations=('lon', 'lat'))
         datasets.append(ds)
 
     # Concatenate all regions on locations.
@@ -106,6 +108,9 @@ def filter_locations_by_layer(tech_dict, regions,
         List of coordinates to be removed from the initial set.
 
     """
+
+    start_coordinates = [(round(item[0], 2), round(item[1], 2)) for item in start_coordinates]
+
     if which == 'protected_areas':
 
         protected_areas_selection = tech_dict['protected_areas_selection']
@@ -161,13 +166,18 @@ def filter_locations_by_layer(tech_dict, regions,
         array_resource_mean = array_resource.mean(dim='time')
         mask_resource = array_resource_mean.where(array_resource_mean.data < tech_dict['resource_threshold'])
         coords_mask_resource = mask_resource[mask_resource.notnull()].locations.values.tolist()
-        coords_to_remove = list(set(start_coordinates).intersection(set(coords_mask_resource)))
+
+        coords_mask_rounded = [(round(item[0], 2), round(item[1], 2)) for item in coords_mask_resource]
+
+        coords_to_remove = list(set(start_coordinates).intersection(set(coords_mask_rounded)))
 
     elif which == 'latitude':
 
         latitude_threshold = tech_dict['latitude_threshold']
         coords_mask_latitude = [item for item in start_coordinates if item[1] > latitude_threshold]
+
         coords_to_remove = list(set(start_coordinates).intersection(set(coords_mask_latitude)))
+
 
     elif which == 'distance':
 
@@ -191,7 +201,9 @@ def filter_locations_by_layer(tech_dict, regions,
         offshore_locations = {k: v for k, v in offshore_distances.items() if ((v < distance_threshold_min) |
                                                                               (v >= distance_threshold_max))}
         coords_mask_distance = list(offshore_locations.keys())
-        coords_to_remove = list(set(start_coordinates).intersection(set(coords_mask_distance)))
+        coords_mask_rounded = [(round(item[0], 2), round(item[1], 2)) for item in coords_mask_distance]
+
+        coords_to_remove = list(set(start_coordinates).intersection(set(coords_mask_rounded)))
 
 
     elif which in ['orography', 'forestry', 'water_mask', 'bathymetry']:
@@ -235,10 +247,11 @@ def filter_locations_by_layer(tech_dict, regions,
 
             array_watermask = dataset['lsm']
 
-            mask_watermask = array_watermask.where(array_watermask.data < 0.9)
+            mask_watermask = array_watermask.where(array_watermask.data < 0.4)
             coords_mask_watermask = mask_watermask[mask_watermask.notnull()].locations.values.tolist()
 
-            coords_to_remove = list(set(start_coordinates).intersection(set(coords_mask_watermask)))
+            coords_mask_rounded = [(round(item[0], 2), round(item[1], 2)) for item in coords_mask_watermask]
+            coords_to_remove = list(set(start_coordinates).intersection(set(coords_mask_rounded)))
 
         elif which == 'bathymetry':
 
@@ -253,8 +266,9 @@ def filter_locations_by_layer(tech_dict, regions,
                                                     (array_bathymetry.data > depth_threshold_high)) |
                                                     (array_watermask.data > 0.1))
             coords_mask_offshore = mask_offshore[mask_offshore.notnull()].locations.values.tolist()
+            coords_mask_rounded = [(round(item[0], 2), round(item[1], 2)) for item in coords_mask_offshore]
 
-            coords_to_remove = list(set(start_coordinates).intersection(set(coords_mask_offshore)))
+            coords_to_remove = list(set(start_coordinates).intersection(set(coords_mask_rounded)))
 
     elif which == 'population':
 
@@ -291,8 +305,7 @@ def return_filtered_coordinates(dataset, spatial_resolution, technologies, regio
                                 path_population_data,
                                 resource_quality_layer=True, population_density_layer=True, protected_areas_layer=False,
                                 orography_layer=True, forestry_layer=True, water_mask_layer=True, bathymetry_layer=True,
-                                latitude_layer=True,
-                                legacy_layer=True, distance_layer=True):
+                                latitude_layer=True, legacy_layer=True, distance_layer=True):
     """
     Returns the set of potential deployment locations for each region and available technology.
 
@@ -372,6 +385,9 @@ def return_filtered_coordinates(dataset, spatial_resolution, technologies, regio
         tech_dict = tech_config[tech]
         # region_shapefile_data = return_region_shapefile(region, path_shapefile_data)
         start_coordinates = return_coordinates_from_shapefiles_light(dataset, region_shape)
+        start_coordinates_dict = {k: None for k in start_coordinates}
+        for k in start_coordinates_dict.keys():
+            start_coordinates_dict[k] = (round(k[0], 2), round(k[1], 2))
 
         if resource_quality_layer:
 
@@ -441,6 +457,7 @@ def return_filtered_coordinates(dataset, spatial_resolution, technologies, regio
                                               path_land_data, path_resource_data, path_population_data,
                                               path_shapefile_data,
                                               which='water_mask', filename=filename)
+
             else:
                 coords_to_remove_water = []
 
@@ -452,8 +469,13 @@ def return_filtered_coordinates(dataset, spatial_resolution, technologies, regio
                                      coords_to_remove_forestry,
                                      coords_to_remove_water]
             coords_to_remove = set().union(*list_coords_to_remove)
+
+            # from src.helpers import plot_basemap
+            # plot_basemap(start_coordinates, title='start')
+            # plot_basemap(coords_to_remove, title='remove')
+
             # Set difference between "global" coordinates and the sets computed in this function.
-            updated_coordinates = set(start_coordinates) - coords_to_remove
+            updated_coordinates = set(start_coordinates_dict.values()) - coords_to_remove
 
         elif tech_dict['deployment'] in ['offshore', 'floating']:
 
@@ -484,27 +506,27 @@ def return_filtered_coordinates(dataset, spatial_resolution, technologies, regio
                                      coords_to_remove_distance,
                                      coords_to_remove_latitude]
             coords_to_remove = set().union(*list_coords_to_remove)
-            updated_coordinates = set(start_coordinates) - coords_to_remove
+            updated_coordinates = set(start_coordinates_dict.values()) - coords_to_remove
 
-        if legacy_layer:
+        # if legacy_layer:
+        #
+        #     land_filtered_coordinates = filter_onshore_offshore_locations(start_coordinates,
+        #                                                                   spatial_resolution, tech)
+        #     legacy_dict = read_legacy_capacity_data(land_filtered_coordinates,
+        #                                             return_region_divisions(regions, path_shapefile_data),
+        #                                             tech, path_legacy_data)
+        #     coords_to_add_legacy = retrieve_nodes_with_legacy_units(legacy_dict, regions, tech, path_shapefile_data)
+        #
+        #     final_coordinates[tech] = set(updated_coordinates).union(set(coords_to_add_legacy))
+        #
+        # else:
 
-            land_filtered_coordinates = filter_onshore_offshore_locations(start_coordinates,
-                                                                          spatial_resolution, tech)
-            legacy_dict = read_legacy_capacity_data(land_filtered_coordinates,
-                                                    return_region_divisions(regions, path_shapefile_data),
-                                                    tech, path_legacy_data)
-            coords_to_add_legacy = retrieve_nodes_with_legacy_units(legacy_dict, regions, tech, path_shapefile_data)
-
-            final_coordinates[tech] = set(updated_coordinates).union(set(coords_to_add_legacy))
-
-        else:
-
-            final_coordinates[tech] = updated_coordinates
+        final_coordinates[tech] = [key for key, value in start_coordinates_dict.items() if value in updated_coordinates]
 
         # if len(final_coordinates[tech]) > 0:
         #     from src.helpers import plot_basemap
         #     plot_basemap(final_coordinates[tech], title=tech)
-        #
+
         # import sys
         # sys.exit()
 
@@ -512,6 +534,8 @@ def return_filtered_coordinates(dataset, spatial_resolution, technologies, regio
 
         shape_region = union_regions([region], path_shapefile_data, which='both')
         points_in_region = return_coordinates_from_shapefiles_light(dataset, shape_region)
+
+        # points_in_region_rounded = [(round(item[0], 2), round(item[1], 2)) for item in points_in_region]
 
         for tech in technologies:
 
@@ -733,7 +757,7 @@ def return_output(input_dict, path_to_transfer_function, smooth_wind_power_curve
 
     return output_dict
 
-
+##############################################################################
 def resource_quality_mapping(input_dict, delta, measure):
     key_list = return_dict_keys(input_dict)
 
@@ -798,6 +822,7 @@ def critical_window_mapping(input_dict,
         raise ValueError('No such alpha rule. Retry.')
 
     return output_dict
+##########################################################
 
 def spatiotemporal_criticality_mapping(data_array, c):
     # Checks global criticality (returns 0 if critical, 1 otherwise) and computes
@@ -845,16 +870,22 @@ def retrieve_index_dict(model_parameters, coordinate_dict):
     d = model_parameters['deployment_vector']
     if isinstance(d[list(d.keys())[0]], int):
         dict_deployment = d
+        print(dict_deployment)
         n = sum(dict_deployment[item] for item in dict_deployment)
+        print(n)
         partitions = [item for item in d]
-        if model_parameters['constraint'] == 'country':
-            indices = concatenate_dict_keys(get_partition_index(coordinate_dict, d, capacity_split='per_country'))
-        elif model_parameters['constraint'] == 'tech':
-            indices = concatenate_dict_keys(get_partition_index(coordinate_dict, d, capacity_split='per_tech'))
+        print(partitions)
+        if model_parameters['deployment_constraint'] == 'country':
+            indices = get_partition_index(coordinate_dict, d, capacity_split='per_country')
+        elif model_parameters['deployment_constraint'] == 'tech':
+            indices = get_partition_index(coordinate_dict, d, capacity_split='per_tech')
     else:
         dict_deployment = concatenate_dict_keys(d)
+        print(dict_deployment)
         n = sum(dict_deployment[item] for item in dict_deployment)
+        print(n)
         partitions = [item for item in dict_deployment]
+        print(partitions)
         indices = concatenate_dict_keys(get_partition_index(coordinate_dict, d, capacity_split='per_country_and_tech'))
 
     return n, dict_deployment, partitions, indices

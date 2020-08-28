@@ -30,7 +30,7 @@ def preprocess_input_data(model_parameters):
 
     """
 
-    regions = model_parameters['deployment_vector'].keys()
+    regions = model_parameters['regions']
     technologies = model_parameters['technologies']
 
     time_horizon = model_parameters['time_slice']

@@ -1,5 +1,5 @@
 # Spatial resolution (in degrees) of the potential sites.
-spatial_resolution: 0.5
+spatial_resolution: 0.28
 # Path towards the various input data.
 path_resource_data: '../input_data/resource_data'
 path_transfer_function_data: '../input_data/transfer_functions'
@@ -13,25 +13,25 @@ path_legacy_data : '../input_data/legacy'
 path_shapefile_data: '../input_data/shapefiles'
 
 # Various data layers to be taken into account in potential site selection.
-resource_quality_layer: True
+resource_quality_layer: False
 population_density_layer: False
 protected_areas_layer: False
-bathymetry_layer: True
+bathymetry_layer: False
 orography_layer: False
 forestry_layer: False
-water_mask_layer: False
-latitude_layer: True
+water_mask_layer: True
+latitude_layer: False
 legacy_layer: False
-distance_layer: True
+distance_layer: False
 
 # Start time and end time of the analysis.
-time_slice: ['2016-01-01T00:00', '2016-01-31T23:00']
+time_slice: ['2009-01-01T00:00', '2018-31-31T23:00']
 # List of regions to be considered in the optimization.
 #regions: ['DE', 'FR', 'ES', 'UK', 'IT', 'SE', 'PL', 'NL', 'PT', 'AT', 'EL', 'IE', 'DK', 'FI',
 #          'RO', 'BE', 'BG', 'LT', 'CZ', 'EE', 'LV', 'HR', 'NO']
 regions: ['EU']
 # Technologies to deploy.
-technologies: ['wind_offshore']
+technologies: ['wind_onshore']
 
 # Assessment measure for each time window. Available: mean, median or percentiles.
 smooth_measure: 'mean'
@@ -51,10 +51,10 @@ name_prefix: 'off_'
 # Solution method: BB or HEU or RAND.
 solution_method:
   BB:
-    set: False
+    set: True
     c: 8
     solver: 'gurobi'
-    mipgap: 0.05
+    mipgap: 0.02
     timelimit: 1800
     threads: 0
   HEU:
@@ -69,14 +69,22 @@ solution_method:
     which_sol: 'max' #'rand'
     seed: 1
   RAND:
-    set: True
+    set: False
     c: [50]
     no_iterations: 5
     no_epochs: 2
     no_runs: 9
     seed: 2
 
-deployment_vector: {'EU':{'wind_offshore':100}}
+#deployment_constraint: 'country'
+deployment_vector: {'EU': {'wind_onshore': 530}}
+
+#deployment_constraint: 'tech'
+#deployment_vector: {'wind_onshore': 3,
+#                    'wind_offshore': 2}
+
+#deployment_vector: {'DE':{'wind_offshore':1, 'wind_onshore': 2},
+#                    'NL':{'wind_offshore':2, 'wind_onshore': 1}}
 
 # Dict of deployments per partition.
 #deployment_vector: {'UK':{'wind_offshore':10},

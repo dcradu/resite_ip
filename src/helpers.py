@@ -526,8 +526,8 @@ def return_region_divisions(region_list, path_shapefile_data):
             region_subdivisions = ['AT', 'BE', 'DE', 'DK', 'ES',
                                    'FR', 'UK', 'IE', 'IT', 'LU',
                                    'NL', 'NO', 'PT', 'SE', 'CH', 'CZ',
-                                   'AL', 'EE', 'LV',
-                                   'FI', 'EL', 'HR', 'HU', 'LT',
+                                   'AL', 'EE', 'LV', 'RO', 'BG', 'EL', 'HR', 'RS',
+                                   'FI', 'EL', 'HR', 'HU', 'LT', 'BA', 'AL', 'ME', 'MK',
                                    'PL', 'SI', 'SK']
         elif region == 'NA':
             region_subdivisions = ['DZ', 'EG', 'MA', 'LY', 'TN']
@@ -698,8 +698,8 @@ def retrieve_load_data_partitions(path_load_data, date_slice, alpha, delta, regi
                     'CWE': ['FR', 'BE', 'LU', 'NL', 'DE'],
                     'BL': ['BE', 'LU', 'NL']}
 
-    load_data = read_csv(join(path_load_data, 'load_opsd_2015_2018.csv'), index_col=0, sep=';')
-    load_data.index = date_range('2015-01-01T00:00', '2018-12-31T23:00', freq='H')
+    load_data = read_csv(join(path_load_data, 'load_2009_2018.csv'), index_col=0)
+    load_data.index = date_range('2009-01-01T00:00', '2018-12-31T23:00', freq='H')
 
     load_data_sliced = load_data.loc[date_slice[0]:date_slice[1]]
 
@@ -1025,6 +1025,9 @@ def get_partition_index(input_dict, deployment_vector, capacity_split='per_tech'
                     index_list_per_region.extend(init_index_dict[region][tech])
                 index_dict[region] = [i for i in index_list_per_region]
 
+            for region in regions:
+                index_dict[region] = [i + 1 for i in index_dict[region]]
+
         else:
 
             raise ValueError(' Number of regions ({}) does not match number of deployment constraints ({}).'.format
@@ -1042,6 +1045,9 @@ def get_partition_index(input_dict, deployment_vector, capacity_split='per_tech'
                     index_list_per_tech.extend(init_index_dict[region][tech])
                 index_dict[tech] = [i for i in index_list_per_tech]
 
+            for tech in technologies:
+                index_dict[tech] = [i + 1 for i in index_dict[tech]]
+
         else:
 
             raise ValueError(' Number of technologies ({}) does not match number of deployment constraints ({}).'.format
@@ -1051,8 +1057,10 @@ def get_partition_index(input_dict, deployment_vector, capacity_split='per_tech'
 
         index_dict = init_index_dict
 
-    for region, tech in key_list:
-        index_dict[region][tech] = [i + 1 for i in index_dict[region][tech]]
+        for region, tech in key_list:
+            index_dict[region][tech] = [i + 1 for i in index_dict[region][tech]]
+
+    print(index_dict)
 
     return index_dict
 
@@ -1186,3 +1194,115 @@ def custom_log(message):
 
     """
     print(datetime.now().strftime('%H:%M:%S') + ' --- ' + str(message))
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#
+# from numpy import pi, sin, cos, arccos, sqrt
+# import cartopy.feature as cfeature
+# import cartopy.crs as ccrs
+# import matplotlib.pyplot as plt
+#
+# def distsphere(lat1, long1, lat2, long2):
+#
+#     # Convert latitude and longitude to
+#     # spherical coordinates in radians.
+#     degrees_to_radians = pi / 180.0
+#
+#     # phi = 90 - latitude
+#     phi1 = (90.0 - lat1) * degrees_to_radians
+#     phi2 = (90.0 - lat2) * degrees_to_radians
+#
+#     # theta = longitude
+#     theta1 = long1 * degrees_to_radians
+#     theta2 = long2 * degrees_to_radians
+#
+#     # Compute spherical distance from spherical coordinates.
+#     cosine = (sin(phi1) * sin(phi2) * cos(theta1 - theta2) + cos(phi1) * cos(phi2))
+#     arc = arccos(cosine)
+#
+#     # Remember to multiply arc by the radius of the earth!
+#     return arc
+#
+# def update_latitude(lat1, arc):
+#
+#     degrees_to_radians = pi / 180.0
+#     lat2 = (arc - ((90 - lat1) * degrees_to_radians)) * (1. / degrees_to_radians) + 90
+#     return lat2
+#
+#
+#
+#
+#
+# def centerMap(lons, lats):
+#
+#     # Assumes -90 < Lat < 90 and -180 < Lon < 180, and
+#     # latitude and logitude are in decimal degrees
+#     earthRadius = 6378100.0  # earth's radius in meters
+#
+#     lon0 = ((max(lons) - min(lons)) / 2) + min(lons)
+#
+#     b = distsphere(max(lats), min(lons), max(lats), max(lons)) * earthRadius / 2
+#     c = distsphere(max(lats), min(lons), min(lats), lon0) * earthRadius
+#
+#     # use pythagorean theorom to determine height of plot
+#     mapH = sqrt(c ** 2 - b ** 2)
+#     mapW = distsphere(min(lats), min(lons), min(lats), max(lons)) * earthRadius
+#
+#     arcCenter = (mapH / 2) / earthRadius
+#     lat0 = update_latitude(min(lats), arcCenter)
+#
+#     minlon = min(lons) - 1
+#     maxlon = max(lons) + 1
+#     minlat = min(lats) - 1
+#     maxlat = max(lats) + 1
+#
+#     return lon0, lat0, minlon, maxlon, minlat, maxlat, mapH, mapW
+#
+#
+#
+# def plot_basemap(coordinate_list, title):
+#
+#     longitudes = [i[0] for i in coordinate_list]
+#     latitudes = [i[1] for i in coordinate_list]
+#
+#     lon0, lat0, minlon, maxlon, minlat, maxlat, mapH, mapW = centerMap(longitudes, latitudes)
+#
+#     land_50m = cfeature.NaturalEarthFeature('physical', 'land', '50m',
+#                                             edgecolor='darkgrey',
+#                                             facecolor=cfeature.COLORS['land_alt1'])
+#
+#     proj = ccrs.PlateCarree()
+#     plt.figure(figsize=(10, 6))
+#
+#     ax = plt.axes(projection=proj)
+#     ax.set_extent([-18., 37., 30., 75.], proj)
+#
+#
+#     ax.add_feature(land_50m, linewidth=0.5)
+#     ax.add_feature(cfeature.OCEAN, facecolor='white')
+#     ax.add_feature(cfeature.LAKES, facecolor='white')
+#     ax.add_feature(cfeature.BORDERS.with_scale('50m'), edgecolor='darkgrey', linewidth=0.5)
+#
+#     ax.outline_patch.set_edgecolor('white')
+#
+#     base_lons = [i[0] for i in coordinate_list]
+#     base_lats = [i[1] for i in coordinate_list]
+#
+#     ax.scatter(base_lons, base_lats, transform=proj, marker='x', color='darkgrey',
+#                 s=mapW / 1e6, zorder=2, alpha=0.4)
+#
+#     ax.set_title(title)
+#     plt.show()

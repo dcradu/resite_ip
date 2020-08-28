@@ -4,10 +4,24 @@ from os.path import join
 from random import sample
 from pyomo.opt import SolverFactory
 from numpy import zeros, argmax
+import argparse
+
 
 from src.helpers import read_inputs, init_folder, custom_log, remove_garbage, generate_jl_output
 from src.models import preprocess_input_data, build_model
 from src.tools import retrieve_location_dict, retrieve_site_data, retrieve_location_dict_jl, retrieve_index_dict
+
+def parse_args():
+
+    parser = argparse.ArgumentParser(description='Command line arguments.')
+
+    parser.add_argument('-c', '--global_thresh', type=float, help='Global threshold')
+    parser.add_argument('-tl', '--time_limit', type=float, help='Solver time limit')
+    parser.add_argument('-th', '--threads', type=int, help='Number of threads')
+
+    parsed_args = vars(parser.parse_args())
+
+    return parsed_args
 
 parameters = read_inputs('../config_model.yml')
 keepfiles = parameters['keep_files']
@@ -15,6 +29,12 @@ keepfiles = parameters['keep_files']
 input_dict = preprocess_input_data(parameters)
 
 if parameters['solution_method']['BB']['set']:
+
+    args = parse_args()
+
+    parameters['solution_method']['BB']['timelimit'] = args['time_limit']
+    parameters['solution_method']['BB']['threads'] = args['thread']
+    parameters['solution_method']['BB']['c'] = args['thread']
 
     custom_log(' BB chosen to solve the IP.')
 
