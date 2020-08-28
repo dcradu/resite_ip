@@ -1060,7 +1060,7 @@ def get_partition_index(input_dict, deployment_vector, capacity_split='per_tech'
         for region, tech in key_list:
             index_dict[region][tech] = [i + 1 for i in index_dict[region][tech]]
 
-    print(index_dict)
+    # print(index_dict)
 
     return index_dict
 

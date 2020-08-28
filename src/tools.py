@@ -870,22 +870,22 @@ def retrieve_index_dict(model_parameters, coordinate_dict):
     d = model_parameters['deployment_vector']
     if isinstance(d[list(d.keys())[0]], int):
         dict_deployment = d
-        print(dict_deployment)
+        # print(dict_deployment)
         n = sum(dict_deployment[item] for item in dict_deployment)
-        print(n)
+        # print(n)
         partitions = [item for item in d]
-        print(partitions)
+        # print(partitions)
         if model_parameters['deployment_constraint'] == 'country':
             indices = get_partition_index(coordinate_dict, d, capacity_split='per_country')
         elif model_parameters['deployment_constraint'] == 'tech':
             indices = get_partition_index(coordinate_dict, d, capacity_split='per_tech')
     else:
         dict_deployment = concatenate_dict_keys(d)
-        print(dict_deployment)
+        # print(dict_deployment)
         n = sum(dict_deployment[item] for item in dict_deployment)
-        print(n)
+        # print(n)
         partitions = [item for item in dict_deployment]
-        print(partitions)
+        # print(partitions)
         indices = concatenate_dict_keys(get_partition_index(coordinate_dict, d, capacity_split='per_country_and_tech'))
 
     return n, dict_deployment, partitions, indices
