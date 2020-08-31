@@ -172,11 +172,12 @@ elif parameters['solution_method']['HEU']['set']:
         
         with open(join(output_folder, 'config_model.yaml'), 'w') as outfile:
             yaml.dump(parameters, outfile, default_flow_style=False, sort_keys=False)
-        pickle.dump(jl_selected, open(join(output_folder, 'solution_matrix.p'), 'wb'), protocol=4)
-        pickle.dump(jl_objective, open(join(output_folder, 'objective_vector.p'), 'wb'), protocol=4)
-        pickle.dump(jl_traj, open(join(output_folder, 'trajectory_matrix.p'), 'wb'), protocol=4)
+        pickle.dump(jl_selected, open(join(output_folder, 'solution_matrix.p'), 'wb'))
+        pickle.dump(jl_objective, open(join(output_folder, 'objective_vector.p'), 'wb'))
+        pickle.dump(jl_traj, open(join(output_folder, 'trajectory_matrix.p'), 'wb'))
         if c == parameters['solution_method']['HEU']['c'][0]:
-            pickle.dump(input_dict['criticality_data'], open(join(output_folder, 'criticality_matrix.p'), 'wb'), protocol=4)
+            pickle.dump(input_dict['criticality_data'], open(join(output_folder, 'criticality_matrix.p'), 'wb'),
+                        protocol=4)
 
         #if parameters['solution_method']['HEU']['which_sol'] == 'max':
         #    jl_objective_seed = max(jl_objective)
@@ -204,6 +205,52 @@ elif parameters['solution_method']['HEU']['set']:
 
         #        jl_locations = retrieve_location_dict_jl(jl_selected_seed, parameters, input_dict, indices)
         #        retrieve_site_data(c, parameters, input_dict, output_folder, jl_locations, jl_objective_seed)
+
+elif parameters['solution_method']['RGH']['set']:
+
+    custom_log(' RGH chosen to solve the IP. Opening a Julia instance.')
+    import julia
+
+    if not isinstance(parameters['solution_method']['HEU']['c'], list):
+        raise ValueError(' Values of c have to elements of a list for the heuristic set-up.')
+
+    jl_dict = generate_jl_output(parameters['deployment_vector'],
+                                 input_dict['criticality_data'],
+                                 input_dict['coordinates_data'])
+
+    jl = julia.Julia(compiled_modules=False)
+    from julia.api import Julia
+
+    fn = jl.include("jl/main_heuristics.jl")
+
+    for c in parameters['solution_method']['HEU']['c']:
+        print('Running heuristic for c value of', c)
+        start = time.time()
+        jl_selected, jl_objective, jl_traj = fn(jl_dict['index_dict'],
+                                                jl_dict['deployment_dict'],
+                                                jl_dict['criticality_matrix'],
+                                                c,
+                                                parameters['solution_method']['HEU']['neighborhood'],
+                                                parameters['solution_method']['HEU']['no_iterations'],
+                                                parameters['solution_method']['HEU']['no_epochs'],
+                                                parameters['solution_method']['HEU']['initial_temp'],
+                                                parameters['solution_method']['HEU']['no_runs'],
+                                                parameters['solution_method']['HEU']['algorithm'])
+        end = time.time()
+        noruns = parameters['solution_method']['HEU']['no_runs']
+        dt = (end - start) / noruns
+        print(f'Average time per run: {dt}')
+
+        output_folder = init_folder(parameters, input_dict, suffix='_c' + str(c) + '_GRH')
+
+        with open(join(output_folder, 'config_model.yaml'), 'w') as outfile:
+            yaml.dump(parameters, outfile, default_flow_style=False, sort_keys=False)
+        pickle.dump(jl_selected, open(join(output_folder, 'solution_matrix.p'), 'wb'))
+        pickle.dump(jl_objective, open(join(output_folder, 'objective_vector.p'), 'wb'))
+        pickle.dump(jl_traj, open(join(output_folder, 'trajectory_matrix.p'), 'wb'))
+        if c == parameters['solution_method']['HEU']['c'][0]:
+            pickle.dump(input_dict['criticality_data'], open(join(output_folder, 'criticality_matrix.p'), 'wb'),
+                        protocol=4)
 
 else:
     raise ValueError(' This solution method is not available. Retry.')

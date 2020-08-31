@@ -36,6 +36,13 @@ function main_call(index_dict, deployment_dict, D, c, N, I, E, T_init, R, run)
       println("Run ", r, "/", R)
       x_sol[r, :], LB_sol[r], obj_sol[r, :] = simulated_annealing_local_search_partition(D, c, n_partitions, N, I, E, x_init, T_init, index_dict)
     end
+  elseif run == "GRH"
+    x_sol, LB_sol = Array{Float64, 2}(undef, R, L), Array{Float64, 1}(undef, R)
+    for r = 1:R
+      println("Run ", r, "/", R)
+      x_sol[r, :], LB_sol[r] = randomised_greedy_heuristic(D, c, n)
+      obj_sol = ''
+    end
   else
     println("No such run available.")
     throw(ArgumentError)

@@ -68,13 +68,16 @@ solution_method:
     algorithm: 'SALS' #'GLS'
     which_sol: 'rand' #'rand'
     seed: 1
+  RGH:
+    set: False
+    c: [1, 106, 212, 318, 424, 530]
   RAND:
     set: False
-    c: [50]
-    no_iterations: 5
-    no_epochs: 2
-    no_runs: 9
-    seed: 2
+    c: [530]
+    no_iterations: 50
+    no_epochs: 100
+    no_runs: 1
+    seed: 1
 
 #deployment_constraint: 'country'
 deployment_vector: {'EU': {'wind_onshore': 530}}
