@@ -5,7 +5,7 @@ from random import sample
 from pyomo.opt import SolverFactory
 from numpy import zeros, argmax
 import argparse
-
+import time
 
 from src.helpers import read_inputs, init_folder, custom_log, remove_garbage, generate_jl_output
 from src.models import preprocess_input_data, build_model
@@ -15,8 +15,8 @@ def parse_args():
 
     parser = argparse.ArgumentParser(description='Command line arguments.')
 
-    parser.add_argument('-c', '--global_thresh', type=float, help='Global threshold')
-    parser.add_argument('-tl', '--time_limit', type=float, help='Solver time limit')
+    parser.add_argument('-c', '--global_thresh', type=int, help='Global threshold')
+    parser.add_argument('-tl', '--time_limit', type=int, help='Solver time limit')
     parser.add_argument('-th', '--threads', type=int, help='Number of threads')
 
     parsed_args = vars(parser.parse_args())
@@ -33,8 +33,8 @@ if parameters['solution_method']['BB']['set']:
     args = parse_args()
 
     parameters['solution_method']['BB']['timelimit'] = args['time_limit']
-    parameters['solution_method']['BB']['threads'] = args['thread']
-    parameters['solution_method']['BB']['c'] = args['thread']
+    parameters['solution_method']['BB']['threads'] = args['threads']
+    parameters['solution_method']['BB']['c'] = args['global_thresh']
 
     custom_log(' BB chosen to solve the IP.')
 
@@ -60,7 +60,7 @@ if parameters['solution_method']['BB']['set']:
     instance, indices = build_model(parameters, input_dict, output_folder, write_lp=False)
     custom_log(' Sending model to solver.')
 
-    results = opt.solve(instance, tee=True, keepfiles=False, report_timing=False,
+    results = opt.solve(instance, tee=False, keepfiles=False, report_timing=False,
                         logfile=join(output_folder, 'solver_log.log'))
 
     objective = instance.objective()
@@ -152,44 +152,58 @@ elif parameters['solution_method']['HEU']['set']:
 
     for c in parameters['solution_method']['HEU']['c']:
         print('Running heuristic for c value of', c)
+        start = time.time()
+        jl_selected, jl_objective, jl_traj = fn(jl_dict['index_dict'],
+                                             jl_dict['deployment_dict'],
+                                             jl_dict['criticality_matrix'],
+                                             c,
+                                             parameters['solution_method']['HEU']['neighborhood'],
+                                             parameters['solution_method']['HEU']['no_iterations'],
+                                             parameters['solution_method']['HEU']['no_epochs'],
+                                             parameters['solution_method']['HEU']['initial_temp'],
+                                             parameters['solution_method']['HEU']['no_runs'],
+                                             parameters['solution_method']['HEU']['algorithm'])
+        end = time.time()
+        noruns = parameters['solution_method']['HEU']['no_runs']
+        dt = (end-start)/noruns
+        print(f'Average time per run: {dt}')
+        
+        output_folder = init_folder(parameters, input_dict, suffix='_c' + str(c) + '_MIRSA')
+        
+        with open(join(output_folder, 'config_model.yaml'), 'w') as outfile:
+            yaml.dump(parameters, outfile, default_flow_style=False, sort_keys=False)
+        pickle.dump(jl_selected, open(join(output_folder, 'solution_matrix.p'), 'wb'), protocol=4)
+        pickle.dump(jl_objective, open(join(output_folder, 'objective_vector.p'), 'wb'), protocol=4)
+        pickle.dump(jl_traj, open(join(output_folder, 'trajectory_matrix.p'), 'wb'), protocol=4)
+        if c == parameters['solution_method']['HEU']['c'][0]:
+            pickle.dump(input_dict['criticality_data'], open(join(output_folder, 'criticality_matrix.p'), 'wb'), protocol=4)
 
-        jl_selected, jl_objective = fn(jl_dict['index_dict'],
-                                       jl_dict['deployment_dict'],
-                                       jl_dict['criticality_matrix'],
-                                       c,
-                                       parameters['solution_method']['HEU']['neighborhood'],
-                                       parameters['solution_method']['HEU']['no_iterations'],
-                                       parameters['solution_method']['HEU']['no_epochs'],
-                                       parameters['solution_method']['HEU']['initial_temp'],
-                                       parameters['solution_method']['HEU']['no_runs'],
-                                       parameters['solution_method']['HEU']['algorithm'])
+        #if parameters['solution_method']['HEU']['which_sol'] == 'max':
+        #    jl_objective_seed = max(jl_objective)
+        #    jl_selected_seed = jl_selected[argmax(jl_objective), :]
 
-        if parameters['solution_method']['HEU']['which_sol'] == 'max':
-            jl_objective_seed = max(jl_objective)
-            jl_selected_seed = jl_selected[argmax(jl_objective), :]
+        #    output_folder = init_folder(parameters, input_dict, suffix='_c' + str(c))
+        #    with open(join(output_folder, 'config_model.yaml'), 'w') as outfile:
+        #        yaml.dump(parameters, outfile, default_flow_style=False, sort_keys=False)
 
-            output_folder = init_folder(parameters, input_dict, suffix='_c' + str(c))
-            with open(join(output_folder, 'config_model.yaml'), 'w') as outfile:
-                yaml.dump(parameters, outfile, default_flow_style=False, sort_keys=False)
+        #    jl_locations = retrieve_location_dict_jl(jl_selected_seed, parameters, input_dict, indices)
+        #    retrieve_site_data(parameters, input_dict, output_folder, jl_locations, jl_objective_seed)
 
-            jl_locations = retrieve_location_dict_jl(jl_selected_seed, parameters, input_dict, indices)
-            retrieve_site_data(parameters, input_dict, output_folder, jl_locations, jl_objective_seed)
+        #else: #'rand'
+        #    seed = parameters['solution_method']['HEU']['seed']
+        #    for i in range(jl_selected.shape[0]):
 
-        else: #'rand'
-            seed = parameters['solution_method']['HEU']['seed']
-            for i in range(jl_selected.shape[0]):
+        #        output_folder = init_folder(parameters, input_dict, suffix='_c' + str(c) + '_seed' + str(seed) + '_MIRSA')
+        #        seed += 1
 
-                output_folder = init_folder(parameters, input_dict, suffix='_c' + str(c) + '_seed' + str(seed))
-                seed += 1
+        #        with open(join(output_folder, 'config_model.yaml'), 'w') as outfile:
+        #            yaml.dump(parameters, outfile, default_flow_style=False, sort_keys=False)
 
-                with open(join(output_folder, 'config_model.yaml'), 'w') as outfile:
-                    yaml.dump(parameters, outfile, default_flow_style=False, sort_keys=False)
+        #        jl_selected_seed = jl_selected[i, :]
+        #        jl_objective_seed = jl_objective[i]
 
-                jl_selected_seed = jl_selected[i, :]
-                jl_objective_seed = jl_objective[i]
-
-                jl_locations = retrieve_location_dict_jl(jl_selected_seed, parameters, input_dict, indices)
-                retrieve_site_data(c, parameters, input_dict, output_folder, jl_locations, jl_objective_seed)
+        #        jl_locations = retrieve_location_dict_jl(jl_selected_seed, parameters, input_dict, indices)
+        #        retrieve_site_data(c, parameters, input_dict, output_folder, jl_locations, jl_objective_seed)
 
 else:
     raise ValueError(' This solution method is not available. Retry.')

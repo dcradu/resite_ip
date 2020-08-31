@@ -25,7 +25,7 @@ legacy_layer: False
 distance_layer: False
 
 # Start time and end time of the analysis.
-time_slice: ['2009-01-01T00:00', '2018-31-31T23:00']
+time_slice: ['2009-01-01T00:00', '2018-12-31T23:00']
 # List of regions to be considered in the optimization.
 #regions: ['DE', 'FR', 'ES', 'UK', 'IT', 'SE', 'PL', 'NL', 'PT', 'AT', 'EL', 'IE', 'DK', 'FI',
 #          'RO', 'BE', 'BG', 'LT', 'CZ', 'EE', 'LV', 'HR', 'NO']
@@ -51,22 +51,22 @@ name_prefix: 'off_'
 # Solution method: BB or HEU or RAND.
 solution_method:
   BB:
-    set: True
+    set: False
     c: 8
     solver: 'gurobi'
     mipgap: 0.02
     timelimit: 1800
     threads: 0
   HEU:
-    set: False
-    c: [8, 12, 24]
+    set: True
+    c: [1, 106, 212, 318, 424, 530]
     neighborhood: 1
-    no_iterations: 150
+    no_iterations: 200
     no_epochs: 500
     initial_temp: 200.
-    no_runs: 5
+    no_runs: 100
     algorithm: 'SALS' #'GLS'
-    which_sol: 'max' #'rand'
+    which_sol: 'rand' #'rand'
     seed: 1
   RAND:
     set: False
