@@ -523,9 +523,9 @@ def return_filtered_coordinates(dataset, spatial_resolution, technologies, regio
 
         final_coordinates[tech] = [key for key, value in start_coordinates_dict.items() if value in updated_coordinates]
 
-        # if len(final_coordinates[tech]) > 0:
-        #     from src.helpers import plot_basemap
-        #     plot_basemap(final_coordinates[tech], title=tech)
+        if len(final_coordinates[tech]) > 0:
+            from src.helpers import plot_basemap
+            plot_basemap(final_coordinates[tech], title=tech)
 
         # import sys
         # sys.exit()
@@ -835,10 +835,10 @@ def spatiotemporal_criticality_mapping(data_array, c):
     return spatiotemporal_noncriticality
 
 
-def retrieve_location_dict(instance, model_parameters, model_data, indices):
+def retrieve_location_dict(instance, model_parameters, coordinate_dict, indices):
     output_dict = {key: [] for key in model_parameters['technologies']}
 
-    coordinates = concatenate_dict_keys(model_data['coordinates_data'])
+    coordinates = concatenate_dict_keys(coordinate_dict)
 
     for item in instance.x:
         if instance.x[item].value == 1.0:
@@ -891,10 +891,10 @@ def retrieve_index_dict(model_parameters, coordinate_dict):
     return n, dict_deployment, partitions, indices
 
 
-def retrieve_site_data(c, model_parameters, model_data, output_folder, site_coordinates, objective):
+def retrieve_site_data(c, model_parameters, coordinates_dict, D, output_data, output_folder, site_coordinates, objective):
 
     deployment_dict = model_parameters['deployment_vector']
-    output_by_tech = collapse_dict_region_level(model_data['capacity_factor_data'])
+    output_by_tech = collapse_dict_region_level(output_data)
     time_slice = model_parameters['time_slice']
     time_dt = date_range(start=time_slice[0], end=time_slice[1], freq='H')
 
@@ -922,7 +922,6 @@ def retrieve_site_data(c, model_parameters, model_data, output_folder, site_coor
     pickle.dump(comp_site_data_df, open(join(output_folder, name), 'wb'))
 
     # Retrieve max sites
-    output_data = model_data['capacity_factor_data']
     key_list = return_dict_keys(output_data)
     output_location = deepcopy(output_data)
 
@@ -960,7 +959,7 @@ def retrieve_site_data(c, model_parameters, model_data, output_folder, site_coor
     all_locations = []
     for region in model_parameters['deployment_vector'].keys():
         for tech in model_parameters['technologies']:
-            all_locations.extend(model_data['coordinates_data'][region][tech])
+            all_locations.extend(coordinates_dict[region][tech])
     prod_locations_index = []
     for loc in prod_locations:
         idx = all_locations.index(loc)
@@ -968,17 +967,15 @@ def retrieve_site_data(c, model_parameters, model_data, output_folder, site_coor
 
     prod_locations_index = [i - 1 for i in sorted(prod_locations_index)]
 
-    xs = zeros(shape=model_data['criticality_data'].shape[1])
+    xs = zeros(shape=D.shape[1])
     xs[prod_locations_index] = 1
 
-    D = model_data['criticality_data']
     objective_prod = (D.dot(xs) >= c).astype(int).sum()
 
     with open(join(output_folder, 'objective_prod.txt'), "w") as file:
         print(objective_prod, file=file)
 
     # Init coordinate set.
-    coordinates_dict = model_data['coordinates_data']
 
     tech_dict = {key: [] for key in list(comp_site_data.keys())}
     for tech in tech_dict:

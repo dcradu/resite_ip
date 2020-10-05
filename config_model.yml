@@ -51,13 +51,15 @@ name_prefix: 'off_'
 # Solution method: BB or HEU or RAND.
 solution_method:
   BB:
+    # Branch & Bound
     set: False
     c: 106
     solver: 'gurobi'
     mipgap: 0.02
     timelimit: 1800
     threads: 0
-  HEU:
+  MIRSA:
+    # Simulated Annealing with Local Search
     set: True
     c: [318]
     neighborhood: 1
@@ -68,20 +70,16 @@ solution_method:
     algorithm: 'SALSR' #'GLS'
     which_sol: 'rand' #'rand'
     seed: 1
-  RGH:
+  GRED:
     set: False
+    epsilon: 0.001
     c: [1, 106, 212, 318, 424, 530]
     no_runs: 1
-    algorithm: 'RGH'
-  GAS:
-    set: False
-    c: [318]
-    no_runs: 2 
-    algorithm: 'SGA' #'SGA'
-    epsilon: 0.001
+    algorithm: 'RGH' # SGA
   RAND:
+    # Random Search
     set: False 
-    c: [53]
+    c: [318]
     no_iterations: 50
     no_epochs: 500
     no_runs: 1
@@ -113,13 +111,6 @@ deployment_vector: {'EU': {'wind_onshore': 530}}
 #                    'HR': {'wind_onshore': 3},
 #                    'LV': {'wind_onshore': 1},
 #                    'NO': {'wind_onshore': 20}}
-#
-#deployment_constraint: 'tech'
-#deployment_vector: {'wind_onshore': 3,
-#                    'wind_offshore': 2}
-
-#deployment_vector: {'DE':{'wind_offshore':1, 'wind_onshore': 2},
-#                    'NL':{'wind_offshore':2, 'wind_onshore': 1}}
 
 # Dict of deployments per partition.
 #deployment_vector: {'UK':{'wind_offshore':10},

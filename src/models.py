@@ -94,7 +94,7 @@ def preprocess_input_data(model_parameters):
 
 
 
-def build_model(model_parameters, input_data, output_folder, write_lp=False):
+def build_model(model_parameters, coordinate_dict, D, output_folder, write_lp=False):
     """Model build-up.
 
     Parameters:
@@ -108,8 +108,6 @@ def build_model(model_parameters, input_data, output_folder, write_lp=False):
 
     """
 
-    coordinate_dict = input_data['coordinates_data']
-    D = input_data['criticality_data']
     no_windows = D.shape[0]
     no_locations = D.shape[1]
 
@@ -173,66 +171,66 @@ def build_model(model_parameters, input_data, output_folder, write_lp=False):
 
 
 
-def build_model_lp(model_parameters, D, coordinate_dict, output_folder, write_lp=False):
-    """Model build-up.
-
-    Parameters:
-
-    ------------
-
-
-    Returns:
-
-    -----------
-
-    """
-
-    #coordinate_dict = input_data['coordinates_data']
-    #D = input_data['criticality_data']
-    no_windows = D.shape[0]
-    no_locations = D.shape[1]
-    
-    n, dict_deployment, partitions, indices = retrieve_index_dict(model_parameters, coordinate_dict)
-    
-    c = model_parameters['solution_method']['BB']['c']
-
-    for item in partitions:
-        if item in indices:
-            if dict_deployment[item] > len(indices[item]):
-                raise ValueError(' More nodes required than available for {}'.format(item))
-        else:
-            indices[item] = []
-            print('Warning! {} not in keys of choice. Make sure there is no requirement here.'.format(item))
-    
-    model = ConcreteModel()
-
-    model.W = arange(1, no_windows + 1)
-    model.L = arange(1, no_locations + 1)
-
-    model.x = Var(model.L, within=NonNegativeReals, bounds=(0,1))
-    model.y = Var(model.W, within=NonNegativeReals, bounds=(0,1))
-
-    activation_constraint = {}
-
-    for w in model.W:
-        lhs = LExpression([(D[w - 1, l - 1], model.x[l]) for l in model.L])
-        rhs = LExpression([(c, model.y[w])])
-
-        activation_constraint[w] = LConstraint(lhs, ">=", rhs)
-
-    l_constraint(model, "activation_constraint", activation_constraint, list(model.W))
-
-    cardinality_constraint = {}
-
-    for item in partitions:
-        lhs = LExpression([(1, model.x[l]) for l in indices[item]])
-        rhs = LExpression(constant=dict_deployment[item])
-
-        cardinality_constraint[item] = LConstraint(lhs, "==", rhs)
-
-    l_constraint(model, "cardinality_constraint", cardinality_constraint, partitions)
-
-    objective = LExpression([(1, model.y[w]) for w in model.W])
-    l_objective(model, objective, sense=maximize)
-
-    return model
+# def build_model_lp(model_parameters, D, coordinate_dict, output_folder, write_lp=False):
+#     """Model build-up.
+#
+#     Parameters:
+#
+#     ------------
+#
+#
+#     Returns:
+#
+#     -----------
+#
+#     """
+#
+#     #coordinate_dict = input_data['coordinates_data']
+#     #D = input_data['criticality_data']
+#     no_windows = D.shape[0]
+#     no_locations = D.shape[1]
+#
+#     n, dict_deployment, partitions, indices = retrieve_index_dict(model_parameters, coordinate_dict)
+#
+#     c = model_parameters['solution_method']['BB']['c']
+#
+#     for item in partitions:
+#         if item in indices:
+#             if dict_deployment[item] > len(indices[item]):
+#                 raise ValueError(' More nodes required than available for {}'.format(item))
+#         else:
+#             indices[item] = []
+#             print('Warning! {} not in keys of choice. Make sure there is no requirement here.'.format(item))
+#
+#     model = ConcreteModel()
+#
+#     model.W = arange(1, no_windows + 1)
+#     model.L = arange(1, no_locations + 1)
+#
+#     model.x = Var(model.L, within=NonNegativeReals, bounds=(0,1))
+#     model.y = Var(model.W, within=NonNegativeReals, bounds=(0,1))
+#
+#     activation_constraint = {}
+#
+#     for w in model.W:
+#         lhs = LExpression([(D[w - 1, l - 1], model.x[l]) for l in model.L])
+#         rhs = LExpression([(c, model.y[w])])
+#
+#         activation_constraint[w] = LConstraint(lhs, ">=", rhs)
+#
+#     l_constraint(model, "activation_constraint", activation_constraint, list(model.W))
+#
+#     cardinality_constraint = {}
+#
+#     for item in partitions:
+#         lhs = LExpression([(1, model.x[l]) for l in indices[item]])
+#         rhs = LExpression(constant=dict_deployment[item])
+#
+#         cardinality_constraint[item] = LConstraint(lhs, "==", rhs)
+#
+#     l_constraint(model, "cardinality_constraint", cardinality_constraint, partitions)
+#
+#     objective = LExpression([(1, model.y[w]) for w in model.W])
+#     l_objective(model, objective, sense=maximize)
+#
+#     return model

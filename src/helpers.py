@@ -1082,7 +1082,7 @@ def read_inputs(inputs):
     return data
 
 
-def init_folder(parameters, total_locs, suffix=None):
+def init_folder(parameters, suffix=None):
     """Initilize an output folder.
 
     Parameters:
@@ -1110,11 +1110,11 @@ def init_folder(parameters, total_locs, suffix=None):
     if not isdir("../output_data"):
         makedirs(abspath("../output_data"))
 
-        path = abspath('../output_data/' + prefix + str(total_locs) + 'loc_' + str(no_yrs) + 'y_n' + str(no_locs) + '_k' + str(no_part) + '_' + str(norm) + suffix)
+        path = abspath('../output_data/' + prefix + str(no_yrs) + 'y_n' + str(no_locs) + '_k' + str(no_part) + '_' + str(norm) + suffix)
         makedirs(path)
 
     else:
-        path = abspath('../output_data/' + prefix + str(total_locs) + 'loc_' + str(no_yrs) + 'y_n' + str(no_locs) + '_k' + str(no_part) + '_' + str(norm) + suffix)
+        path = abspath('../output_data/' + prefix + str(no_yrs) + 'y_n' + str(no_locs) + '_k' + str(no_part) + '_' + str(norm) + suffix)
         makedirs(path)
 
     custom_log(' Folder path is: {}'.format(str(path)))
