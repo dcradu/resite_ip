@@ -52,6 +52,7 @@ function randomised_greedy_heuristic(D::Array{Float64,2}, c::Float64, n::Float64
     y_incumbent .= Dx_incumbent .>= c
     LB_incumbent = sum(y_incumbent)
     locations_removed += 1
+    println(locations_removed)
   end
   x_incumbent[ind_incumbent] .= 1.
   return x_incumbent, LB_incumbent
@@ -61,6 +62,161 @@ end
 function time_randomised_greedy_heuristic(D::Array{Float64,2}, c::Float64, n::Float64)
   @time randomised_greedy_heuristic(D, c, n)
 end
+
+
+#################### Classic Greedy Heuristic #######################
+
+# Description: function implementing a classic greedy algorithm (Nemhauser et al, 1978) with random selection of tied locations for unpartitioned geographical regions
+#
+# Comments: 1) types of inputs should match those declared in argument list
+#           2) at every iteration, randomisation is used to select the location that should be removed from the locations set when several locations are "tied", i.e., removing each of them leads to the same decrease in objective value
+#
+# Inputs: D - criticality matrix with entries in {0, 1}, where rows represent time windows and columns represent locations
+#         c - global criticality threshold
+#         n - number of sites to deploy
+#
+# Outputs: x_incumbent - vector with entries in {0, 1} and cardinality n representing the incumbent solution at the last iteration
+#          LB_incumbent - objective value of incumbent solution, provides a lower bound on optimal objective
+#
+
+function classic_greedy_algorithm(D::Array{Float64,2}, c::Float64, n::Float64)
+
+  W, L = size(D)
+  x_incumbent = zeros(Float64, L)
+  ind_compl_incumbent = [i for i in 1:L]
+  ind_incumbent = []
+  Dx_incumbent = zeros(Float64, W)
+  y_incumbent = zeros(Float64, W)
+  LB_incumbent = 0
+  Dx_tmp = Vector{Float64}(undef, W)
+  y_tmp = Vector{Float64}(undef, W)
+  locations_added = 0
+  @inbounds while locations_added < n
+    println("Locations added ", locations_added, "/", n)
+    LB_diff_candidate = 0
+    ind_candidate_list = Vector{Int64}(undef, 0)
+    @inbounds for ind in setdiff(ind_compl_incumbent, ind_incumbent)
+        Dx_tmp .= Dx_incumbent .+ view(D, :, ind)
+        y_tmp .= Dx_tmp .>= c
+        LB_diff_tmp = sum(y_tmp) - LB_incumbent
+        if LB_diff_tmp > LB_diff_candidate
+          ind_candidate_list = [ind]
+          LB_diff_candidate = LB_diff_tmp
+        elseif LB_diff_tmp == LB_diff_candidate
+          ind_candidate_list = union(ind, ind_candidate_list)
+        end
+    end
+    ind_candidate = sample(ind_candidate_list)
+    ind_incumbent = union(ind_incumbent, ind_candidate)
+    Dx_incumbent .= Dx_incumbent .+ view(D, :, ind_candidate)
+    y_incumbent .= Dx_incumbent .>= c
+    LB_incumbent = sum(y_incumbent)
+    locations_added += 1
+  end
+  x_incumbent[ind_incumbent] .= 1.
+  return x_incumbent, LB_incumbent
+
+end
+
+function time_classic_greedy_algorithm(D::Array{Float64,2}, c::Float64, n::Float64)
+  @time classic_greedy_algorithm(D, c, n)
+end
+
+#################### Stochastic Greedy Algorithm for Submodular Maximization #######################
+
+# Description: function implementing the stochastic greedy algorithm for submodular maximization (Mirzasoleiman et al, 2015) for unpartitioned geographical regions
+#
+# Comments: 1) types of inputs should match those declared in argument list
+#           2) at every iteration, randomisation is used to select the location that should be removed from the locations set when several locations are "tied", i.e., removing each of them leads to the same decrease in objective value
+#
+# Inputs: D - criticality matrix with entries in {0, 1}, where rows represent time windows and columns represent locations
+#         c - global criticality threshold
+#         n - number of sites to deploy
+#
+# Outputs: x_incumbent - vector with entries in {0, 1} and cardinality n representing the incumbent solution at the last iteration
+#          LB_incumbent - objective value of incumbent solution, provides a lower bound on optimal objective
+#
+
+function stochastic_greedy_algorithm(D::Array{Float64,2}, c::Float64, n::Float64, epsilon::Float64)
+
+  W, L = size(D)
+  s = convert(Int64, round((L/n)*log(1/epsilon)))
+  x_incumbent = zeros(Float64, L)
+  random_ind_set = Vector{Int64}(undef, s)
+  ind_compl_incumbent = [i for i in 1:L]
+  ind_incumbent = []
+  Dx_incumbent = zeros(Float64, W)
+  y_incumbent = zeros(Float64, W)
+  LB_incumbent = 0
+  Dx_tmp = Vector{Float64}(undef, W)
+  y_tmp = Vector{Float64}(undef, W)
+  locations_added = 0
+  @inbounds while locations_added < n
+    LB_diff_candidate = 0
+    ind_candidate_list = Vector{Int64}(undef, 0)
+    random_ind_set .= sample(ind_compl_incumbent, s, replace=false)
+    @inbounds for ind in random_ind_set
+        Dx_tmp .= Dx_incumbent .+ view(D, :, ind)
+        y_tmp .= Dx_tmp .>= c
+        LB_diff_tmp = sum(y_tmp) - LB_incumbent
+        if LB_diff_tmp > LB_diff_candidate
+          ind_candidate_list = [ind]
+          LB_diff_candidate = LB_diff_tmp
+        elseif LB_diff_tmp == LB_diff_candidate
+          ind_candidate_list = union(ind, ind_candidate_list)
+        end
+    end
+    ind_candidate = sample(ind_candidate_list)
+    ind_incumbent = union(ind_incumbent, ind_candidate)
+    ind_compl_incumbent = setdiff(ind_compl_incumbent, ind_candidate)
+    Dx_incumbent .= Dx_incumbent .+ view(D, :, ind_candidate)
+    y_incumbent .= Dx_incumbent .>= c
+    LB_incumbent = sum(y_incumbent)
+    locations_added += 1
+  end
+  x_incumbent[ind_incumbent] .= 1.
+  return x_incumbent, LB_incumbent
+
+end
+
+function time_stochastic_greedy_algorithm(D::Array{Float64,2}, c::Float64, n::Float64, epsilon::Float64)
+  @time stochastic_greedy_algorithm(D, c, n, epsilon)
+end
+
+
+
+#################### Random Search Algorithm #######################
+
+function random_search(D::Array{Float64, 2}, c::Float64, n::Float64, R::Int64)
+
+  W, L = size(D)
+  x_incumbent = zeros(Float64, L)
+  ind_set = [l for l in 1:L]
+  ind_incumbent = Vector{Int64}(undef, convert(Int64, n))
+  ind_candidate = Vector{Int64}(undef, convert(Int64, n))
+  Dx_candidate = Vector{Float64}(undef, W)
+  y_candidate = Vector{Float64}(undef, W)
+
+  LB_incumbent = 0
+  for r in 1:R
+    ind_candidate .= sample(ind_set, convert(Int64, n), replace=false)
+    Dx_candidate = sum(view(D, :, ind_candidate), dims = 2)
+    y_candidate = Dx_candidate .>= c
+    LB_candidate = sum(y_candidate)
+    if LB_candidate >= LB_incumbent
+      ind_incumbent .= ind_candidate
+      LB_incumbent = LB_candidate
+    end
+  end
+  x_incumbent[ind_incumbent] .= 1.
+  return x_incumbent, LB_incumbent
+end
+
+function time_random_search(D::Array{Float64,2}, c::Float64, n::Float64, R::Int64)
+  @time random_search(D, c, n, R)
+end
+
+
 
 #################### Randomised Greedy Heuristic with Partitioning Constraints (Dict Implementation) #######################
 
@@ -280,8 +436,8 @@ function simulated_annealing_local_search(D::Array{Float64, 2}, c::Float64, n::F
   Dx_tmp = Array{Float64}(undef, W, 1)
 
   # Initialise
-  ind_ones_incumbent .= findall(x_init .== 1.)
-  ind_zeros_incumbent .= findall(x_init .== 0.)
+  ind_ones_incumbent = findall(x_init .== 1.)
+  ind_zeros_incumbent = findall(x_init .== 0.)
   Dx_incumbent .= sum(view(D, :, ind_ones_incumbent), dims = 2)
   y_incumbent .= Dx_incumbent .>= c_threshold
 

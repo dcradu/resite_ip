@@ -52,36 +52,68 @@ name_prefix: 'off_'
 solution_method:
   BB:
     set: False
-    c: 8
+    c: 106
     solver: 'gurobi'
     mipgap: 0.02
     timelimit: 1800
     threads: 0
   HEU:
     set: True
-    c: [1, 106, 212, 318, 424, 530]
+    c: [318]
     neighborhood: 1
     no_iterations: 200
     no_epochs: 500
     initial_temp: 200.
-    no_runs: 100
-    algorithm: 'SALS' #'GLS'
+    no_runs: 3 
+    algorithm: 'SALSR' #'GLS'
     which_sol: 'rand' #'rand'
     seed: 1
   RGH:
     set: False
     c: [1, 106, 212, 318, 424, 530]
-  RAND:
-    set: False
-    c: [530]
-    no_iterations: 50
-    no_epochs: 100
     no_runs: 1
-    seed: 1
+    algorithm: 'RGH'
+  GAS:
+    set: False
+    c: [318]
+    no_runs: 2 
+    algorithm: 'SGA' #'SGA'
+    epsilon: 0.001
+  RAND:
+    set: False 
+    c: [53]
+    no_iterations: 50
+    no_epochs: 500
+    no_runs: 1
+    algorithm: 'RS'
 
 #deployment_constraint: 'country'
 deployment_vector: {'EU': {'wind_onshore': 530}}
 
+#deployment_vector: {'DE': {'wind_onshore': 140},
+#                    'FR': {'wind_onshore': 73},
+#                    'ES': {'wind_onshore': 70},
+#                    'UK': {'wind_onshore': 30},
+#                    'IT': {'wind_onshore': 28},
+#                    'SE': {'wind_onshore': 24},
+#                    'PL': {'wind_onshore': 21},
+#                    'NL': {'wind_onshore': 16},
+#                    'PT': {'wind_onshore': 14},
+#                    'AT': {'wind_onshore': 14},
+#                    'EL': {'wind_onshore': 13},
+#                    'IE': {'wind_onshore': 12},
+#                    'DK': {'wind_onshore': 10},
+#                    'FI': {'wind_onshore': 10},
+#                    'RO': {'wind_onshore': 9},
+#                    'BE': {'wind_onshore': 9},
+#                    'BG': {'wind_onshore': 4},
+#                    'LT': {'wind_onshore': 3},
+#                    'CZ': {'wind_onshore': 4},
+#                    'EE': {'wind_onshore': 2},
+#                    'HR': {'wind_onshore': 3},
+#                    'LV': {'wind_onshore': 1},
+#                    'NO': {'wind_onshore': 20}}
+#
 #deployment_constraint: 'tech'
 #deployment_vector: {'wind_onshore': 3,
 #                    'wind_offshore': 2}
