@@ -18,7 +18,7 @@ from shapely.geometry import Point
 from shapely.ops import nearest_points
 from windpowerlib import power_curves, wind_speed
 
-from src.helpers import filter_onshore_offshore_locations, union_regions, return_coordinates_from_shapefiles_light, \
+from helpers import filter_onshore_offshore_locations, union_regions, return_coordinates_from_shapefiles_light, \
     return_region_divisions, read_legacy_capacity_data, retrieve_nodes_with_legacy_units, concatenate_dict_keys, \
     return_dict_keys, chunk_split, collapse_dict_region_level, dict_to_xarray, read_inputs, \
     retrieve_load_data_partitions, get_partition_index
@@ -523,9 +523,9 @@ def return_filtered_coordinates(dataset, spatial_resolution, technologies, regio
 
         final_coordinates[tech] = [key for key, value in start_coordinates_dict.items() if value in updated_coordinates]
 
-        if len(final_coordinates[tech]) > 0:
-            from src.helpers import plot_basemap
-            plot_basemap(final_coordinates[tech], title=tech)
+        #if len(final_coordinates[tech]) > 0:
+        #    from src.helpers import plot_basemap
+        #    plot_basemap(final_coordinates[tech], title=tech)
 
         # import sys
         # sys.exit()

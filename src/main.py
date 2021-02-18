@@ -7,9 +7,9 @@ from numpy import zeros, argmax
 import argparse
 import time
 
-from src.helpers import read_inputs, init_folder, custom_log, remove_garbage, generate_jl_output
-from src.models import preprocess_input_data, build_model
-from src.tools import retrieve_location_dict, retrieve_site_data, retrieve_location_dict_jl, retrieve_index_dict
+from helpers import read_inputs, init_folder, custom_log, remove_garbage, generate_jl_output
+from models import preprocess_input_data, build_model
+from tools import retrieve_location_dict, retrieve_site_data, retrieve_location_dict_jl, retrieve_index_dict
 
 def parse_args():
 
@@ -26,20 +26,22 @@ def parse_args():
 parameters = read_inputs('../config_model.yml')
 keepfiles = parameters['keep_files']
 
-if isfile('../input_data/criticality_matrix.p') & isfile('../input_data/coordinates_data.p'):
+if isfile('../input_data/criticality_matrix.p'):
+    print('Files already available.')
     criticality_data = pickle.load(open('../input_data/criticality_matrix.p', 'rb'))
     coordinates_data = pickle.load(open('../input_data/coordinates_data.p', 'rb'))
     output_data = pickle.load(open('../input_data/output_data.p', 'rb'))
     print(' WARNING! Instance data read from files.')
 else:
+    print('Files not available.')
     input_dict = preprocess_input_data(parameters)
     criticality_data = input_dict['criticality_data']
     coordinates_data = input_dict['coordinates_data']
-    output_data = input_dict['output_data']
+    output_data = input_dict['capacity_factor_data']
 
-    pickle.dump(input_dict['criticality_data'], open('criticality_data.p', 'wb'))
-    pickle.dump(input_dict['coordinates_data'], open('coordinates_data.p', 'wb'))
-    pickle.dump(input_dict['output_data'], open('output_data.p', 'wb'))
+    pickle.dump(input_dict['criticality_data'], open('../input_data/criticality_matrix.p', 'wb'), protocol=4)
+    pickle.dump(input_dict['coordinates_data'], open('../input_data/coordinates_data.p', 'wb'), protocol=4)
+    pickle.dump(input_dict['capacity_factor_data'], open('../input_data/output_data.p', 'wb'), protocol=4)
 
 if parameters['solution_method']['BB']['set']:
 
@@ -60,7 +62,7 @@ if parameters['solution_method']['BB']['set']:
     if not isinstance(parameters['solution_method']['BB']['c'], int):
         raise ValueError(' Values of c have to be integers for the Branch & Bound set-up.')
 
-    output_folder = init_folder(parameters, suffix='_c' + str(parameters['solution_method']['BB']['c']))
+    output_folder = init_folder(parameters, suffix='_c' + str(parameters['solution_method']['BB']['c']) + '_BB')
     with open(join(output_folder, 'config_model.yaml'), 'w') as outfile:
         yaml.dump(parameters, outfile, default_flow_style=False, sort_keys=False)
 
@@ -168,18 +170,19 @@ elif parameters['solution_method']['GRED']['set']:
                                  criticality_data,
                                  coordinates_data)
 
-    jl = julia.Julia(compiled_modules=False)
-    from julia.api import Julia
-    jl.include("jl/main_heuristics_module.jl")
-    from julia import Siting_Heuristics as heuristics
+    j = julia.Julia(compiled_modules=False)
+    fn = j.include("jl/SitingHeuristics_GRED.jl")
 
-    for c in parameters['solution_method']['RGH']['c']:
+    for c in parameters['solution_method']['GRED']['c']:
         print('Running heuristic for c value of', c)
         start = time.time()
-        jl_selected, jl_objective = heuristics.main_GRED(jl_dict['deployment_dict'],
-                                                         jl_dict['criticality_matrix'],
-                                                         c,
-                                                         parameters['solution_method']['GRED']['algorithm'])
+        jl_selected, jl_objective = fn(jl_dict['deployment_dict'],
+                                       jl_dict['criticality_matrix'],
+                                       c,
+                                       parameters['solution_method']['GRED']['no_runs'],
+                                       parameters['solution_method']['GRED']['eps'],
+                                       parameters['solution_method']['GRED']['algorithm'])
+        
         end = time.time()
         noruns = parameters['solution_method']['GRED']['no_runs']
         dt = (end - start) / noruns
@@ -187,8 +190,8 @@ elif parameters['solution_method']['GRED']['set']:
 
         output_folder = init_folder(parameters, suffix='_c' + str(c) + '_GRED')
 
-        # with open(join(output_folder, 'config_model.yaml'), 'w') as outfile:
-        #     yaml.dump(parameters, outfile, default_flow_style=False, sort_keys=False)
+         with open(join(output_folder, 'config_model.yaml'), 'w') as outfile:
+             yaml.dump(parameters, outfile, default_flow_style=False, sort_keys=False)
         pickle.dump(jl_selected, open(join(output_folder, 'solution_matrix.p'), 'wb'))
         pickle.dump(jl_objective, open(join(output_folder, 'objective_vector.p'), 'wb'))
         # if c == parameters['solution_method']['HEU']['c'][0]:

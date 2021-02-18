@@ -3,7 +3,7 @@ using PyCall
 include("optimisation_models.jl")
 include("MCP_heuristics.jl")
 
-module Siting_Heuristics
+module SitingHeuristics
 
 # Simulated Annealing & Local Search algorithm
 function main_MIRSA(index_dict, deployment_dict, D, c, N, I, E, T_init, R, run)

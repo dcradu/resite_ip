@@ -4,7 +4,7 @@ include("optimisation_models.jl")
 include("MCP_heuristics.jl")
 
 function main_call(index_dict, deployment_dict, D, c, N, I, E, T_init, R, run)
-  println(index_dict)
+  
   index_dict = Dict([(convert(Int64, k), convert(Int64, index_dict[k])) for k in keys(index_dict)])
   deployment_dict = Dict([(convert(Int64, k), convert(Int64, deployment_dict[k])) for k in keys(deployment_dict)])
   D  = convert.(Float64, D)

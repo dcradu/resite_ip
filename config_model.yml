@@ -25,7 +25,7 @@ legacy_layer: False
 distance_layer: False
 
 # Start time and end time of the analysis.
-time_slice: ['2009-01-01T00:00', '2018-12-31T23:00']
+time_slice: ['2014-01-01T00:00', '2018-12-31T23:00']
 # List of regions to be considered in the optimization.
 #regions: ['DE', 'FR', 'ES', 'UK', 'IT', 'SE', 'PL', 'NL', 'PT', 'AT', 'EL', 'IE', 'DK', 'FI',
 #          'RO', 'BE', 'BG', 'LT', 'CZ', 'EE', 'LV', 'HR', 'NO']
@@ -52,37 +52,37 @@ name_prefix: 'off_'
 solution_method:
   BB:
     # Branch & Bound
-    set: False
-    c: 106
+    set: True
+    c: 530
     solver: 'gurobi'
     mipgap: 0.02
-    timelimit: 1800
-    threads: 0
+    timelimit: 21600
+    threads: 36
   MIRSA:
     # Simulated Annealing with Local Search
-    set: True
-    c: [318]
+    set: False
+    c: [1, 106, 212, 318, 424, 530]
     neighborhood: 1
-    no_iterations: 200
-    no_epochs: 500
+    no_iterations: 2000
+    no_epochs: 1000
     initial_temp: 200.
-    no_runs: 3 
+    no_runs: 100
     algorithm: 'SALSR' #'GLS'
-    which_sol: 'rand' #'rand'
-    seed: 1
+    #which_sol: 'rand' #'rand'
+    #seed: 1
   GRED:
     set: False
-    epsilon: 0.001
-    c: [1, 106, 212, 318, 424, 530]
-    no_runs: 1
-    algorithm: 'RGH' # SGA
+    eps: 0.001
+    c: [530]
+    no_runs: 1000
+    algorithm: 'SGA' # SGA
   RAND:
     # Random Search
     set: False 
-    c: [318]
-    no_iterations: 50
+    c: [1, 106, 212, 318, 424, 530]
+    no_iterations: 1000
     no_epochs: 500
-    no_runs: 1
+    no_runs: 100
     algorithm: 'RS'
 
 #deployment_constraint: 'country'
