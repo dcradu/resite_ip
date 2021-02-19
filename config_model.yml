@@ -12,7 +12,7 @@ path_potential_data: '../input_data/potentials'
 path_shapefile_data: '../input_data/shapefiles'
 
 # Various data layers to be taken into account in potential site selection.
-resource_quality_layer: False
+resource_quality_layer: True
 population_density_layer: True
 protected_areas_layer: False # expensive
 bathymetry_layer: False # for offshore
@@ -23,11 +23,12 @@ latitude_layer: True
 distance_layer: False # for offshore
 
 # Start time and end time of the analysis.
-time_slice: ['2014-01-01T00:00', '2018-12-31T23:00']
+time_slice: ['2018-01-01T00:00', '2018-12-31T23:00']
 # List of regions to be considered in the optimization.
 regions: ['EU']
 # Technologies to deploy.
 technologies: ['wind_onshore', 'solar_utility']
+deployment_vector: {'EU': {'wind_onshore': 64, 'solar_utility': 28}}
 
 # Assessment measure for each time window. Available: mean, median or percentiles.
 smooth_measure: 'mean'
@@ -80,6 +81,3 @@ solution_method:
     no_epochs: 500
     no_runs: 1
     algorithm: 'RS'
-
-#deployment_constraint: 'country'
-deployment_vector: {'EU': {'wind_onshore': 64, 'solar_utility': 28}}

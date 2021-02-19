@@ -5,9 +5,9 @@ from pyomo.opt import SolverFactory
 import argparse
 import time
 
-from helpers import read_inputs, init_folder, custom_log, remove_garbage, generate_jl_output
-from models import preprocess_input_data, build_model
-from tools import retrieve_location_dict, retrieve_site_data, retrieve_location_dict_jl, retrieve_index_dict
+from src.helpers import read_inputs, init_folder, custom_log, remove_garbage, generate_jl_output
+from src.models import preprocess_input_data, build_model
+from src.tools import retrieve_location_dict, retrieve_site_data
 
 def parse_args():
 
@@ -20,6 +20,7 @@ def parse_args():
     parsed_args = vars(parser.parse_args())
 
     return parsed_args
+
 
 if __name__ == '__main__':
 
@@ -75,7 +76,7 @@ if __name__ == '__main__':
         instance, indices = build_model(parameters, coordinates_data, criticality_data, output_folder, write_lp=False)
         custom_log(' Sending model to solver.')
 
-        results = opt.solve(instance, tee=False, keepfiles=False, report_timing=False,
+        results = opt.solve(instance, tee=True, keepfiles=False, report_timing=False,
                             logfile=join(output_folder, 'solver_log.log'))
 
         objective = instance.objective()

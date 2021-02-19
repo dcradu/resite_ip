@@ -6,7 +6,7 @@ wind_onshore:
   converter_I: 'V105'
   resource: 'wind'
   deployment: 'onshore'
-  resource_threshold: 5. #m/s
+  resource_threshold: 4. #m/s
   population_density_threshold_low: 0.
   population_density_threshold_high: 100.
   protected_areas_selection: ['Ia', 'Ib', 'II']
