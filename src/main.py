@@ -7,7 +7,7 @@ import time
 
 from src.helpers import read_inputs, init_folder, custom_log, remove_garbage, generate_jl_output
 from src.models import preprocess_input_data, build_model
-from src.tools import retrieve_location_dict, retrieve_site_data
+from src.tools import retrieve_location_dict, retrieve_site_data, retrieve_location_dict_jl, retrieve_index_dict
 
 def parse_args():
 
@@ -125,6 +125,7 @@ if __name__ == '__main__':
         if not isinstance(parameters['solution_method']['MIRSA']['c'], list):
             raise ValueError(' Values of c have to elements of a list for the heuristic set-up.')
 
+        _, _, _, indices = retrieve_index_dict(parameters, input_dict['coordinates_data'])
         jl_dict = generate_jl_output(parameters['deployment_vector'],
                                      criticality_data,
                                      coordinates_data)
@@ -149,11 +150,29 @@ if __name__ == '__main__':
             dt = (end-start)/noruns
             print(f'Average time per run: {dt}')
 
-            output_folder = init_folder(parameters, suffix='_c' + str(c) + '_MIRSA')
+            if parameters['solution_method']['MIRSA']['purpose'] == 'planning':
+                seed = parameters['solution_method']['HEU']['seed']
+                for i in range(jl_selected.shape[0]):
 
-            pickle.dump(jl_selected, open(join(output_folder, 'solution_matrix.p'), 'wb'))
-            pickle.dump(jl_objective, open(join(output_folder, 'objective_vector.p'), 'wb'))
-            pickle.dump(jl_traj, open(join(output_folder, 'trajectory_matrix.p'), 'wb'))
+                    output_folder = init_folder(parameters, suffix='_seed' + str(seed))
+                    seed += 1
+
+                    with open(join(output_folder, 'config_model.yaml'), 'w') as outfile:
+                        yaml.dump(parameters, outfile, default_flow_style=False, sort_keys=False)
+
+                    jl_selected_seed = jl_selected[i, :]
+                    jl_objective_seed = jl_objective[i]
+
+                    jl_locations = retrieve_location_dict_jl(jl_selected_seed, parameters, input_dict, indices)
+                    retrieve_site_data(c, parameters, coordinates_data, criticality_data,
+                                       output_data, output_folder, jl_locations, jl_objective_seed)
+            else:
+
+                output_folder = init_folder(parameters, suffix='_c' + str(c) + '_MIRSA')
+
+                pickle.dump(jl_selected, open(join(output_folder, 'solution_matrix.p'), 'wb'))
+                pickle.dump(jl_objective, open(join(output_folder, 'objective_vector.p'), 'wb'))
+                pickle.dump(jl_traj, open(join(output_folder, 'trajectory_matrix.p'), 'wb'))
 
     elif parameters['solution_method']['GRED']['set']:
 

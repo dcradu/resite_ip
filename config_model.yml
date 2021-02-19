@@ -23,7 +23,7 @@ latitude_layer: True
 distance_layer: False # for offshore
 
 # Start time and end time of the analysis.
-time_slice: ['2018-01-01T00:00', '2018-12-31T23:00']
+time_slice: ['2018-01-01T00:00', '2018-01-31T23:00']
 # List of regions to be considered in the optimization.
 regions: ['EU']
 # Technologies to deploy.
@@ -67,6 +67,7 @@ solution_method:
     algorithm: 'SALSR' #'GLS'
     which_sol: 'rand' #'rand'
     seed: 1
+    purpose: 'planning' # 'ol'
   GRED:
     set: False
     epsilon: 0.001
