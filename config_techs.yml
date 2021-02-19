@@ -60,7 +60,7 @@ wind_floating:
   distance_threshold_min: 23.
   distance_threshold_max: 180.
 
-solar_utility:
+pv_utility:
   converter: 'DEG15MC'
   resource: 'solar'
   deployment: 'utility'
@@ -76,7 +76,7 @@ solar_utility:
   forestry_ratio_threshold: 0.8
   latitude_threshold: 65.
 
-solar_residential:
+pv_residential:
   converter: 'DD06M'
   resource: 'solar'
   deployment: 'residential'

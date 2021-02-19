@@ -797,7 +797,7 @@ def read_legacy_capacity_data(start_coordinates, region_subdivisions, tech, path
 
         output_dict = aggregate_capacity_per_node[aggregate_capacity_per_node > capacity_threshold].to_dict()
 
-    elif (tech.split('_')[0] == 'solar') & (tech.split('_')[1] == 'utility'):
+    elif (tech.split('_')[0] == 'pv') & (tech.split('_')[1] == 'utility'):
 
         data = read_excel(join(path_legacy_data, 'Solarfarms_Europe_20200208.xlsx'), sheet_name='ProjReg_rpt',
                           header=0, usecols=[0, 3, 4, 5, 8])
@@ -914,7 +914,7 @@ def filter_onshore_offshore_locations(coordinates_in_region, spatial_resolution,
 
     coords_mask_offshore = mask_offshore[mask_offshore.notnull()].locations.values.tolist()
 
-    if tech in ['wind_onshore', 'solar_utility', 'solar_residential']:
+    if tech in ['wind_onshore', 'pv_utility', 'pv_residential']:
 
         updated_coordinates = list(set(coordinates_in_region).intersection(set(coords_mask_offshore)))
 
@@ -1059,8 +1059,6 @@ def get_partition_index(input_dict, deployment_vector, capacity_split='per_tech'
 
         for region, tech in key_list:
             index_dict[region][tech] = [i + 1 for i in index_dict[region][tech]]
-
-    # print(index_dict)
 
     return index_dict
 

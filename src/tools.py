@@ -696,7 +696,7 @@ def return_output(input_dict, path_to_transfer_function, smooth_wind_power_curve
 
             output_array = xr.concat(output_array_list, dim='locations')
 
-        elif resource == 'solar':
+        elif resource == 'pv':
 
             converter = tech_dict[tech]['converter']
 
@@ -823,11 +823,11 @@ def retrieve_location_dict(instance, model_parameters, coordinate_dict, indices)
     return output_dict
 
 
-def retrieve_location_dict_jl(jl_output, model_parameters, model_data, indices):
+def retrieve_location_dict_jl(jl_output, model_parameters, coordinates_data, indices):
 
     output_dict = {key: [] for key in model_parameters['technologies']}
 
-    coordinates = concatenate_dict_keys(model_data['coordinates_data'])
+    coordinates = concatenate_dict_keys(coordinates_data)
     for item, val in enumerate(jl_output, start=1):
         if val == 1.0:
             for key, index_list in indices.items():

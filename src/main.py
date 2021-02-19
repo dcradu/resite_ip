@@ -81,6 +81,7 @@ if __name__ == '__main__':
 
         objective = instance.objective()
         comp_location_dict = retrieve_location_dict(instance, parameters, coordinates_data, indices)
+        print([(item, len(comp_location_dict[item])) for item in parameters['technologies']])
         retrieve_site_data(c, parameters, coordinates_data, criticality_data,
                            output_data, output_folder, comp_location_dict, objective)
 
@@ -125,7 +126,7 @@ if __name__ == '__main__':
         if not isinstance(parameters['solution_method']['MIRSA']['c'], list):
             raise ValueError(' Values of c have to elements of a list for the heuristic set-up.')
 
-        _, _, _, indices = retrieve_index_dict(parameters, input_dict['coordinates_data'])
+        _, _, _, indices = retrieve_index_dict(parameters, coordinates_data)
         jl_dict = generate_jl_output(parameters['deployment_vector'],
                                      criticality_data,
                                      coordinates_data)
@@ -163,7 +164,8 @@ if __name__ == '__main__':
                     jl_selected_seed = jl_selected[i, :]
                     jl_objective_seed = jl_objective[i]
 
-                    jl_locations = retrieve_location_dict_jl(jl_selected_seed, parameters, input_dict, indices)
+                    jl_locations = retrieve_location_dict_jl(jl_selected_seed, parameters, coordinates_data, indices)
+                    print([(item, len(jl_locations[item])) for item in parameters['technologies']])
                     retrieve_site_data(c, parameters, coordinates_data, criticality_data,
                                        output_data, output_folder, jl_locations, jl_objective_seed)
             else:

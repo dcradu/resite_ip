@@ -27,8 +27,8 @@ time_slice: ['2018-01-01T00:00', '2018-01-31T23:00']
 # List of regions to be considered in the optimization.
 regions: ['EU']
 # Technologies to deploy.
-technologies: ['wind_onshore', 'solar_utility']
-deployment_vector: {'EU': {'wind_onshore': 64, 'solar_utility': 28}}
+technologies: ['wind_onshore', 'pv_utility']
+deployment_vector: {'EU': {'wind_onshore': 64, 'pv_utility': 28}}
 
 # Assessment measure for each time window. Available: mean, median or percentiles.
 smooth_measure: 'mean'

@@ -108,7 +108,6 @@ def build_model(model_parameters, coordinate_dict, D, output_folder, write_lp=Fa
     n, dict_deployment, partitions, indices = retrieve_index_dict(model_parameters, coordinate_dict)
 
     c = model_parameters['solution_method']['BB']['c']
-
     for item in partitions:
         if item in indices:
             if dict_deployment[item] > len(indices[item]):
