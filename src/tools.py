@@ -10,9 +10,8 @@ import geopy.distance
 import xarray as xr
 import xarray.ufuncs as xu
 from geopandas import read_file
-from numpy import arange, interp, float32, datetime64, sqrt, floor, \
-    asarray, newaxis, sum, \
-    max, unique, radians, cos, sin, arctan2, zeros
+from numpy import arange, interp, float32, datetime64, sqrt, asarray, newaxis, sum, max, unique, \
+    radians, cos, sin, arctan2, zeros
 from pandas import read_csv, Series, DataFrame, date_range
 from shapely.geometry import Point
 from shapely.ops import nearest_points
@@ -301,11 +300,10 @@ def filter_locations_by_layer(tech_dict, regions,
 
 
 def return_filtered_coordinates(dataset, spatial_resolution, technologies, regions,
-                                path_land_data, path_resource_data, path_legacy_data, path_shapefile_data,
-                                path_population_data,
+                                path_land_data, path_resource_data, path_shapefile_data, path_population_data,
                                 resource_quality_layer=True, population_density_layer=True, protected_areas_layer=False,
                                 orography_layer=True, forestry_layer=True, water_mask_layer=True, bathymetry_layer=True,
-                                latitude_layer=True, legacy_layer=True, distance_layer=True):
+                                latitude_layer=True, distance_layer=True):
     """
     Returns the set of potential deployment locations for each region and available technology.
 
@@ -323,50 +321,46 @@ def return_filtered_coordinates(dataset, spatial_resolution, technologies, regio
 
     path_resource_data : str
 
-    path_legacy_data : str
-        Relative path to existing capacities (for wind and solar PV) data.
     path_shapefile_data : str
 
     path_population_data : str
 
-    resource_quality_layer : boolean
+    resource_quality_layer : bool
         "True" if the layer to be applied, "False" otherwise. If taken into account,
         it discards points in coordinates_in_region based on the average resource
         quality over the available time horizon. Resource quality threshold defined
         in the config_tech.yaml file.
-    population_density_layer : boolean
+    population_density_layer : bool
         "True" if the layer to be applied, "False" otherwise. If taken into account,
         it discards points in coordinates_in_region based on the population density.
         Population density threshold defined in the config_tech.yaml file per each
         available technology.
-    protected_areas_layer : boolean
+    protected_areas_layer : bool
         "True" if the layer to be applied, "False" otherwise. If taken into account,
         it discards points in coordinates_in_region based on the existance of protected
         areas in their vicinity. Distance threshold, as well as classes of areas are
          defined in the config_tech.yaml file.
-    orography_layer : boolean
+    orography_layer : bool
         "True" if the layer to be applied, "False" otherwise. If taken into account,
         it discards points in coordinates_in_region based on their altitude and terrain
         slope. Both thresholds defined in the config_tech.yaml file for each individual
         technology.
-    forestry_layer : boolean
+    forestry_layer : bool
         "True" if the layer to be applied, "False" otherwise. If taken into account,
         it discards points in coordinates_in_region based on its forest cover share.
         Forest share threshold above which technologies are not built are defined
         in the config_tech.yaml file.
-    water_mask_layer : boolean
+    water_mask_layer : bool
         "True" if the layer to be applied, "False" otherwise. If taken into account,
         it discards points in coordinates_in_region based on the water coverage share.
         Threshold defined in the config_tech.yaml file.
-    bathymetry_layer : boolean
+    bathymetry_layer : bool
         "True" if the layer to be applied, "False" otherwise. If taken into account,
         (valid for offshore technologies) it discards points in coordinates_in_region
         based on the water depth. Associated threshold defined in the config_tech.yaml
         file for offshore and floating wind, respectively.
-    legacy_layer : boolean
-        "True" if the layer to be applied, "False" otherwise. If taken into account,
-        it adds points to the final set based on the existence of RES projects in the area,
-        thus avoiding a greenfield approach.
+    latitude_layer: bool
+    distance_layer: bool
 
     Returns
     -------
@@ -383,7 +377,6 @@ def return_filtered_coordinates(dataset, spatial_resolution, technologies, regio
     for tech in technologies:
 
         tech_dict = tech_config[tech]
-        # region_shapefile_data = return_region_shapefile(region, path_shapefile_data)
         start_coordinates = return_coordinates_from_shapefiles_light(dataset, region_shape)
         start_coordinates_dict = {k: None for k in start_coordinates}
         for k in start_coordinates_dict.keys():
@@ -470,10 +463,6 @@ def return_filtered_coordinates(dataset, spatial_resolution, technologies, regio
                                      coords_to_remove_water]
             coords_to_remove = set().union(*list_coords_to_remove)
 
-            # from src.helpers import plot_basemap
-            # plot_basemap(start_coordinates, title='start')
-            # plot_basemap(coords_to_remove, title='remove')
-
             # Set difference between "global" coordinates and the sets computed in this function.
             updated_coordinates = set(start_coordinates_dict.values()) - coords_to_remove
 
@@ -508,19 +497,6 @@ def return_filtered_coordinates(dataset, spatial_resolution, technologies, regio
             coords_to_remove = set().union(*list_coords_to_remove)
             updated_coordinates = set(start_coordinates_dict.values()) - coords_to_remove
 
-        # if legacy_layer:
-        #
-        #     land_filtered_coordinates = filter_onshore_offshore_locations(start_coordinates,
-        #                                                                   spatial_resolution, tech)
-        #     legacy_dict = read_legacy_capacity_data(land_filtered_coordinates,
-        #                                             return_region_divisions(regions, path_shapefile_data),
-        #                                             tech, path_legacy_data)
-        #     coords_to_add_legacy = retrieve_nodes_with_legacy_units(legacy_dict, regions, tech, path_shapefile_data)
-        #
-        #     final_coordinates[tech] = set(updated_coordinates).union(set(coords_to_add_legacy))
-        #
-        # else:
-
         final_coordinates[tech] = [key for key, value in start_coordinates_dict.items() if value in updated_coordinates]
 
         #if len(final_coordinates[tech]) > 0:
@@ -552,8 +528,8 @@ def return_filtered_coordinates(dataset, spatial_resolution, technologies, regio
         output_dict[key] = {k: v for k, v in output_dict[key].items() if len(v) > 0}
 
     result_dict = {r: {t: [] for t in technologies} for r in regions}
-    added_items = []
     for region, tech in return_dict_keys(output_dict):
+        added_items = []
         coords_region_tech = output_dict[region][tech]
         for item in coords_region_tech:
             if item in added_items:

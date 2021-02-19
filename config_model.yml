@@ -1,5 +1,5 @@
 # Spatial resolution (in degrees) of the potential sites.
-spatial_resolution: 0.28
+spatial_resolution: 0.5
 # Path towards the various input data.
 path_resource_data: '../input_data/resource_data'
 path_transfer_function_data: '../input_data/transfer_functions'
@@ -9,29 +9,25 @@ path_land_data: '../input_data/land_data'
 path_load_data: '../input_data/load_data'
 path_transmission_data: '../input_data/transmission_data'
 path_potential_data: '../input_data/potentials'
-path_legacy_data : '../input_data/legacy'
 path_shapefile_data: '../input_data/shapefiles'
 
 # Various data layers to be taken into account in potential site selection.
 resource_quality_layer: False
-population_density_layer: False
-protected_areas_layer: False
-bathymetry_layer: False
-orography_layer: False
-forestry_layer: False
+population_density_layer: True
+protected_areas_layer: False # expensive
+bathymetry_layer: False # for offshore
+orography_layer: True
+forestry_layer: True
 water_mask_layer: True
-latitude_layer: False
-legacy_layer: False
-distance_layer: False
+latitude_layer: True
+distance_layer: False # for offshore
 
 # Start time and end time of the analysis.
 time_slice: ['2014-01-01T00:00', '2018-12-31T23:00']
 # List of regions to be considered in the optimization.
-#regions: ['DE', 'FR', 'ES', 'UK', 'IT', 'SE', 'PL', 'NL', 'PT', 'AT', 'EL', 'IE', 'DK', 'FI',
-#          'RO', 'BE', 'BG', 'LT', 'CZ', 'EE', 'LV', 'HR', 'NO']
 regions: ['EU']
 # Technologies to deploy.
-technologies: ['wind_onshore']
+technologies: ['wind_onshore', 'solar_utility']
 
 # Assessment measure for each time window. Available: mean, median or percentiles.
 smooth_measure: 'mean'
@@ -46,145 +42,44 @@ delta: 1
 # Keeping files at the end of the run.
 keep_files: True
 # Run name
-name_prefix: 'off_'
+name_prefix: 'book_'
 
-# Solution method: BB or HEU or RAND.
+# Solution method: BB or HEU or RAND or GRED.
 solution_method:
   BB:
     # Branch & Bound
     set: True
-    c: 530
+    c: 1
     solver: 'gurobi'
-    mipgap: 0.02
-    timelimit: 21600
-    threads: 36
+    mipgap: 0.04
+    timelimit: 1800
+    threads: 4
   MIRSA:
     # Simulated Annealing with Local Search
     set: False
-    c: [1, 106, 212, 318, 424, 530]
+    c: [46]
     neighborhood: 1
-    no_iterations: 2000
+    no_iterations: 1000
     no_epochs: 1000
     initial_temp: 200.
-    no_runs: 100
+    no_runs: 1
     algorithm: 'SALSR' #'GLS'
-    #which_sol: 'rand' #'rand'
-    #seed: 1
+    which_sol: 'rand' #'rand'
+    seed: 1
   GRED:
     set: False
-    eps: 0.001
-    c: [530]
-    no_runs: 1000
-    algorithm: 'SGA' # SGA
+    epsilon: 0.001
+    c: [1, 106, 212, 318, 424, 530]
+    no_runs: 1
+    algorithm: 'RGH' # SGA
   RAND:
     # Random Search
-    set: False 
-    c: [1, 106, 212, 318, 424, 530]
-    no_iterations: 1000
+    set: False
+    c: [318]
+    no_iterations: 50
     no_epochs: 500
-    no_runs: 100
+    no_runs: 1
     algorithm: 'RS'
 
 #deployment_constraint: 'country'
-deployment_vector: {'EU': {'wind_onshore': 530}}
-
-#deployment_vector: {'DE': {'wind_onshore': 140},
-#                    'FR': {'wind_onshore': 73},
-#                    'ES': {'wind_onshore': 70},
-#                    'UK': {'wind_onshore': 30},
-#                    'IT': {'wind_onshore': 28},
-#                    'SE': {'wind_onshore': 24},
-#                    'PL': {'wind_onshore': 21},
-#                    'NL': {'wind_onshore': 16},
-#                    'PT': {'wind_onshore': 14},
-#                    'AT': {'wind_onshore': 14},
-#                    'EL': {'wind_onshore': 13},
-#                    'IE': {'wind_onshore': 12},
-#                    'DK': {'wind_onshore': 10},
-#                    'FI': {'wind_onshore': 10},
-#                    'RO': {'wind_onshore': 9},
-#                    'BE': {'wind_onshore': 9},
-#                    'BG': {'wind_onshore': 4},
-#                    'LT': {'wind_onshore': 3},
-#                    'CZ': {'wind_onshore': 4},
-#                    'EE': {'wind_onshore': 2},
-#                    'HR': {'wind_onshore': 3},
-#                    'LV': {'wind_onshore': 1},
-#                    'NO': {'wind_onshore': 20}}
-
-# Dict of deployments per partition.
-#deployment_vector: {'UK':{'wind_offshore':10},
-#                    'NL':{'wind_offshore':8},
-#                    'FR':{'wind_offshore':7},
-#                    'DE':{'wind_offshore':5},
-#                    'DK':{'wind_offshore':5},
-#                    'NO':{'wind_offshore':4},
-#                    'PL':{'wind_offshore':4},
-#                    'IE':{'wind_offshore':3},
-#                    'IT':{'wind_offshore':3},
-#                    'SE':{'wind_offshore':3},
-#                    'FI':{'wind_offshore':2},
-#                    'ES':{'wind_offshore':2},
-#                    'EL':{'wind_offshore':2},
-#                    'PT':{'wind_offshore':2},
-#                    'BE':{'wind_offshore':1},
-#                    'LT':{'wind_offshore':1},
-#                    'LV':{'wind_offshore':1},
-#                    'EE':{'wind_offshore':1}}
-
-#deployment_vector: {'UK':{'wind_offshore':14},
-#                    'NL':{'wind_offshore':10},
-#                    'FR':{'wind_offshore':10},
-#                    'DE':{'wind_offshore':6},
-#                    'DK':{'wind_offshore':6},
-#                    'NO':{'wind_offshore':5},
-#                    'PL':{'wind_offshore':5},
-#                    'IE':{'wind_offshore':4},
-#                    'IT':{'wind_offshore':4},
-#                    'SE':{'wind_offshore':4},
-#                    'FI':{'wind_offshore':3},
-#                    'ES':{'wind_offshore':3},
-#                    'EL':{'wind_offshore':2},
-#                    'PT':{'wind_offshore':2},
-#                    'BE':{'wind_offshore':1},
-#                    'LT':{'wind_offshore':1},
-#                    'LV':{'wind_offshore':1},
-#                    'EE':{'wind_offshore':1}}
-
-#deployment_vector: {'UK':{'wind_offshore':21},
-#                    'NL':{'wind_offshore':16},
-#                    'FR':{'wind_offshore':15},
-#                    'DE':{'wind_offshore':10},
-#                    'DK':{'wind_offshore':9},
-#                    'NO':{'wind_offshore':8},
-#                    'PL':{'wind_offshore':8},
-#                    'IE':{'wind_offshore':6},
-#                    'IT':{'wind_offshore':6},
-#                    'SE':{'wind_offshore':6},
-#                    'FI':{'wind_offshore':4},
-#                    'ES':{'wind_offshore':4},
-#                    'EL':{'wind_offshore':3},
-#                    'PT':{'wind_offshore':3},
-#                    'BE':{'wind_offshore':2},
-#                    'LT':{'wind_offshore':2},
-#                    'LV':{'wind_offshore':1},
-#                    'EE':{'wind_offshore':1}}
-
-#deployment_vector: {'UK':{'wind_offshore':48},
-#                    'NL':{'wind_offshore':36},
-#                    'FR':{'wind_offshore':35},
-#                    'DE':{'wind_offshore':22},
-#                    'DK':{'wind_offshore':21},
-#                    'NO':{'wind_offshore':18},
-#                    'PL':{'wind_offshore':17},
-#                    'IE':{'wind_offshore':14},
-#                    'IT':{'wind_offshore':12},
-#                    'SE':{'wind_offshore':12},
-#                    'FI':{'wind_offshore':9},
-#                    'ES':{'wind_offshore':8},
-#                    'EL':{'wind_offshore':6},
-#                    'PT':{'wind_offshore':6},
-#                    'BE':{'wind_offshore':3},
-#                    'LT':{'wind_offshore':3},
-#                    'LV':{'wind_offshore':2},
-#                    'EE':{'wind_offshore':1}}
+deployment_vector: {'EU': {'wind_onshore': 64, 'solar_utility': 28}}

@@ -15,7 +15,7 @@ wind_onshore:
   depth_threshold_high: 0.
   altitude_threshold: 1500.
   terrain_slope_threshold: 0.03
-  forestry_ratio_threshold: 0.7
+  forestry_ratio_threshold: 0.8
   latitude_threshold: 65.
 
 wind_offshore:
@@ -71,8 +71,8 @@ solar_utility:
   protected_areas_distance_threshold: 5.
   depth_threshold_low: 0.
   depth_threshold_high: 0.
-  altitude_threshold: 2000.
-  terrain_slope_threshold: 0.05
+  altitude_threshold: 1500.
+  terrain_slope_threshold: 0.03
   forestry_ratio_threshold: 0.8
   latitude_threshold: 65.
 

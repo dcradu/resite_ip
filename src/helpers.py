@@ -1193,21 +1193,6 @@ def custom_log(message):
 
     """
     print(datetime.now().strftime('%H:%M:%S') + ' --- ' + str(message))
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 #
 # from numpy import pi, sin, cos, arccos, sqrt
 # import cartopy.feature as cfeature
