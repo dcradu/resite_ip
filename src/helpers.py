@@ -1081,7 +1081,7 @@ def read_inputs(inputs):
     return data
 
 
-def init_folder(parameters, suffix=None):
+def init_folder(parameters, c, suffix=None):
     """Initilize an output folder.
 
     Parameters:
@@ -1104,16 +1104,14 @@ def init_folder(parameters, suffix=None):
     no_locs = sum({k: sum(v.values()) for k, v in parameters['deployment_vector'].items()}.values())
     no_part = len(parameters['deployment_vector'])
     no_yrs = int(round((to_datetime(parameters['time_slice'][1]) - to_datetime(parameters['time_slice'][0])) / timedelta64(1, 'Y'), 0))
-    norm = parameters['norm_type']
 
     if not isdir("../output_data"):
         makedirs(abspath("../output_data"))
 
-        path = abspath('../output_data/' + prefix + str(no_yrs) + 'y_n' + str(no_locs) + '_k' + str(no_part) + '_' + str(norm) + suffix)
+        path = abspath('../output_data/' + prefix + str(no_yrs) + 'y_n' + str(no_locs) + '_k' + str(no_part) + '_c' + str(c) + suffix)
         makedirs(path)
-
     else:
-        path = abspath('../output_data/' + prefix + str(no_yrs) + 'y_n' + str(no_locs) + '_k' + str(no_part) + '_' + str(norm) + suffix)
+        path = abspath('../output_data/' + prefix + str(no_yrs) + 'y_n' + str(no_locs) + '_k' + str(no_part) + '_c' + str(c) + suffix)
         makedirs(path)
 
     custom_log(' Folder path is: {}'.format(str(path)))

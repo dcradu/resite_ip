@@ -155,7 +155,7 @@ if __name__ == '__main__':
                 seed = parameters['solution_method']['HEU']['seed']
                 for i in range(jl_selected.shape[0]):
 
-                    output_folder = init_folder(parameters, suffix='_seed' + str(seed))
+                    output_folder = init_folder(parameters, c, suffix='_seed' + str(seed))
                     seed += 1
 
                     with open(join(output_folder, 'config_model.yaml'), 'w') as outfile:
