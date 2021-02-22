@@ -903,7 +903,7 @@ def retrieve_site_data(c, model_parameters, coordinates_dict, D, output_data, ou
         output_data_sum = output_data[region][tech].sum(dim='time')
         if n != 0:
             locs = output_data_sum.argsort()[-n:].values
-            output_location[region][tech] = output_data_sum.isel(locations=locs).locations.values.flatten()
+            output_location[region][tech] = sorted(output_data_sum.isel(locations=locs).locations.values.flatten())
         else:
             output_location[region][tech] = None
 
@@ -923,22 +923,17 @@ def retrieve_site_data(c, model_parameters, coordinates_dict, D, output_data, ou
             max_site_data[tech][coord] = output_by_tech[tech].sel(locations=coord).values.flatten()
 
     reform = {(outerKey, innerKey): values for outerKey, innerDict in max_site_data.items() for innerKey, values in
-              innerDict.items()}
+              sorted(innerDict.items())}
     max_site_data_df = DataFrame(reform, index=time_dt)
 
     pickle.dump(max_site_data_df, open(join(output_folder, 'prod_site_data.p'), 'wb'))
 
-    prod_locations = [item[1] for item in max_site_data_df.keys()]
-    all_locations = []
-    for region in model_parameters['deployment_vector'].keys():
-        for tech in model_parameters['technologies']:
-            all_locations.extend(coordinates_dict[region][tech])
     prod_locations_index = []
-    for loc in prod_locations:
-        idx = all_locations.index(loc)
-        prod_locations_index.append(idx + 1)
-
-    prod_locations_index = [i - 1 for i in sorted(prod_locations_index)]
+    for tech in unique([item[0] for item in max_site_data_df.keys()]):
+        prod_locations = [item[1] for item in max_site_data_df.keys() if item[0] == tech]
+        locations_array = output_by_tech[tech].locations.values.tolist()
+        for site in prod_locations:
+            prod_locations_index.append(locations_array.index(site))
 
     xs = zeros(shape=D.shape[1])
     xs[prod_locations_index] = 1

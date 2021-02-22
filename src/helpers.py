@@ -214,12 +214,13 @@ def xarray_to_ndarray(input_dict):
         for k2, v2 in v1.items():
             key_list.append((k1, k2))
 
-    array_list = ()
+    array_list = []
 
     for region, tech in key_list:
-        array_list = (*array_list, input_dict[region][tech].values)
-
-    ndarray = hstack(array_list)
+        array_list.append(input_dict[region][tech])
+    dataset = xr.concat(array_list, dim='locations')
+    dataset = dataset.sortby([dataset.longitude, dataset.latitude])
+    ndarray = dataset.values
 
     return ndarray
 
