@@ -176,7 +176,6 @@ def filter_locations_by_layer(tech_dict, regions,
 
         coords_to_remove = list(set(start_coordinates).intersection(set(coords_mask_latitude)))
 
-
     elif which == 'distance':
 
         distance_threshold_min = tech_dict['distance_threshold_min']
@@ -203,12 +202,10 @@ def filter_locations_by_layer(tech_dict, regions,
 
         coords_to_remove = list(set(start_coordinates).intersection(set(coords_mask_rounded)))
 
-
     elif which in ['orography', 'forestry', 'water_mask', 'bathymetry']:
 
-        dataset = xr.open_dataset(join(path_land_data, filename))
+        dataset = xr.open_dataset(join(path_land_data, filename)).astype(float32)
         dataset = dataset.sortby([dataset.longitude, dataset.latitude])
-
         dataset = dataset.assign_coords(longitude=(((dataset.longitude
                                                      + 180) % 360) - 180)).sortby('longitude')
         dataset = dataset.drop('time').squeeze().stack(locations=('longitude', 'latitude'))
@@ -228,7 +225,9 @@ def filter_locations_by_layer(tech_dict, regions,
             coords_mask_slope = mask_slope[mask_slope.notnull()].locations.values.tolist()
 
             coords_mask_orography = list(set(coords_mask_altitude).union(set(coords_mask_slope)))
-            coords_to_remove = list(set(start_coordinates).intersection(set(coords_mask_orography)))
+            coords_mask_orography_round = [(round(lon, 2), round(lat, 2)) for (lon, lat) in coords_mask_orography]
+
+            coords_to_remove = list(set(start_coordinates).intersection(set(coords_mask_orography_round)))
 
         elif which == 'forestry':
 
@@ -238,8 +237,9 @@ def filter_locations_by_layer(tech_dict, regions,
 
             mask_forestry = array_forestry.where(array_forestry.data >= forestry_threshold)
             coords_mask_forestry = mask_forestry[mask_forestry.notnull()].locations.values.tolist()
+            coords_mask_forestry_round = [(round(lon, 2), round(lat, 2)) for (lon, lat) in coords_mask_forestry]
 
-            coords_to_remove = list(set(start_coordinates).intersection(set(coords_mask_forestry)))
+            coords_to_remove = list(set(start_coordinates).intersection(set(coords_mask_forestry_round)))
 
         elif which == 'water_mask':
 
@@ -248,7 +248,7 @@ def filter_locations_by_layer(tech_dict, regions,
             mask_watermask = array_watermask.where(array_watermask.data < 0.4)
             coords_mask_watermask = mask_watermask[mask_watermask.notnull()].locations.values.tolist()
 
-            coords_mask_rounded = [(round(item[0], 2), round(item[1], 2)) for item in coords_mask_watermask]
+            coords_mask_rounded = [(round(lon, 2), round(lat, 2)) for (lon, lat) in coords_mask_watermask]
             coords_to_remove = list(set(start_coordinates).intersection(set(coords_mask_rounded)))
 
         elif which == 'bathymetry':
@@ -264,7 +264,7 @@ def filter_locations_by_layer(tech_dict, regions,
                                                     (array_bathymetry.data > depth_threshold_high)) |
                                                     (array_watermask.data > 0.1))
             coords_mask_offshore = mask_offshore[mask_offshore.notnull()].locations.values.tolist()
-            coords_mask_rounded = [(round(item[0], 2), round(item[1], 2)) for item in coords_mask_offshore]
+            coords_mask_rounded = [(round(lon, 2), round(lat, 2)) for (lon, lat) in coords_mask_offshore]
 
             coords_to_remove = list(set(start_coordinates).intersection(set(coords_mask_rounded)))
 
@@ -277,18 +277,22 @@ def filter_locations_by_layer(tech_dict, regions,
         # The value of 5 for "raster" fetches data for the latest estimate available in the dataset, that is, 2020.
         data_pop = dataset.sel(raster=5)
 
-        array_pop_density = data_pop['data'].interp(longitude=arange(-180, 180, float(spatial_resolution)),
-                                                    latitude=arange(-89, 91, float(spatial_resolution))[::-1],
+        array_pop_density = data_pop['data'].interp(longitude=sorted(list(set([item[0] for item in start_coordinates]))),
+                                                    latitude=sorted(list(set([item[1] for item in start_coordinates])))[::-1],
                                                     method='nearest').fillna(0.)
-        array_pop_density = array_pop_density.stack(locations=('longitude', 'latitude'))
+        # Temporary, to reduce the size of this ds, which is anyway read in each iteration.
+        min_lon, max_lon, min_lat, max_lat = -11., 32., 35., 80.
+        mask_lon = (array_pop_density.longitude >= min_lon) & (array_pop_density.longitude <= max_lon)
+        mask_lat = (array_pop_density.latitude >= min_lat) & (array_pop_density.latitude <= max_lat)
+
+        pop_ds = array_pop_density.where(mask_lon & mask_lat, drop=True).stack(locations=('longitude', 'latitude'))
 
         population_density_threshold_low = tech_dict['population_density_threshold_low']
         population_density_threshold_high = tech_dict['population_density_threshold_high']
 
-        mask_population = array_pop_density.where((array_pop_density.data < population_density_threshold_low) |
-                                                  (array_pop_density.data > population_density_threshold_high))
+        mask_population = pop_ds.where((pop_ds.data < population_density_threshold_low) |
+                                       (pop_ds.data > population_density_threshold_high))
         coords_mask_population = mask_population[mask_population.notnull()].locations.values.tolist()
-
         coords_to_remove = list(set(start_coordinates).intersection(set(coords_mask_population)))
 
     else:
@@ -402,7 +406,7 @@ def return_filtered_coordinates(dataset, spatial_resolution, technologies, regio
         if tech_dict['deployment'] in ['onshore', 'utility', 'residential']:
 
             if population_density_layer:
-                filename = 'gpw_v4_population_density_rev11_' + str(spatial_resolution) + '.nc'
+                filename = 'gpw_v4_population_density_adjusted_rev11_0.5.nc'
                 coords_to_remove_population = \
                     filter_locations_by_layer(tech_dict, regions, start_coordinates, spatial_resolution,
                                               path_land_data, path_resource_data, path_population_data,

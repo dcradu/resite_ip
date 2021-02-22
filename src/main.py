@@ -63,7 +63,7 @@ if __name__ == '__main__':
         if not isinstance(parameters['solution_method']['BB']['c'], int):
             raise ValueError(' Values of c have to be integers for the Branch & Bound set-up.')
 
-        output_folder = init_folder(parameters, suffix='_c' + str(parameters['solution_method']['BB']['c']) + '_BB')
+        output_folder = init_folder(parameters, c, '_BB')
         with open(join(output_folder, 'config_model.yaml'), 'w') as outfile:
             yaml.dump(parameters, outfile, default_flow_style=False, sort_keys=False)
 
