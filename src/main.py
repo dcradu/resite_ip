@@ -152,7 +152,7 @@ if __name__ == '__main__':
             print(f'Average time per run: {dt}')
 
             if parameters['solution_method']['MIRSA']['purpose'] == 'planning':
-                seed = parameters['solution_method']['HEU']['seed']
+                seed = parameters['solution_method']['MIRSA']['seed']
                 for i in range(jl_selected.shape[0]):
 
                     output_folder = init_folder(parameters, c, suffix='_seed' + str(seed))
