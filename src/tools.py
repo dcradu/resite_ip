@@ -10,9 +10,9 @@ import geopy.distance
 import xarray as xr
 import xarray.ufuncs as xu
 from geopandas import read_file
-from numpy import arange, interp, float32, datetime64, sqrt, asarray, newaxis, sum, max, unique, \
+from numpy import arange, interp, float32, float64, datetime64, sqrt, asarray, newaxis, sum, max, unique, \
     radians, cos, sin, arctan2, zeros
-from pandas import read_csv, Series, DataFrame, date_range
+from pandas import read_csv, Series, DataFrame, date_range, concat, MultiIndex, to_datetime
 from shapely.geometry import Point
 from shapely.ops import nearest_points
 from windpowerlib import power_curves, wind_speed
@@ -53,10 +53,7 @@ def read_database(file_path):
         file_list = [file for file in glob(file_path + '/*.nc') if area in file]
         ds = xr.open_mfdataset(file_list,
                                combine='by_coords',
-                               chunks={'latitude': 20, 'longitude': 20}).stack(locations=('longitude', 'latitude')).astype(float32)
-        # ds = ds.assign_coords(lon=ds.longitude.round(2), lat=ds.latitude.round(2))
-        # ds = ds.swap_dims({'longitude': 'lon', 'latitude': 'lat'})
-        # ds1 = ds.stack(locations=('lon', 'lat'))
+                               chunks={'latitude': 100, 'longitude': 100}).stack(locations=('longitude', 'latitude')).astype(float32)
         datasets.append(ds)
 
     # Concatenate all regions on locations.
@@ -64,7 +61,6 @@ def read_database(file_path):
     # Removing duplicates potentially there from previous concat of multiple regions.
     _, index = unique(dataset['locations'], return_index=True)
     dataset = dataset.isel(locations=index)
-    # dataset = dataset.sel(locations=~dataset.indexes['locations'].duplicated(keep='first'))
     # Sorting dataset on coordinates (mainly due to xarray peculiarities between concat and merge).
     dataset = dataset.sortby([dataset.longitude, dataset.latitude])
     # Remove attributes from datasets. No particular use, looks cleaner.
@@ -806,6 +802,8 @@ def critical_data_position_mapping(input_dict):
     key_list = return_dict_keys(input_dict)
     locations_list = []
     for region, tech in key_list:
+        # locs = input_dict[region][tech].locations.values.flatten()
+        # locations_list.extend([(round(lon, 2), round(lat, 2)) for (lon, lat) in locs])
         locations_list.extend(input_dict[region][tech].locations.values.flatten())
     locations_dict = dict(zip(locations_list, arange(len(locations_list))))
 
@@ -834,6 +832,8 @@ def retrieve_location_dict(instance, model_parameters, coordinate_dict, indices)
             for key, index_list in indices.items():
                 if item in index_list:
                     pos = [i for i, x in enumerate(index_list) if x == item][0]
+                    # coord = coordinates[key][pos]
+                    # output_dict[key[1]].append((round(coord[0], 2), round(coord[1], 2)))
                     output_dict[key[1]].append(coordinates[key][pos])
 
     return output_dict
@@ -849,6 +849,8 @@ def retrieve_location_dict_jl(jl_output, model_parameters, coordinates_data, ind
             for key, index_list in indices.items():
                 if item in index_list:
                     pos = [i for i, x in enumerate(index_list) if x == item][0]
+                    # coord = coordinates[key][pos]
+                    # output_dict[key[1]].append((round(coord[0], 2), round(coord[1], 2)))
                     output_dict[key[1]].append(coordinates[key][pos])
 
     return output_dict
@@ -859,28 +861,23 @@ def retrieve_index_dict(model_parameters, coordinate_dict):
     d = model_parameters['deployment_vector']
     if isinstance(d[list(d.keys())[0]], int):
         dict_deployment = d
-        # print(dict_deployment)
         n = sum(dict_deployment[item] for item in dict_deployment)
-        # print(n)
         partitions = [item for item in d]
-        # print(partitions)
         if model_parameters['deployment_constraint'] == 'country':
             indices = get_partition_index(coordinate_dict, d, capacity_split='per_country')
         elif model_parameters['deployment_constraint'] == 'tech':
             indices = get_partition_index(coordinate_dict, d, capacity_split='per_tech')
     else:
         dict_deployment = concatenate_dict_keys(d)
-        # print(dict_deployment)
         n = sum(dict_deployment[item] for item in dict_deployment)
-        # print(n)
         partitions = [item for item in dict_deployment]
-        # print(partitions)
         indices = concatenate_dict_keys(get_partition_index(coordinate_dict, d, capacity_split='per_country_and_tech'))
 
     return n, dict_deployment, partitions, indices
 
 
-def retrieve_site_data(model_parameters, coordinates_dict, output_data, site_coordinates, output_folder):
+def retrieve_site_data(model_parameters, coordinates_dict, output_data,
+                       site_coordinates, output_folder):
 
     deployment_dict = model_parameters['deployment_vector']
     output_by_tech = collapse_dict_region_level(output_data)
@@ -941,8 +938,37 @@ def retrieve_site_data(model_parameters, coordinates_dict, output_data, site_coo
     reform = {(outerKey, innerKey): values for outerKey, innerDict in max_site_data.items() for innerKey, values in
               sorted(innerDict.items())}
     max_site_data_df = DataFrame(reform, index=time_dt)
-
     pickle.dump(max_site_data_df, open(join(output_folder, 'prod_site_data.p'), 'wb'))
+
+    # Capacity credit sites.
+
+    load_data = read_csv(join(model_parameters['path_load_data'], 'load_2009_2018.csv'), index_col=0)
+    load_data.index = to_datetime(load_data.index)
+    load_data = load_data[(load_data.index > time_slice[0]) & (load_data.index < time_slice[1])]
+
+    df_list = []
+    no_index = 0.05 * len(load_data.index)
+    for country in deployment_dict:
+
+        load_country = load_data.loc[:, country]
+        load_country_max = load_country.nlargest(int(no_index)).index
+
+        for tech in model_parameters['technologies']:
+
+            country_data = output_data[country][tech]
+            country_data_load_max = country_data.sel(time=load_country_max)
+            country_data_wind_avg = country_data_load_max.mean(axis=0)
+            country_sites_best = country_data_wind_avg.argsort()[-deployment_dict[country][tech]:]
+            country_sites = country_sites_best.locations
+
+            xarray_data = country_data.sel(locations=country_sites)
+            df_data = xarray_data.to_pandas()
+            col_list_updated = [(tech, item) for item in df_data.columns]
+            df_data.columns = MultiIndex.from_tuples(col_list_updated)
+            df_list.append(df_data)
+
+    capv_site_data_df = concat(df_list, axis=1)
+    pickle.dump(capv_site_data_df, open(join(output_folder, 'capv_site_data.p'), 'wb'))
 
     # Init coordinate set.
 
