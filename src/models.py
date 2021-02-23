@@ -7,7 +7,7 @@ from pypsa.opt import l_constraint, LConstraint, l_objective, LExpression
 
 from src.helpers import custom_log, xarray_to_ndarray
 from src.tools import read_database, return_filtered_coordinates, selected_data, return_output, \
-    resource_quality_mapping, critical_window_mapping, retrieve_index_dict
+    resource_quality_mapping, critical_window_mapping, retrieve_index_dict, critical_data_position_mapping
 
 
 def preprocess_input_data(model_parameters):
@@ -77,11 +77,13 @@ def preprocess_input_data(model_parameters):
 
     smooth_data = resource_quality_mapping(output_data, delta, measure)
     critical_data = critical_window_mapping(smooth_data, alpha, delta, regions, time_horizon, path_load_data, norm_type)
+    position_mapping = critical_data_position_mapping(critical_data)
 
     output_dict = {
                 'coordinates_data': filtered_coordinates,
                 'capacity_factor_data': output_data,
-                'criticality_data': xarray_to_ndarray(critical_data)}
+                'criticality_data': xarray_to_ndarray(critical_data),
+                'site_positions_in_matrix': position_mapping}
 
     custom_log(' Input data read...')
 

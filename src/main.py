@@ -32,6 +32,7 @@ if __name__ == '__main__':
         criticality_data = pickle.load(open('../input_data/criticality_matrix.p', 'rb'))
         coordinates_data = pickle.load(open('../input_data/coordinates_data.p', 'rb'))
         output_data = pickle.load(open('../input_data/output_data.p', 'rb'))
+        site_positions = pickle.load(open('../input_data/site_positions.p', 'rb'))
         print(' WARNING! Instance data read from files.')
     else:
         print('Files not available.')
@@ -43,6 +44,7 @@ if __name__ == '__main__':
         pickle.dump(input_dict['criticality_data'], open('../input_data/criticality_matrix.p', 'wb'), protocol=4)
         pickle.dump(input_dict['coordinates_data'], open('../input_data/coordinates_data.p', 'wb'), protocol=4)
         pickle.dump(input_dict['capacity_factor_data'], open('../input_data/output_data.p', 'wb'), protocol=4)
+        pickle.dump(input_dict['site_positions_in_matrix'], open('../input_data/site_positions.p', 'wb'), protocol=4)
 
     if parameters['solution_method']['BB']['set']:
 
@@ -81,9 +83,7 @@ if __name__ == '__main__':
 
         objective = instance.objective()
         comp_location_dict = retrieve_location_dict(instance, parameters, coordinates_data, indices)
-        print([(item, len(comp_location_dict[item])) for item in parameters['technologies']])
-        retrieve_site_data(c, parameters, coordinates_data, criticality_data,
-                           output_data, output_folder, comp_location_dict, objective)
+        retrieve_site_data(parameters, coordinates_data, output_data, comp_location_dict, output_folder)
 
     elif parameters['solution_method']['RAND']['set']:
 
@@ -165,9 +165,7 @@ if __name__ == '__main__':
                     jl_objective_seed = jl_objective[i]
 
                     jl_locations = retrieve_location_dict_jl(jl_selected_seed, parameters, coordinates_data, indices)
-                    print([(item, len(jl_locations[item])) for item in parameters['technologies']])
-                    retrieve_site_data(c, parameters, coordinates_data, criticality_data,
-                                       output_data, output_folder, jl_locations, jl_objective_seed)
+                    retrieve_site_data(parameters, coordinates_data, output_data, jl_locations, output_folder)
             else:
 
                 output_folder = init_folder(parameters, suffix='_c' + str(c) + '_MIRSA')

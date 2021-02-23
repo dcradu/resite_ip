@@ -799,6 +799,18 @@ def critical_window_mapping(input_dict,
         raise ValueError('No such alpha rule. Retry.')
 
     return output_dict
+
+
+def critical_data_position_mapping(input_dict):
+
+    key_list = return_dict_keys(input_dict)
+    locations_list = []
+    for region, tech in key_list:
+        locations_list.extend(input_dict[region][tech].locations.values.flatten())
+    locations_dict = dict(zip(locations_list, arange(len(locations_list))))
+
+    return locations_dict
+
 ##########################################################
 
 def spatiotemporal_criticality_mapping(data_array, c):
@@ -868,7 +880,7 @@ def retrieve_index_dict(model_parameters, coordinate_dict):
     return n, dict_deployment, partitions, indices
 
 
-def retrieve_site_data(c, model_parameters, coordinates_dict, D, output_data, output_folder, site_coordinates, objective):
+def retrieve_site_data(model_parameters, coordinates_dict, output_data, site_coordinates, output_folder):
 
     deployment_dict = model_parameters['deployment_vector']
     output_by_tech = collapse_dict_region_level(output_data)
@@ -932,21 +944,6 @@ def retrieve_site_data(c, model_parameters, coordinates_dict, D, output_data, ou
 
     pickle.dump(max_site_data_df, open(join(output_folder, 'prod_site_data.p'), 'wb'))
 
-    prod_locations_index = []
-    for tech in unique([item[0] for item in max_site_data_df.keys()]):
-        prod_locations = [item[1] for item in max_site_data_df.keys() if item[0] == tech]
-        locations_array = output_by_tech[tech].locations.values.tolist()
-        for site in prod_locations:
-            prod_locations_index.append(locations_array.index(site))
-
-    xs = zeros(shape=D.shape[1])
-    xs[prod_locations_index] = 1
-
-    objective_prod = (D.dot(xs) >= c).astype(int).sum()
-
-    with open(join(output_folder, 'objective_prod.txt'), "w") as file:
-        print(objective_prod, file=file)
-
     # Init coordinate set.
 
     tech_dict = {key: [] for key in list(comp_site_data.keys())}
@@ -957,8 +954,5 @@ def retrieve_site_data(c, model_parameters, coordinates_dict, D, output_data, ou
                     tech_dict[tech].extend(sorted(coordinates_dict[region][t], key=lambda x: (x[0], x[1])))
 
     pickle.dump(tech_dict, open(join(output_folder, 'init_coordinates_dict.p'), 'wb'))
-
-    with open(join(output_folder, 'objective.txt'), "w") as file:
-        print(objective, file=file)
 
     return output_location
