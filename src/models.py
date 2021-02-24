@@ -77,10 +77,10 @@ def preprocess_input_data(model_parameters):
 
     smooth_data = resource_quality_mapping(output_data, delta, measure)
     critical_data = critical_window_mapping(smooth_data, alpha, delta, regions, time_horizon, path_load_data, norm_type)
-    position_mapping = critical_data_position_mapping(critical_data)
+    position_mapping, filtered_coordinates_on_loc = critical_data_position_mapping(critical_data, filtered_coordinates)
 
     output_dict = {
-                'coordinates_data': filtered_coordinates,
+                'coordinates_data': filtered_coordinates_on_loc,
                 'capacity_factor_data': output_data,
                 'criticality_data': xarray_to_ndarray(critical_data),
                 'site_positions_in_matrix': position_mapping}

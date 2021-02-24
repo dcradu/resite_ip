@@ -797,7 +797,7 @@ def critical_window_mapping(input_dict,
     return output_dict
 
 
-def critical_data_position_mapping(input_dict):
+def critical_data_position_mapping(input_dict, coordinates_data):
 
     key_list = return_dict_keys(input_dict)
     locations_list = []
@@ -805,9 +805,10 @@ def critical_data_position_mapping(input_dict):
         # locs = input_dict[region][tech].locations.values.flatten()
         # locations_list.extend([(round(lon, 2), round(lat, 2)) for (lon, lat) in locs])
         locations_list.extend(input_dict[region][tech].locations.values.flatten())
+        coordinates_data[region][tech] = input_dict[region][tech].locations.values.flatten()
     locations_dict = dict(zip(locations_list, arange(len(locations_list))))
 
-    return locations_dict
+    return locations_dict, coordinates_data
 
 ##########################################################
 
@@ -826,7 +827,6 @@ def retrieve_location_dict(instance, model_parameters, coordinate_dict, indices)
     output_dict = {key: [] for key in model_parameters['technologies']}
 
     coordinates = concatenate_dict_keys(coordinate_dict)
-
     for item in instance.x:
         if instance.x[item].value == 1.0:
             for key, index_list in indices.items():
@@ -876,8 +876,8 @@ def retrieve_index_dict(model_parameters, coordinate_dict):
     return n, dict_deployment, partitions, indices
 
 
-def retrieve_site_data(model_parameters, coordinates_dict, output_data,
-                       site_coordinates, output_folder):
+def retrieve_site_data(model_parameters, coordinates_dict, output_data, criticality_data, location_mapping, c,
+                       site_coordinates, objective, output_folder):
 
     deployment_dict = model_parameters['deployment_vector']
     output_by_tech = collapse_dict_region_level(output_data)
@@ -906,6 +906,9 @@ def retrieve_site_data(model_parameters, coordinates_dict, output_data,
     else:
         name = 'comp_site_data.p'
     pickle.dump(comp_site_data_df, open(join(output_folder, name), 'wb'))
+
+    with open(join(output_folder, 'objective_comp.txt'), "w") as file:
+        print(objective, file=file)
 
     # Retrieve max sites
     key_list = return_dict_keys(output_data)
@@ -940,6 +943,10 @@ def retrieve_site_data(model_parameters, coordinates_dict, output_data,
     max_site_data_df = DataFrame(reform, index=time_dt)
     pickle.dump(max_site_data_df, open(join(output_folder, 'prod_site_data.p'), 'wb'))
 
+    objective_prod = get_objective_from_mapfile(max_site_data_df, location_mapping, criticality_data, c)
+    with open(join(output_folder, 'objective_prod.txt'), "w") as file:
+        print(objective_prod, file=file)
+
     # Capacity credit sites.
 
     load_data = read_csv(join(model_parameters['path_load_data'], 'load_2009_2018.csv'), index_col=0)
@@ -970,6 +977,10 @@ def retrieve_site_data(model_parameters, coordinates_dict, output_data,
     capv_site_data_df = concat(df_list, axis=1)
     pickle.dump(capv_site_data_df, open(join(output_folder, 'capv_site_data.p'), 'wb'))
 
+    objective_capv = get_objective_from_mapfile(capv_site_data_df, location_mapping, criticality_data, c)
+    with open(join(output_folder, 'objective_capv.txt'), "w") as file:
+        print(objective_capv, file=file)
+
     # Init coordinate set.
 
     tech_dict = {key: [] for key in list(comp_site_data.keys())}
@@ -982,3 +993,15 @@ def retrieve_site_data(model_parameters, coordinates_dict, output_data,
     pickle.dump(tech_dict, open(join(output_folder, 'init_coordinates_dict.p'), 'wb'))
 
     return output_location
+
+
+def get_objective_from_mapfile(df_sites, mapping_file, D, c):
+
+    sites = [item[1] for item in df_sites.columns]
+    positions_in_matrix = [mapping_file[s] for s in sites]
+    print(positions_in_matrix)
+
+    xs = zeros(shape=D.shape[1])
+    xs[positions_in_matrix] = 1
+
+    return (D.dot(xs) >= c).astype(int).sum()

@@ -7,7 +7,7 @@ import time
 
 from src.helpers import read_inputs, init_folder, custom_log, remove_garbage, generate_jl_output
 from src.models import preprocess_input_data, build_model
-from src.tools import retrieve_location_dict, retrieve_site_data, retrieve_location_dict_jl, retrieve_index_dict
+from src.tools import retrieve_location_dict, retrieve_site_data, retrieve_location_dict_jl, retrieve_index_dict, retrieve_objective_data
 
 def parse_args():
 
@@ -30,7 +30,7 @@ if __name__ == '__main__':
     if isfile('../input_data/criticality_matrix.p'):
         print('Files already available.')
         criticality_data = pickle.load(open('../input_data/criticality_matrix.p', 'rb'))
-        coordinates_data = pickle.load(open('../input_data/coordinates_data.p', 'rb'))
+        coordinates_data_on_loc = pickle.load(open('../input_data/coordinates_data.p', 'rb'))
         output_data = pickle.load(open('../input_data/output_data.p', 'rb'))
         site_positions = pickle.load(open('../input_data/site_positions.p', 'rb'))
         print(' WARNING! Instance data read from files.')
@@ -38,8 +38,9 @@ if __name__ == '__main__':
         print('Files not available.')
         input_dict = preprocess_input_data(parameters)
         criticality_data = input_dict['criticality_data']
-        coordinates_data = input_dict['coordinates_data']
+        coordinates_data_on_loc = input_dict['coordinates_data']
         output_data = input_dict['capacity_factor_data']
+        site_positions = input_dict['site_positions_in_matrix']
 
         pickle.dump(input_dict['criticality_data'], open('../input_data/criticality_matrix.p', 'wb'), protocol=4)
         pickle.dump(input_dict['coordinates_data'], open('../input_data/coordinates_data.p', 'wb'), protocol=4)
@@ -75,15 +76,16 @@ if __name__ == '__main__':
         opt.options['Threads'] = Threads
         opt.options['TimeLimit'] = TimeLimit
 
-        instance, indices = build_model(parameters, coordinates_data, criticality_data, output_folder, write_lp=False)
+        instance, indices = build_model(parameters, coordinates_data_on_loc, criticality_data, output_folder, write_lp=False)
         custom_log(' Sending model to solver.')
 
         results = opt.solve(instance, tee=True, keepfiles=False, report_timing=False,
                             logfile=join(output_folder, 'solver_log.log'))
 
         objective = instance.objective()
-        comp_location_dict = retrieve_location_dict(instance, parameters, coordinates_data, indices)
-        retrieve_site_data(parameters, coordinates_data, output_data, comp_location_dict, output_folder)
+        comp_location_dict = retrieve_location_dict(instance, parameters, coordinates_data_on_loc, indices)
+        retrieve_site_data(parameters, coordinates_data_on_loc, output_data, criticality_data, site_positions, c,
+                           comp_location_dict, objective, output_folder)
 
     elif parameters['solution_method']['RAND']['set']:
 
@@ -97,7 +99,7 @@ if __name__ == '__main__':
         import julia
         jl_dict = generate_jl_output(parameters['deployment_vector'],
                                      criticality_data,
-                                     coordinates_data)
+                                     coordinates_data_on_loc)
         j = julia.Julia(compiled_modules=False)
         fn = j.include("jl/SitingHeuristics_RAND.jl")
 
@@ -126,10 +128,10 @@ if __name__ == '__main__':
         if not isinstance(parameters['solution_method']['MIRSA']['c'], list):
             raise ValueError(' Values of c have to elements of a list for the heuristic set-up.')
 
-        _, _, _, indices = retrieve_index_dict(parameters, coordinates_data)
+        _, _, _, indices = retrieve_index_dict(parameters, coordinates_data_on_loc)
         jl_dict = generate_jl_output(parameters['deployment_vector'],
                                      criticality_data,
-                                     coordinates_data)
+                                     coordinates_data_on_loc)
         j = julia.Julia(compiled_modules=False)
         fn = j.include("jl/SitingHeuristics_MIRSA.jl")
 
@@ -164,8 +166,10 @@ if __name__ == '__main__':
                     jl_selected_seed = jl_selected[i, :]
                     jl_objective_seed = jl_objective[i]
 
-                    jl_locations = retrieve_location_dict_jl(jl_selected_seed, parameters, coordinates_data, indices)
-                    retrieve_site_data(parameters, coordinates_data, output_data, jl_locations, output_folder)
+                    jl_locations = retrieve_location_dict_jl(jl_selected_seed, parameters,
+                                                             coordinates_data_on_loc, indices)
+                    retrieve_site_data(parameters, coordinates_data_on_loc, output_data, criticality_data,
+                                       site_positions, c, jl_selected_seed, jl_objective_seed, output_folder)
             else:
 
                 output_folder = init_folder(parameters, suffix='_c' + str(c) + '_MIRSA')
@@ -184,7 +188,7 @@ if __name__ == '__main__':
 
         jl_dict = generate_jl_output(parameters['deployment_vector'],
                                      criticality_data,
-                                     coordinates_data)
+                                     coordinates_data_on_loc)
         j = julia.Julia(compiled_modules=False)
         fn = j.include("jl/SitingHeuristics_GRED.jl")
 

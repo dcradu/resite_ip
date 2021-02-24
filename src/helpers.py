@@ -219,7 +219,6 @@ def xarray_to_ndarray(input_dict):
     for region, tech in key_list:
         array_list.append(input_dict[region][tech])
     dataset = xr.concat(array_list, dim='locations')
-    # dataset = dataset.sortby([dataset.longitude, dataset.latitude])
     ndarray = dataset.values
 
     return ndarray
