@@ -1121,7 +1121,7 @@ def init_folder(parameters, c, suffix=None):
     return path
 
 
-def generate_jl_output(deployment_dict, criticality_matrix, filtered_coordinates):
+def generate_jl_input(deployment_dict, filtered_coordinates):
 
     concat_deployment_dict = concatenate_dict_keys(deployment_dict)
     region_list = [tuple for tuple in concat_deployment_dict.keys()]
@@ -1139,46 +1139,9 @@ def generate_jl_output(deployment_dict, criticality_matrix, filtered_coordinates
         index_dict_swap[key] = int_to_region_map[value]
 
     output_dict = {'deployment_dict': deployment_dict_int,
-                   'criticality_matrix': criticality_matrix,
                    'index_dict': index_dict_swap}
 
     return output_dict
-
-
-def remove_garbage(keepfiles, output_folder, lp=True, script=True, sol=True):
-    """Remove different files after the run.
-
-    Parameters:
-
-    ------------
-
-    keepfiles : boolean
-        If False, folder previously built is deleted.
-
-    output_folder : str
-        Path of output folder.
-
-    """
-
-    if keepfiles == False:
-        rmtree(output_folder)
-
-    directory = getcwd()
-
-    if lp == True:
-        files = glob(join(directory, '*.lp'))
-        for f in files:
-            remove(f)
-
-    if script == True:
-        files = glob(join(directory, '*.script'))
-        for f in files:
-            remove(f)
-
-    if sol == True:
-        files = glob(join(directory, '*.sol'))
-        for f in files:
-            remove(f)
 
 
 def custom_log(message):
@@ -1189,6 +1152,7 @@ def custom_log(message):
 
     """
     print(datetime.now().strftime('%H:%M:%S') + ' --- ' + str(message))
+
 
 from numpy import pi, sin, cos, arccos, sqrt
 import cartopy.feature as cfeature
@@ -1253,7 +1217,7 @@ def centerMap(lons, lats):
 
 
 
-def plot_basemap(coordinate_list, title):
+def plot_basemap(coordinate_list, title, color=None):
 
     longitudes = [i[0] for i in coordinate_list]
     latitudes = [i[1] for i in coordinate_list]
@@ -1281,7 +1245,11 @@ def plot_basemap(coordinate_list, title):
     base_lons = [i[0] for i in coordinate_list]
     base_lats = [i[1] for i in coordinate_list]
 
-    ax.scatter(base_lons, base_lats, transform=proj, marker='x', color='darkgrey',
+    if color is not None:
+        ax.scatter(base_lons, base_lats, transform=proj, marker='x', color=color,
+                s=mapW / 1e6, zorder=2, alpha=0.4)
+    else:
+        ax.scatter(base_lons, base_lats, transform=proj, marker='x', color='darkgrey',
                 s=mapW / 1e6, zorder=2, alpha=0.4)
 
     ax.set_title(title)

@@ -800,7 +800,7 @@ def critical_data_position_mapping(input_dict, coordinates_data):
     locations_list = []
     for region, tech in key_list:
         locations_list.extend([(tech, loc) for loc in input_dict[region][tech].locations.values.flatten()])
-        coordinates_data[region][tech] = input_dict[region][tech].locations.values.flatten()
+        # coordinates_data[region][tech] = input_dict[region][tech].locations.values.flatten()
     locations_dict = dict(zip(locations_list, arange(len(locations_list))))
 
     return locations_dict, coordinates_data
@@ -818,34 +818,18 @@ def spatiotemporal_criticality_mapping(data_array, c):
     return spatiotemporal_noncriticality
 
 
-def retrieve_location_dict(instance, model_parameters, coordinate_dict, indices):
-    output_dict = {key: [] for key in model_parameters['technologies']}
+def retrieve_location_dict(x_values, model_parameters, coordinate_dict):
 
+    output_dict = {key: [] for key in model_parameters['technologies']}
     coordinates = concatenate_dict_keys(coordinate_dict)
-    for item in instance.x:
-        if instance.x[item].value == 1.0:
-            for key, index_list in indices.items():
-                if item in index_list:
-                    pos = [i for i, x in enumerate(index_list) if x == item][0]
-                    # coord = coordinates[key][pos]
-                    # output_dict[key[1]].append((round(coord[0], 2), round(coord[1], 2)))
-                    output_dict[key[1]].append(coordinates[key][pos])
 
-    return output_dict
+    _, _, _, indices = retrieve_index_dict(model_parameters, coordinate_dict)
 
-
-def retrieve_location_dict_jl(jl_output, model_parameters, coordinates_data, indices):
-
-    output_dict = {key: [] for key in model_parameters['technologies']}
-
-    coordinates = concatenate_dict_keys(coordinates_data)
-    for item, val in enumerate(jl_output, start=1):
+    for item, val in enumerate(x_values, start=1):
         if val == 1.0:
             for key, index_list in indices.items():
                 if item in index_list:
                     pos = [i for i, x in enumerate(index_list) if x == item][0]
-                    # coord = coordinates[key][pos]
-                    # output_dict[key[1]].append((round(coord[0], 2), round(coord[1], 2)))
                     output_dict[key[1]].append(coordinates[key][pos])
 
     return output_dict
