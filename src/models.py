@@ -149,7 +149,6 @@ def build_model(model_parameters, coordinate_dict, D, output_folder, write_lp=Fa
     objective = LExpression([(1, model.y[w]) for w in model.W])
     l_objective(model, objective, sense=maximize)
 
-
     if write_lp:
         model.write(filename=join(output_folder, 'model.lp'),
                     format=ProblemFormat.cpxlp,

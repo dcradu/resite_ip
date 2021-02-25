@@ -720,8 +720,7 @@ def return_output(input_dict, path_to_transfer_function, smooth_wind_power_curve
 
         output_array = output_array.where(output_array > 0.01, other=0.0)
 
-        output_dict[region][tech] = output_array
-
+        output_dict[region][tech] = output_array.reindex_like(input_dict[region][tech])
         # output_array.mean(dim='time').unstack('locations').plot(x='longitude', y='latitude')
         # plt.show()
 
@@ -800,7 +799,7 @@ def critical_data_position_mapping(input_dict, coordinates_data):
     locations_list = []
     for region, tech in key_list:
         locations_list.extend([(tech, loc) for loc in input_dict[region][tech].locations.values.flatten()])
-        # coordinates_data[region][tech] = input_dict[region][tech].locations.values.flatten()
+        coordinates_data[region][tech] = input_dict[region][tech].locations.values.flatten()
     locations_dict = dict(zip(locations_list, arange(len(locations_list))))
 
     return locations_dict, coordinates_data
@@ -818,19 +817,15 @@ def spatiotemporal_criticality_mapping(data_array, c):
     return spatiotemporal_noncriticality
 
 
-def retrieve_location_dict(x_values, model_parameters, coordinate_dict):
+def retrieve_location_dict(x_values, model_parameters, site_positions):
 
     output_dict = {key: [] for key in model_parameters['technologies']}
-    coordinates = concatenate_dict_keys(coordinate_dict)
+    reversed_site_positions = dict(map(reversed, site_positions.items()))
 
-    _, _, _, indices = retrieve_index_dict(model_parameters, coordinate_dict)
-
-    for item, val in enumerate(x_values, start=1):
-        if val == 1.0:
-            for key, index_list in indices.items():
-                if item in index_list:
-                    pos = [i for i, x in enumerate(index_list) if x == item][0]
-                    output_dict[key[1]].append(coordinates[key][pos])
+    for tech in output_dict:
+        for item, val in enumerate(x_values):
+            if (val == 1.0) and (reversed_site_positions[item][0] == tech):
+                output_dict[tech].append(reversed_site_positions[item][1])
 
     return output_dict
 
