@@ -15,14 +15,13 @@ if __name__ == '__main__':
     keepfiles = parameters['keep_files']
 
     if isfile('../input_data/criticality_matrix.p'):
-        print('Files already available.')
+        custom_log(' WARNING! Instance data read from files. Make sure the files are the ones that you need.')
         criticality_data = pickle.load(open('../input_data/criticality_matrix.p', 'rb'))
         coordinates_data_on_loc = pickle.load(open('../input_data/coordinates_data.p', 'rb'))
         output_data = pickle.load(open('../input_data/output_data.p', 'rb'))
         site_positions = pickle.load(open('../input_data/site_positions.p', 'rb'))
-        print(' WARNING! Instance data read from files.')
     else:
-        print('Files not available.')
+        custom_log('Files not available.')
         input_dict = preprocess_input_data(parameters)
         criticality_data = input_dict['criticality_data']
         coordinates_data_on_loc = input_dict['coordinates_data']
@@ -61,7 +60,7 @@ if __name__ == '__main__':
 
         objective = instance.objective()
         x_values = array(list(instance.x.extract_values().values()))
-        comp_location_dict = retrieve_location_dict(x_values, parameters, coordinates_data_on_loc, indices)
+        comp_location_dict = retrieve_location_dict(x_values, parameters, coordinates_data_on_loc)
         retrieve_site_data(parameters, coordinates_data_on_loc, output_data, criticality_data, site_positions,
                            params['c'], comp_location_dict, objective, output_folder)
 
@@ -114,10 +113,10 @@ if __name__ == '__main__':
                                                     params['algorithm'])
 
             if params['purpose'] == 'planning':
-                seed = parameters['solution_method']['MIRSA']['seed']
+                seed = params['seed']
                 for i in range(jl_selected.shape[0]):
 
-                    output_folder = init_folder(parameters, c, suffix='_seed' + str(seed))
+                    output_folder = init_folder(parameters, c, suffix='_MIRSA_seed' + str(seed))
                     seed += 1
 
                     with open(join(output_folder, 'config_model.yaml'), 'w') as outfile:
