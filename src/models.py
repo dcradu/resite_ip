@@ -154,4 +154,4 @@ def build_model(model_parameters, coordinate_dict, D, output_folder, write_lp=Fa
                     format=ProblemFormat.cpxlp,
                     io_options={'symbolic_solver_labels': True})
 
-    return model, indices
+    return model
