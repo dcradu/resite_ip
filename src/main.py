@@ -7,7 +7,7 @@ import time
 
 from src.helpers import read_inputs, init_folder, custom_log, remove_garbage, generate_jl_output
 from src.models import preprocess_input_data, build_model
-from src.tools import retrieve_location_dict, retrieve_site_data, retrieve_location_dict_jl, retrieve_index_dict, retrieve_objective_data
+from src.tools import retrieve_location_dict, retrieve_site_data, retrieve_location_dict_jl, retrieve_index_dict
 
 def parse_args():
 
@@ -169,7 +169,7 @@ if __name__ == '__main__':
                     jl_locations = retrieve_location_dict_jl(jl_selected_seed, parameters,
                                                              coordinates_data_on_loc, indices)
                     retrieve_site_data(parameters, coordinates_data_on_loc, output_data, criticality_data,
-                                       site_positions, c, jl_selected_seed, jl_objective_seed, output_folder)
+                                       site_positions, c, jl_locations, jl_objective_seed, output_folder)
             else:
 
                 output_folder = init_folder(parameters, suffix='_c' + str(c) + '_MIRSA')

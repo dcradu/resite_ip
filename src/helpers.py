@@ -526,8 +526,8 @@ def return_region_divisions(region_list, path_shapefile_data):
             region_subdivisions = ['AT', 'BE', 'DE', 'DK', 'ES',
                                    'FR', 'UK', 'IE', 'IT', 'LU',
                                    'NL', 'NO', 'PT', 'SE', 'CH', 'CZ',
-                                   'AL', 'EE', 'LV', 'RO', 'BG', 'EL', 'HR', 'RS',
-                                   'FI', 'EL', 'HR', 'HU', 'LT', 'BA', 'AL', 'ME', 'MK',
+                                   'EE', 'LV', 'RO', 'BG', 'EL', 'HR', 'RS',
+                                   'FI', 'EL', 'HR', 'HU', 'LT',
                                    'PL', 'SI', 'SK']
         elif region == 'NA':
             region_subdivisions = ['DZ', 'EG', 'MA', 'LY', 'TN']
@@ -1269,7 +1269,7 @@ def plot_basemap(coordinate_list, title):
 
     ax = plt.axes(projection=proj)
     ax.set_extent([-18., 37., 30., 75.], proj)
-
+    # ax.set_extent([-10., 8., 35., 47.], proj)
 
     ax.add_feature(land_50m, linewidth=0.5)
     ax.add_feature(cfeature.OCEAN, facecolor='white')

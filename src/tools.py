@@ -19,7 +19,7 @@ from windpowerlib import power_curves, wind_speed
 
 from src.helpers import filter_onshore_offshore_locations, union_regions, return_coordinates_from_shapefiles_light, \
     concatenate_dict_keys, return_dict_keys, chunk_split, collapse_dict_region_level, read_inputs, \
-    retrieve_load_data_partitions, get_partition_index
+    retrieve_load_data_partitions, get_partition_index, return_region_divisions
 
 
 def read_database(file_path):
@@ -501,9 +501,6 @@ def return_filtered_coordinates(dataset, spatial_resolution, technologies, regio
         # if len(final_coordinates[tech]) > 0:
         #    from src.helpers import plot_basemap
         #    plot_basemap(final_coordinates[tech], title=tech)
-    #
-    # import sys
-    # sys.exit()
 
     for region in regions:
 
@@ -802,9 +799,7 @@ def critical_data_position_mapping(input_dict, coordinates_data):
     key_list = return_dict_keys(input_dict)
     locations_list = []
     for region, tech in key_list:
-        # locs = input_dict[region][tech].locations.values.flatten()
-        # locations_list.extend([(round(lon, 2), round(lat, 2)) for (lon, lat) in locs])
-        locations_list.extend(input_dict[region][tech].locations.values.flatten())
+        locations_list.extend([(tech, loc) for loc in input_dict[region][tech].locations.values.flatten()])
         coordinates_data[region][tech] = input_dict[region][tech].locations.values.flatten()
     locations_dict = dict(zip(locations_list, arange(len(locations_list))))
 
@@ -906,6 +901,7 @@ def retrieve_site_data(model_parameters, coordinates_dict, output_data, critical
     else:
         name = 'comp_site_data.p'
     pickle.dump(comp_site_data_df, open(join(output_folder, name), 'wb'))
+    # obj_comp = get_objective_from_mapfile(comp_site_data_df, location_mapping, criticality_data, c)
 
     with open(join(output_folder, 'objective_comp.txt'), "w") as file:
         print(objective, file=file)
@@ -957,16 +953,19 @@ def retrieve_site_data(model_parameters, coordinates_dict, output_data, critical
     no_index = 0.05 * len(load_data.index)
     for country in deployment_dict:
 
-        load_country = load_data.loc[:, country]
+        if country in load_data.columns:
+            load_country = load_data.loc[:, country]
+        else:
+            countries = return_region_divisions([country], model_parameters['path_shapefile_data'])
+            load_country = load_data.loc[:, countries].sum(axis=1)
         load_country_max = load_country.nlargest(int(no_index)).index
 
         for tech in model_parameters['technologies']:
 
             country_data = output_data[country][tech]
-            country_data_load_max = country_data.sel(time=load_country_max)
-            country_data_wind_avg = country_data_load_max.mean(axis=0)
-            country_sites_best = country_data_wind_avg.argsort()[-deployment_dict[country][tech]:]
-            country_sites = country_sites_best.locations
+            country_data_avg_at_load_max = country_data.sel(time=load_country_max).mean(dim='time')
+            locs = country_data_avg_at_load_max.argsort()[-deployment_dict[country][tech]:].values
+            country_sites = country_data_avg_at_load_max.isel(locations=locs).locations.values.flatten()
 
             xarray_data = country_data.sel(locations=country_sites)
             df_data = xarray_data.to_pandas()
@@ -997,9 +996,8 @@ def retrieve_site_data(model_parameters, coordinates_dict, output_data, critical
 
 def get_objective_from_mapfile(df_sites, mapping_file, D, c):
 
-    sites = [item[1] for item in df_sites.columns]
+    sites = [item for item in df_sites.columns]
     positions_in_matrix = [mapping_file[s] for s in sites]
-    print(positions_in_matrix)
 
     xs = zeros(shape=D.shape[1])
     xs[positions_in_matrix] = 1

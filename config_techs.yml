@@ -1,9 +1,9 @@
 # Config file for various conversion technologies.
 wind_onshore:
   converter_IV: 'V110'
-  converter_III: 'V90'
+  converter_III: 'E103'
   converter_II: 'V90'
-  converter_I: 'V105'
+  converter_I: 'E-126'
   resource: 'wind'
   deployment: 'onshore'
   resource_threshold: 4. #m/s
