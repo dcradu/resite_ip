@@ -502,18 +502,17 @@ def return_filtered_coordinates(dataset, spatial_resolution, technologies, regio
         #    from src.helpers import plot_basemap
         #    plot_basemap(final_coordinates[tech], title=tech)
 
-    for region in regions:
+    for tech in technologies:
 
-        shape_region = union_regions([region], path_shapefile_data, which='both')
-        points_in_region = return_coordinates_from_shapefiles_light(dataset, shape_region)
+        list_points_unique = []
+        for region in regions:
 
-        # points_in_region_rounded = [(round(item[0], 2), round(item[1], 2)) for item in points_in_region]
-
-        for tech in technologies:
+            shape_region = union_regions([region], path_shapefile_data, which='both')
+            points_in_region = return_coordinates_from_shapefiles_light(dataset, shape_region)
 
             points_to_take = list(set(final_coordinates[tech]).intersection(set(points_in_region)))
-
-            output_dict[region][tech] = points_to_take
+            output_dict[region][tech] = [p for p in points_to_take if p not in list_points_unique]
+            list_points_unique.extend(points_to_take)
 
             if len(points_to_take) > 0:
                 print(region, tech, len(points_to_take))
@@ -719,7 +718,6 @@ def return_output(input_dict, path_to_transfer_function, smooth_wind_power_curve
             raise ValueError(' The resource specified is not available yet.')
 
         output_array = output_array.where(output_array > 0.01, other=0.0)
-
         output_dict[region][tech] = output_array.reindex_like(input_dict[region][tech])
         # output_array.mean(dim='time').unstack('locations').plot(x='longitude', y='latitude')
         # plt.show()
@@ -800,7 +798,7 @@ def critical_data_position_mapping(input_dict, coordinates_data):
     for region, tech in key_list:
         locations_list.extend([(tech, loc) for loc in input_dict[region][tech].locations.values.flatten()])
         coordinates_data[region][tech] = input_dict[region][tech].locations.values.flatten()
-    locations_dict = dict(zip(locations_list, arange(len(locations_list))))
+    locations_dict = dict(zip(locations_list, list(arange(len(locations_list)))))
 
     return locations_dict, coordinates_data
 
