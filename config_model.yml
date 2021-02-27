@@ -1,5 +1,5 @@
 # Spatial resolution (in degrees) of the potential sites.
-spatial_resolution: 0.5
+spatial_resolution: 0.28
 # Path towards the various input data.
 path_resource_data: '../input_data/resource_data'
 path_transfer_function_data: '../input_data/transfer_functions'
@@ -20,16 +20,31 @@ orography_layer: True
 forestry_layer: True
 water_mask_layer: True
 latitude_layer: True
-distance_layer: False # for offshore
+distance_layer: False #for offshore
 
 # Start time and end time of the analysis.
-time_slice: ['2018-01-01T00:00', '2018-01-31T23:00']
+time_slice: ['2014-01-01T00:00', '2014-12-31T23:00']
 # List of regions to be considered in the optimization.
-regions: ['EU']
+#regions: ['UK', 'NL', 'FR', 'DE', 'DK', 'NO', 'PL', 'IE', 'IT', 'SE', 'FI', 'ES', 'EL', 'PT', 'BE', 'LT', 'LV', 'EE']
+#regions: ['DE', 'FR', 'ES', 'NO', 'UK', 'IT', 'SE', 'PL', 'PT', 'AT', 'EL', 'IE', 'DK', 'FI', 'RO', 'BE', 'BG', 'LT', 'CZ', 'EE', 'HU', 'LU', 'SK', 'LV']
+#regions: ['EU']
+regions: ['FR', 'SE', 'NO']
 # Technologies to deploy.
-technologies: ['wind_onshore', 'pv_utility']
-deployment_vector: {'EU': {'wind_onshore': 64, 'pv_utility': 28}}
-
+technologies: ['wind_onshore']
+#deployment_vector: {'UK': {'wind_offshore': 48}, 'NL': {'wind_offshore': 36}, 'FR': {'wind_offshore': 35},
+#                    'DE': {'wind_offshore': 22}, 'DK': {'wind_offshore': 21}, 'NO': {'wind_offshore': 18},
+#                    'PL': {'wind_offshore': 17}, 'IE': {'wind_offshore': 14}, 'IT': {'wind_offshore': 12},
+#                    'SE': {'wind_offshore': 12}, 'FI': {'wind_offshore': 9}, 'ES': {'wind_offshore': 8},
+#                    'EL': {'wind_offshore': 6}, 'PT': {'wind_offshore': 6}, 'BE': {'wind_offshore': 2},
+#                    'LT': {'wind_offshore': 3}, 'LV': {'wind_offshore': 2}, 'EE': {'wind_offshore': 1}}
+#deployment_vector: {'DE': {'wind_onshore': 37}, 'FR': {'wind_onshore': 19}, 'ES': {'wind_onshore': 18}, 'NO': {'wind_onshore': 12}, 
+#                    'UK': {'wind_onshore': 8}, 'IT': {'wind_onshore': 7}, 'SE': {'wind_onshore': 6}, 'PL': {'wind_onshore': 5},
+#                    'PT': {'wind_onshore': 3}, 'AT': {'wind_onshore': 3}, 'EL': {'wind_onshore': 3}, 'IE': {'wind_onshore': 3},
+#                    'DK': {'wind_onshore': 2}, 'FI': {'wind_onshore': 2}, 'RO': {'wind_onshore': 2}, 'BE': {'wind_onshore': 2},
+#                    'BG': {'wind_onshore': 1}, 'LT': {'wind_onshore': 1}, 'CZ': {'wind_onshore': 1}, 'EE': {'wind_onshore': 1},
+#                    'HU': {'wind_onshore': 1}, 'LU': {'wind_onshore': 1}, 'SK': {'wind_onshore': 1}, 'LV': {'wind_onshore': 1}}
+#deployment_vector: {'EU': {'wind_onshore': 140}}
+deployment_vector: {'FR': {'wind_onshore': 10}, 'SE': {'wind_onshore': 5}, 'NO': {'wind_onshore': 3}}
 # Assessment measure for each time window. Available: mean, median or percentiles.
 smooth_measure: 'mean'
 # Defines how \alpha is considered in space and time.
@@ -52,19 +67,19 @@ solution_method:
     set: True
     c: 1
     solver: 'gurobi'
-    mipgap: 0.04
+    mipgap: 0.001
     timelimit: 1800
     threads: 4
   MIRSA:
     # Simulated Annealing with Local Search
     set: False
-    c: [46]
+    c: [14]
     neighborhood: 1
     no_iterations: 1000
     no_epochs: 1000
     initial_temp: 200.
     no_runs: 1
-    algorithm: 'SALSR' #'GLS'
+    algorithm: 'SALS' #'GLS'
     which_sol: 'rand' #'rand'
     seed: 1
     purpose: 'planning' # 'ol'
