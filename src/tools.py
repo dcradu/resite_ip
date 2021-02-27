@@ -10,32 +10,33 @@ import geopy.distance
 import xarray as xr
 import xarray.ufuncs as xu
 from geopandas import read_file
-from numpy import arange, interp, float32, float64, datetime64, sqrt, asarray, newaxis, sum, max, unique, \
+from numpy import arange, interp, float32, datetime64, sqrt, asarray, newaxis, sum, max, unique, \
     radians, cos, sin, arctan2, zeros
 from pandas import read_csv, Series, DataFrame, date_range, concat, MultiIndex, to_datetime
 from shapely.geometry import Point
 from shapely.ops import nearest_points
 from windpowerlib import power_curves, wind_speed
 
-from src.helpers import filter_onshore_offshore_locations, union_regions, return_coordinates_from_shapefiles_light, \
+from helpers import filter_onshore_offshore_locations, union_regions, return_coordinates_from_shapefiles, \
     concatenate_dict_keys, return_dict_keys, chunk_split, collapse_dict_region_level, read_inputs, \
     retrieve_load_data_partitions, get_partition_index, return_region_divisions
 
 
-def read_database(file_path):
+def read_database(data_path, spatial_resolution):
     """
     Reads resource database from .nc files.
 
     Parameters
     ----------
-    file_path : str
-        Relative path to resource data.
+    data_path : str
+    spatial_resolution: float
 
     Returns
     -------
     dataset: xarray.Dataset
 
     """
+    file_path = join(data_path, 'input_data/resource_data', str(spatial_resolution))
     # Read through all files, extract the first 2 characters (giving the
     # macro-region) and append in a list that will keep the unique elements.
     files = [f for f in listdir(file_path) if isfile(join(file_path, f))]
@@ -53,8 +54,8 @@ def read_database(file_path):
         file_list = [file for file in glob(file_path + '/*.nc') if area in file]
         ds = xr.open_mfdataset(file_list,
                                combine='by_coords',
-                               chunks={'latitude': 100, 'longitude': 100}).stack(locations=('longitude', 'latitude')).astype(float32)
-        datasets.append(ds)
+                               chunks={'latitude': 100, 'longitude': 100}).stack(locations=('longitude', 'latitude'))
+        datasets.append(ds.astype(float32))
 
     # Concatenate all regions on locations.
     dataset = xr.concat(datasets, dim='locations')
@@ -69,32 +70,23 @@ def read_database(file_path):
     return dataset
 
 
-def filter_locations_by_layer(tech_dict, regions,
-                              start_coordinates, spatial_resolution,
-                              path_land_data, path_resource_data, path_population_data, path_shapefile_data,
-                              which='dummy', filename='dummy'):
+def filter_locations_by_layer(regions, start_coordinates, model_params, tech_params, which=None):
     """
     Filters (removes) locations from the initial set following various
-    land-, resource-, populatio-based criteria.
+    land-, resource-, population-based criteria.
 
     Parameters
     ----------
-    tech_dict : dict
-        Dict object containing technical parameters and constraints of a given technology.
+    regions : list
+        Region list.
     start_coordinates : list
         List of initial (starting) coordinates.
-    spatial_resolution : float
-        Spatial resolution of the resource data.
-    path_land_data : str
-        Relative path to land data.
-    path_resource_data : str
-        Relative path to resource data.
-    path_population_data : str
-        Relative path to population density data.
+    model_params : dict
+
+    tech_params : dict
+
     which : str
         Filter to be applied.
-    filename : str
-        Name of the file; associated with the filter type.
 
     Returns
     -------
@@ -103,18 +95,17 @@ def filter_locations_by_layer(tech_dict, regions,
 
     """
 
-    start_coordinates = [(round(item[0], 2), round(item[1], 2)) for item in start_coordinates]
+    coords_to_remove = None
+    data_path = model_params['data_path']
 
     if which == 'protected_areas':
 
-        protected_areas_selection = tech_dict['protected_areas_selection']
-        threshold_distance = tech_dict['protected_areas_distance_threshold']
-
+        protected_areas_selection = tech_params['protected_areas_selection']
+        threshold_distance = tech_params['protected_areas_distance_threshold']
         coords_to_remove = []
 
-        R = 6371.
-
-        dataset = read_file(join(path_land_data, filename))
+        areas_fn = join(data_path, 'input_data/land_data', 'WDPA_Feb2019-shapefile-points.shp')
+        dataset = read_file(areas_fn)
 
         lons = []
         lats = []
@@ -122,7 +113,7 @@ def filter_locations_by_layer(tech_dict, regions,
         # Retrieve the geopandas Point objects and their coordinates
         for item in protected_areas_selection:
             for index, row in dataset.iterrows():
-                if (row['IUCN_CAT'] == item):
+                if row['IUCN_CAT'] == item:
                     lons.append(round(row.geometry[0].x, 2))
                     lats.append(round(row.geometry[0].y, 2))
 
@@ -142,47 +133,47 @@ def filter_locations_by_layer(tech_dict, regions,
                 a = sin(dlat / 2) ** 2 + cos(lat1) * cos(lat2) * sin(dlon / 2) ** 2
                 c = 2 * arctan2(sqrt(a), sqrt(1 - a))
 
-                distance = R * c
+                distance = 6371. * c
 
                 if distance < threshold_distance:
                     coords_to_remove.append(i)
 
-    elif which == 'resource':
+    elif which == 'resource_quality':
 
-        database = read_database(path_resource_data)
+        database = read_database(data_path, model_params['spatial_resolution'])
 
-        if tech_dict['resource'] == 'wind':
+        if tech_params['resource'] == 'wind':
             array_resource = xu.sqrt(database.u100 ** 2 +
                                      database.v100 ** 2)
-        elif tech_dict['resource'] == 'solar':
+        elif tech_params['resource'] == 'solar':
             array_resource = database.ssrd / 3600.
+        else:
+            raise ValueError (" This resource is not available.")
 
         array_resource_mean = array_resource.mean(dim='time')
-        mask_resource = array_resource_mean.where(array_resource_mean.data < tech_dict['resource_threshold'])
+        mask_resource = array_resource_mean.where(array_resource_mean.data < tech_params['resource_threshold'])
         coords_mask_resource = mask_resource[mask_resource.notnull()].locations.values.tolist()
-
-        coords_mask_rounded = [(round(item[0], 2), round(item[1], 2)) for item in coords_mask_resource]
-
-        coords_to_remove = list(set(start_coordinates).intersection(set(coords_mask_rounded)))
+        coords_mask = [(round(lon, 2), round(lat, 2)) for (lon, lat) in coords_mask_resource]
+        coords_to_remove = sorted(list(set(start_coordinates).intersection(set(coords_mask))))
 
     elif which == 'latitude':
 
-        latitude_threshold = tech_dict['latitude_threshold']
-        coords_mask_latitude = [item for item in start_coordinates if item[1] > latitude_threshold]
-
-        coords_to_remove = list(set(start_coordinates).intersection(set(coords_mask_latitude)))
+        latitude_threshold = tech_params['latitude_threshold']
+        coords_mask_latitude = [(lon, lat) for (lon, lat) in start_coordinates if lat > latitude_threshold]
+        coords_mask = [(round(lon, 2), round(lat, 2)) for (lon, lat) in coords_mask_latitude]
+        coords_to_remove = sorted(list(set(start_coordinates).intersection(set(coords_mask))))
 
     elif which == 'distance':
 
-        distance_threshold_min = tech_dict['distance_threshold_min']
-        distance_threshold_max = tech_dict['distance_threshold_max']
+        distance_threshold_min = tech_params['distance_threshold_min']
+        distance_threshold_max = tech_params['distance_threshold_max']
 
         offshore_points = filter_onshore_offshore_locations(start_coordinates,
-                                                            spatial_resolution,
-                                                            tech_dict,
-                                                            'wind_offshore')
-
-        onshore_shape = union_regions(regions, path_shapefile_data, which='onshore', prepped=False)
+                                                            model_params['data_path'],
+                                                            model_params['spatial_resolution'],
+                                                            tech_params,
+                                                            tech='wind_offshore')
+        onshore_shape = union_regions(regions, data_path, which='onshore', prepped=False)
 
         offshore_distances = {key: None for key in offshore_points}
         for key in offshore_distances:
@@ -194,88 +185,96 @@ def filter_locations_by_layer(tech_dict, regions,
         offshore_locations = {k: v for k, v in offshore_distances.items() if ((v < distance_threshold_min) |
                                                                               (v >= distance_threshold_max))}
         coords_mask_distance = list(offshore_locations.keys())
-        coords_mask_rounded = [(round(item[0], 2), round(item[1], 2)) for item in coords_mask_distance]
+        coords_mask = [(round(lon, 2), round(lat, 2)) for (lon, lat) in coords_mask_distance]
+        coords_to_remove = sorted(list(set(start_coordinates).intersection(set(coords_mask))))
 
-        coords_to_remove = list(set(start_coordinates).intersection(set(coords_mask_rounded)))
+    elif which == 'orography':
 
-    elif which in ['orography', 'forestry', 'water_mask', 'bathymetry']:
-
-        dataset = xr.open_dataset(join(path_land_data, filename)).astype(float32)
+        orography_fn = 'ERA5_orography_characteristics_20181231_' + str(model_params['spatial_resolution']) + '.nc'
+        orography_path = join(data_path, 'input_data/land_data', orography_fn)
+        dataset = xr.open_dataset(orography_path).astype(float32)
         dataset = dataset.sortby([dataset.longitude, dataset.latitude])
         dataset = dataset.assign_coords(longitude=(((dataset.longitude
                                                      + 180) % 360) - 180)).sortby('longitude')
         dataset = dataset.drop('time').squeeze().stack(locations=('longitude', 'latitude'))
 
-        if which == 'orography':
+        altitude_threshold = tech_params['altitude_threshold']
+        array_altitude = dataset['z'] / 9.80665
 
-            altitude_threshold = tech_dict['altitude_threshold']
-            slope_threshold = tech_dict['terrain_slope_threshold']
+        slope_threshold = tech_params['terrain_slope_threshold']
+        array_slope = dataset['slor']
 
-            array_altitude = dataset['z'] / 9.80665
-            array_slope = dataset['slor']
+        mask_altitude = array_altitude.where(array_altitude.data > altitude_threshold)
+        mask_slope = array_slope.where(array_slope.data > slope_threshold)
 
-            mask_altitude = array_altitude.where(array_altitude.data > altitude_threshold)
-            mask_slope = array_slope.where(array_slope.data > slope_threshold)
+        coords_mask_altitude = mask_altitude[mask_altitude.notnull()].locations.values.tolist()
+        coords_mask_slope = mask_slope[mask_slope.notnull()].locations.values.tolist()
 
-            coords_mask_altitude = mask_altitude[mask_altitude.notnull()].locations.values.tolist()
-            coords_mask_slope = mask_slope[mask_slope.notnull()].locations.values.tolist()
+        coords_mask_orography = list(set(coords_mask_altitude).union(set(coords_mask_slope)))
+        coords_mask = [(round(lon, 2), round(lat, 2)) for (lon, lat) in coords_mask_orography]
+        coords_to_remove = sorted(list(set(start_coordinates).intersection(set(coords_mask))))
 
-            coords_mask_orography = list(set(coords_mask_altitude).union(set(coords_mask_slope)))
-            coords_mask_orography_round = [(round(lon, 2), round(lat, 2)) for (lon, lat) in coords_mask_orography]
+    elif which in ['forestry', 'water_mask', 'bathymetry']:
 
-            coords_to_remove = list(set(start_coordinates).intersection(set(coords_mask_orography_round)))
+        surface_fn = 'ERA5_surface_characteristics_20181231_' + str(model_params['spatial_resolution']) + '.nc'
+        surface_path = join(data_path, 'input_data/land_data', surface_fn)
+        dataset = xr.open_dataset(surface_path).astype(float32)
+        dataset = dataset.sortby([dataset.longitude, dataset.latitude])
+        dataset = dataset.assign_coords(longitude=(((dataset.longitude
+                                                     + 180) % 360) - 180)).sortby('longitude')
+        dataset = dataset.drop('time').squeeze().stack(locations=('longitude', 'latitude'))
 
-        elif which == 'forestry':
+        if which == 'forestry':
 
-            forestry_threshold = tech_dict['forestry_ratio_threshold']
-
+            forestry_threshold = tech_params['forestry_ratio_threshold']
             array_forestry = dataset['cvh']
 
             mask_forestry = array_forestry.where(array_forestry.data >= forestry_threshold)
             coords_mask_forestry = mask_forestry[mask_forestry.notnull()].locations.values.tolist()
-            coords_mask_forestry_round = [(round(lon, 2), round(lat, 2)) for (lon, lat) in coords_mask_forestry]
-
-            coords_to_remove = list(set(start_coordinates).intersection(set(coords_mask_forestry_round)))
+            coords_mask = [(round(lon, 2), round(lat, 2)) for (lon, lat) in coords_mask_forestry]
+            coords_to_remove = sorted(list(set(start_coordinates).intersection(set(coords_mask))))
 
         elif which == 'water_mask':
 
+            watermask_threshold = 0.4
             array_watermask = dataset['lsm']
 
-            mask_watermask = array_watermask.where(array_watermask.data < 0.4)
+            mask_watermask = array_watermask.where(array_watermask.data < watermask_threshold)
             coords_mask_watermask = mask_watermask[mask_watermask.notnull()].locations.values.tolist()
-
-            coords_mask_rounded = [(round(lon, 2), round(lat, 2)) for (lon, lat) in coords_mask_watermask]
-            coords_to_remove = list(set(start_coordinates).intersection(set(coords_mask_rounded)))
+            coords_mask = [(round(lon, 2), round(lat, 2)) for (lon, lat) in coords_mask_watermask]
+            coords_to_remove = sorted(list(set(start_coordinates).intersection(set(coords_mask))))
 
         elif which == 'bathymetry':
 
-            depth_threshold_low = tech_dict['depth_threshold_low']
-            depth_threshold_high = tech_dict['depth_threshold_high']
+            depth_threshold_low = tech_params['depth_threshold_low']
+            depth_threshold_high = tech_params['depth_threshold_high']
 
             array_watermask = dataset['lsm']
-            # Careful with this one because max depth is 999.
+            # max depth is 999.
             array_bathymetry = dataset['wmb'].fillna(0.)
 
             mask_offshore = array_bathymetry.where(((array_bathymetry.data < depth_threshold_low) |
                                                     (array_bathymetry.data > depth_threshold_high)) |
                                                     (array_watermask.data > 0.1))
             coords_mask_offshore = mask_offshore[mask_offshore.notnull()].locations.values.tolist()
-            coords_mask_rounded = [(round(lon, 2), round(lat, 2)) for (lon, lat) in coords_mask_offshore]
+            coords_mask = [(round(lon, 2), round(lat, 2)) for (lon, lat) in coords_mask_offshore]
+            coords_to_remove = sorted(list(set(start_coordinates).intersection(set(coords_mask))))
 
-            coords_to_remove = list(set(start_coordinates).intersection(set(coords_mask_rounded)))
+    elif which == 'population_density':
 
-    elif which == 'population':
-
-        dataset = xr.open_dataset(join(path_population_data, filename))
+        population_fn = 'gpw_v4_population_density_adjusted_rev11_0.5.nc'
+        population_path = join(data_path, 'input_data/population_density', population_fn)
+        dataset = xr.open_dataset(population_path)
 
         varname = [item for item in dataset.data_vars][0]
         dataset = dataset.rename({varname: 'data'})
         # The value of 5 for "raster" fetches data for the latest estimate available in the dataset, that is, 2020.
         data_pop = dataset.sel(raster=5)
 
-        array_pop_density = data_pop['data'].interp(longitude=sorted(list(set([item[0] for item in start_coordinates]))),
-                                                    latitude=sorted(list(set([item[1] for item in start_coordinates])))[::-1],
-                                                    method='nearest').fillna(0.)
+        array_pop_density = \
+            data_pop['data'].interp(longitude=sorted(list(set([item[0] for item in start_coordinates]))),
+                                    latitude=sorted(list(set([item[1] for item in start_coordinates])))[::-1],
+                                    method='nearest').fillna(0.)
         # Temporary, to reduce the size of this ds, which is anyway read in each iteration.
         min_lon, max_lon, min_lat, max_lat = -11., 32., 35., 80.
         mask_lon = (array_pop_density.longitude >= min_lon) & (array_pop_density.longitude <= max_lon)
@@ -283,83 +282,33 @@ def filter_locations_by_layer(tech_dict, regions,
 
         pop_ds = array_pop_density.where(mask_lon & mask_lat, drop=True).stack(locations=('longitude', 'latitude'))
 
-        population_density_threshold_low = tech_dict['population_density_threshold_low']
-        population_density_threshold_high = tech_dict['population_density_threshold_high']
+        population_density_threshold_low = tech_params['population_density_threshold_low']
+        population_density_threshold_high = tech_params['population_density_threshold_high']
 
         mask_population = pop_ds.where((pop_ds.data < population_density_threshold_low) |
                                        (pop_ds.data > population_density_threshold_high))
         coords_mask_population = mask_population[mask_population.notnull()].locations.values.tolist()
-        coords_to_remove = list(set(start_coordinates).intersection(set(coords_mask_population)))
+        coords_mask = [(round(lon, 2), round(lat, 2)) for (lon, lat) in coords_mask_population]
+        coords_to_remove = sorted(list(set(start_coordinates).intersection(set(coords_mask))))
 
     else:
-
         raise ValueError(' Layer {} is not available.'.format(str(which)))
 
     return coords_to_remove
 
 
-def return_filtered_coordinates(dataset, spatial_resolution, technologies, regions,
-                                path_land_data, path_resource_data, path_shapefile_data, path_population_data,
-                                resource_quality_layer=True, population_density_layer=True, protected_areas_layer=False,
-                                orography_layer=True, forestry_layer=True, water_mask_layer=True, bathymetry_layer=True,
-                                latitude_layer=True, distance_layer=True):
+def return_filtered_coordinates(dataset, model_params, tech_params):
     """
     Returns the set of potential deployment locations for each region and available technology.
 
     Parameters
     ----------
-    coordinates_in_region : list
-        List of coordinate pairs in the region of interest.
-    spatial_resolution : float
-        Spatial resolution of the resource data.
-    technologies : list
-        List of available technologies.
-    regions : list
-        List of regions.
-    path_land_data : str
-
-    path_resource_data : str
-
-    path_shapefile_data : str
-
-    path_population_data : str
-
-    resource_quality_layer : bool
-        "True" if the layer to be applied, "False" otherwise. If taken into account,
-        it discards points in coordinates_in_region based on the average resource
-        quality over the available time horizon. Resource quality threshold defined
-        in the config_tech.yaml file.
-    population_density_layer : bool
-        "True" if the layer to be applied, "False" otherwise. If taken into account,
-        it discards points in coordinates_in_region based on the population density.
-        Population density threshold defined in the config_tech.yaml file per each
-        available technology.
-    protected_areas_layer : bool
-        "True" if the layer to be applied, "False" otherwise. If taken into account,
-        it discards points in coordinates_in_region based on the existance of protected
-        areas in their vicinity. Distance threshold, as well as classes of areas are
-         defined in the config_tech.yaml file.
-    orography_layer : bool
-        "True" if the layer to be applied, "False" otherwise. If taken into account,
-        it discards points in coordinates_in_region based on their altitude and terrain
-        slope. Both thresholds defined in the config_tech.yaml file for each individual
-        technology.
-    forestry_layer : bool
-        "True" if the layer to be applied, "False" otherwise. If taken into account,
-        it discards points in coordinates_in_region based on its forest cover share.
-        Forest share threshold above which technologies are not built are defined
-        in the config_tech.yaml file.
-    water_mask_layer : bool
-        "True" if the layer to be applied, "False" otherwise. If taken into account,
-        it discards points in coordinates_in_region based on the water coverage share.
-        Threshold defined in the config_tech.yaml file.
-    bathymetry_layer : bool
-        "True" if the layer to be applied, "False" otherwise. If taken into account,
-        (valid for offshore technologies) it discards points in coordinates_in_region
-        based on the water depth. Associated threshold defined in the config_tech.yaml
-        file for offshore and floating wind, respectively.
-    latitude_layer: bool
-    distance_layer: bool
+    dataset: xr.Dataset
+        Resource dataset.
+    model_params: dict
+        Model parameters.
+    tech_params: dict
+        Technology parameters.
 
     Returns
     -------
@@ -367,173 +316,51 @@ def return_filtered_coordinates(dataset, spatial_resolution, technologies, regio
         Dict object storing potential locations sets per region and technology.
 
     """
-    tech_config = read_inputs('../config_techs.yml')
+    technologies = model_params['technologies']
+    regions = model_params['regions']
     output_dict = {region: {tech: None for tech in technologies} for region in regions}
-    final_coordinates = {key: None for key in technologies}
+    coordinates_dict = {key: None for key in technologies}
 
-    region_shape = union_regions(regions, path_shapefile_data, which='both')
-
-    for tech in technologies:
-
-        tech_dict = tech_config[tech]
-        start_coordinates = return_coordinates_from_shapefiles_light(dataset, region_shape)
-        start_coordinates_dict = {k: None for k in start_coordinates}
-        for k in start_coordinates_dict.keys():
-            start_coordinates_dict[k] = (round(k[0], 2), round(k[1], 2))
-
-        if resource_quality_layer:
-
-            coords_to_remove_resource = \
-                filter_locations_by_layer(tech_dict, regions, start_coordinates, spatial_resolution,
-                                          path_land_data, path_resource_data, path_population_data, path_shapefile_data,
-                                          which='resource')
-        else:
-            coords_to_remove_resource = []
-
-        if latitude_layer:
-
-            coords_to_remove_latitude = \
-                filter_locations_by_layer(tech_dict, regions, start_coordinates, spatial_resolution,
-                                          path_land_data, path_resource_data, path_population_data, path_shapefile_data,
-                                          which='latitude')
-        else:
-            coords_to_remove_latitude = []
-
-        if tech_dict['deployment'] in ['onshore', 'utility', 'residential']:
-
-            if population_density_layer:
-                filename = 'gpw_v4_population_density_adjusted_rev11_0.5.nc'
-                coords_to_remove_population = \
-                    filter_locations_by_layer(tech_dict, regions, start_coordinates, spatial_resolution,
-                                              path_land_data, path_resource_data, path_population_data,
-                                              path_shapefile_data,
-                                              which='population', filename=filename)
-
-            else:
-                coords_to_remove_population = []
-
-            if protected_areas_layer:
-                filename = 'WDPA_Feb2019-shapefile-points.shp'
-                coords_to_remove_protected_areas = \
-                    filter_locations_by_layer(tech_dict, regions, start_coordinates, spatial_resolution,
-                                              path_land_data, path_resource_data, path_population_data,
-                                              path_shapefile_data,
-                                              which='protected_areas', filename=filename)
-            else:
-                coords_to_remove_protected_areas = []
-
-            if orography_layer:
-                filename = 'ERA5_orography_characteristics_20181231_' + str(spatial_resolution) + '.nc'
-                coords_to_remove_orography = \
-                    filter_locations_by_layer(tech_dict, regions, start_coordinates, spatial_resolution,
-                                              path_land_data, path_resource_data, path_population_data,
-                                              path_shapefile_data,
-                                              which='orography', filename=filename)
-            else:
-                coords_to_remove_orography = []
-
-            if forestry_layer:
-                filename = 'ERA5_surface_characteristics_20181231_' + str(spatial_resolution) + '.nc'
-                coords_to_remove_forestry = \
-                    filter_locations_by_layer(tech_dict, regions, start_coordinates, spatial_resolution,
-                                              path_land_data, path_resource_data, path_population_data,
-                                              path_shapefile_data,
-                                              which='forestry', filename=filename)
-            else:
-                coords_to_remove_forestry = []
-
-            if water_mask_layer:
-                filename = 'ERA5_surface_characteristics_20181231_' + str(spatial_resolution) + '.nc'
-                coords_to_remove_water = \
-                    filter_locations_by_layer(tech_dict, regions, start_coordinates, spatial_resolution,
-                                              path_land_data, path_resource_data, path_population_data,
-                                              path_shapefile_data,
-                                              which='water_mask', filename=filename)
-
-            else:
-                coords_to_remove_water = []
-
-            list_coords_to_remove = [coords_to_remove_resource,
-                                     coords_to_remove_latitude,
-                                     coords_to_remove_population,
-                                     coords_to_remove_protected_areas,
-                                     coords_to_remove_orography,
-                                     coords_to_remove_forestry,
-                                     coords_to_remove_water]
-            coords_to_remove = set().union(*list_coords_to_remove)
-
-            # Set difference between "global" coordinates and the sets computed in this function.
-            updated_coordinates = set(start_coordinates_dict.values()) - coords_to_remove
-
-        elif tech_dict['deployment'] in ['offshore', 'floating']:
-
-            if bathymetry_layer:
-                filename = 'ERA5_surface_characteristics_20181231_' + str(spatial_resolution) + '.nc'
-                coords_to_remove_bathymetry = \
-                    filter_locations_by_layer(tech_dict, regions, start_coordinates, spatial_resolution,
-                                              path_land_data, path_resource_data, path_population_data,
-                                              path_shapefile_data,
-                                              which='bathymetry', filename=filename)
-            else:
-                coords_to_remove_bathymetry = []
-
-            if distance_layer:
-
-                coords_to_remove_distance = \
-                    filter_locations_by_layer(tech_dict, regions, start_coordinates, spatial_resolution,
-                                              path_land_data, path_resource_data, path_population_data,
-                                              path_shapefile_data,
-                                              which='distance')
-
-            else:
-
-                coords_to_remove_distance = []
-
-            list_coords_to_remove = [coords_to_remove_resource,
-                                     coords_to_remove_bathymetry,
-                                     coords_to_remove_distance,
-                                     coords_to_remove_latitude]
-            coords_to_remove = set().union(*list_coords_to_remove)
-            updated_coordinates = set(start_coordinates_dict.values()) - coords_to_remove
-
-        final_coordinates[tech] = [key for key, value in start_coordinates_dict.items() if value in updated_coordinates]
-
-        # if len(final_coordinates[tech]) > 0:
-        #    from src.helpers import plot_basemap
-        #    plot_basemap(final_coordinates[tech], title=tech)
+    region_shape = union_regions(regions, model_params['data_path'], which='both')
+    coordinates = return_coordinates_from_shapefiles(dataset, region_shape)
+    start_coordinates = {(lon, lat): None for (lon, lat) in coordinates}
+    for (lon, lat) in start_coordinates:
+        start_coordinates[(lon, lat)] = (round(lon, 2), round(lat, 2))
 
     for tech in technologies:
+        coords_to_remove = []
+        tech_dict = tech_params[tech]
 
-        list_points_unique = []
+        for layer in tech_dict['filters']:
+            to_remove_from_filter = filter_locations_by_layer(regions, list(start_coordinates.values()),
+                                                              model_params, tech_dict, which=layer)
+            coords_to_remove.extend(to_remove_from_filter)
+
+        original_coordinates_list = []
+        start_coordinates_reversed = dict(map(reversed, start_coordinates.items()))
+        for item in set(start_coordinates.values()).difference(set(coords_to_remove)):
+            original_coordinates_list.append(start_coordinates_reversed[item])
+        coordinates_dict[tech] = original_coordinates_list
+
+        unique_list_of_points = []
         for region in regions:
 
-            shape_region = union_regions([region], path_shapefile_data, which='both')
-            points_in_region = return_coordinates_from_shapefiles_light(dataset, shape_region)
+            shape_region = union_regions([region], model_params['data_path'], which='both')
+            points_in_region = return_coordinates_from_shapefiles(dataset, shape_region)
 
-            points_to_take = list(set(final_coordinates[tech]).intersection(set(points_in_region)))
-            output_dict[region][tech] = [p for p in points_to_take if p not in list_points_unique]
-            list_points_unique.extend(points_to_take)
+            points_to_keep = list(set(coordinates_dict[tech]).intersection(set(points_in_region)))
+            output_dict[region][tech] = [p for p in points_to_keep if p not in unique_list_of_points]
+            unique_list_of_points.extend(points_to_keep)
 
-            if len(points_to_take) > 0:
-                print(region, tech, len(points_to_take))
+            if len(output_dict[region][tech]) > 0:
+                print(f"{len(output_dict[region][tech])} {tech} sites in {region}.")
             else:
-                print('{}, {} has no point.'.format(region, tech))
+                print(f"No {tech} sites in {region}.")
 
     for key, value in output_dict.items():
         output_dict[key] = {k: v for k, v in output_dict[key].items() if len(v) > 0}
 
-    result_dict = {r: {t: [] for t in technologies} for r in regions}
-    for region, tech in return_dict_keys(output_dict):
-        added_items = []
-        coords_region_tech = output_dict[region][tech]
-        for item in coords_region_tech:
-            if item in added_items:
-                continue
-            else:
-                result_dict[region][tech].append(item)
-                added_items.append(item)
-
-    return result_dict
+    return output_dict
 
 
 def selected_data(dataset, input_dict, time_slice):
@@ -582,7 +409,7 @@ def selected_data(dataset, input_dict, time_slice):
     return output_dict
 
 
-def return_output(input_dict, path_to_transfer_function, smooth_wind_power_curve=True):
+def return_output(input_dict, data_path, smooth_wind_power_curve=True):
     """
     Applies transfer function to raw resource data.
 
@@ -590,7 +417,7 @@ def return_output(input_dict, path_to_transfer_function, smooth_wind_power_curve
     ----------
     input_dict : dict
         Dict object storing raw resource data.
-    path_to_transfer_function : str
+    data_path : str
         Relative path to transfer function data.
     smooth_wind_power_curve : boolean
         If "True", the transfer function of wind assets replicates the one of a wind farm,
@@ -608,8 +435,10 @@ def return_output(input_dict, path_to_transfer_function, smooth_wind_power_curve
     output_dict = deepcopy(input_dict)
     tech_dict = read_inputs('../config_techs.yml')
 
-    data_converter_wind = read_csv(join(path_to_transfer_function, 'data_wind_turbines.csv'), sep=';', index_col=0)
-    data_converter_solar = read_csv(join(path_to_transfer_function, 'data_solar_modules.csv'), sep=';', index_col=0)
+    wind_data_path = join(data_path, 'input_data/transfer_functions', 'data_wind_turbines.csv')
+    data_converter_wind = read_csv(wind_data_path, sep=';', index_col=0)
+    solar_data_path = join(data_path, 'input_data/transfer_functions', 'data_solar_modules.csv')
+    data_converter_solar = read_csv(solar_data_path, sep=';', index_col=0)
 
     for region, tech in key_list:
 
@@ -666,12 +495,12 @@ def return_output(input_dict, path_to_transfer_function, smooth_wind_power_curve
 
                     if smooth_wind_power_curve:
                         # Windpowerlib function here:
-                        # https://windpowerlib.readthedocs.io/en/latest/temp/windpowerlib.power_curves.smooth_power_curve.html
-                        capacity_factor_farm = power_curves.smooth_power_curve(Series(wind_speed_references),
-                                                                               Series(capacity_factor_references_pu),
-                                                                               standard_deviation_method='turbulence_intensity',
-                                                                               turbulence_intensity=float(
-                                                                                   ti.mean().values))
+                        # windpowerlib.readthedocs.io/en/latest/temp/windpowerlib.power_curves.smooth_power_curve.html
+                        capacity_factor_farm = \
+                            power_curves.smooth_power_curve(Series(wind_speed_references),
+                                                            Series(capacity_factor_references_pu),
+                                                            standard_deviation_method='turbulence_intensity',
+                                                            turbulence_intensity=float(ti.mean().values))
 
                         power_output = da.map_blocks(interp, wind_data,
                                                      capacity_factor_farm['wind_speed'].values,
@@ -707,10 +536,10 @@ def return_output(input_dict, path_to_transfer_function, smooth_wind_power_curve
             # Homer equation here:
             # https://www.homerenergy.com/products/pro/docs/latest/how_homer_calculates_the_pv_array_power_output.html
             # https://enphase.com/sites/default/files/Enphase_PVWatts_Derate_Guide_ModSolar_06-2014.pdf
-            power_output = (float(data_converter_solar.loc['f', converter]) * \
-                            (irradiance / float(data_converter_solar.loc['G_ref', converter])) * \
-                            (1. + float(data_converter_solar.loc['k_P [%/C]', converter]) / 100. * \
-                             (temperature - float(data_converter_solar.loc['t_ref', converter]))))
+            power_output = (float(data_converter_solar.loc['f', converter]) *
+                            (irradiance / float(data_converter_solar.loc['G_ref', converter])) *
+                            (1. + float(data_converter_solar.loc['k_P [%/C]', converter]) / 100. *
+                            (temperature - float(data_converter_solar.loc['t_ref', converter]))))
 
             output_array = xr.DataArray(power_output, coords=coordinates, dims=dimensions)
 
@@ -719,15 +548,17 @@ def return_output(input_dict, path_to_transfer_function, smooth_wind_power_curve
 
         output_array = output_array.where(output_array > 0.01, other=0.0)
         output_dict[region][tech] = output_array.reindex_like(input_dict[region][tech])
-        # output_array.mean(dim='time').unstack('locations').plot(x='longitude', y='latitude')
-        # plt.show()
 
     return output_dict
 
-##############################################################################
-def resource_quality_mapping(input_dict, delta, measure):
-    key_list = return_dict_keys(input_dict)
 
+##############################################################################
+def resource_quality_mapping(input_dict, siting_params):
+
+    delta = siting_params['delta']
+    measure = siting_params['smooth_measure']
+
+    key_list = return_dict_keys(input_dict)
     output_dict = deepcopy(input_dict)
 
     for region, tech in key_list:
@@ -757,11 +588,16 @@ def resource_quality_mapping(input_dict, delta, measure):
     return output_dict
 
 
-def critical_window_mapping(input_dict,
-                            alpha, delta,
-                            regions, date_slice, path_load_data, norm_type):
-    key_list = return_dict_keys(input_dict)
+def critical_window_mapping(input_dict, model_params):
 
+    regions = model_params['regions']
+    date_slice = model_params['time_slice']
+    alpha = model_params['siting_params']['alpha']
+    delta = model_params['siting_params']['delta']
+    norm_type = model_params['siting_params']['norm_type']
+    path_load_data = join(model_params['data_path'], 'input_data/load_data')
+
+    key_list = return_dict_keys(input_dict)
     output_dict = deepcopy(input_dict)
 
     if alpha == 'load_central':
@@ -791,16 +627,15 @@ def critical_window_mapping(input_dict,
     return output_dict
 
 
-def critical_data_position_mapping(input_dict, coordinates_data):
+def sites_position_mapping(input_dict):
 
     key_list = return_dict_keys(input_dict)
     locations_list = []
     for region, tech in key_list:
         locations_list.extend([(tech, loc) for loc in input_dict[region][tech].locations.values.flatten()])
-        coordinates_data[region][tech] = input_dict[region][tech].locations.values.flatten()
     locations_dict = dict(zip(locations_list, list(arange(len(locations_list)))))
 
-    return locations_dict, coordinates_data
+    return locations_dict
 
 ##########################################################
 
@@ -828,30 +663,19 @@ def retrieve_location_dict(x_values, model_parameters, site_positions):
     return output_dict
 
 
-def retrieve_index_dict(model_parameters, coordinate_dict):
+def retrieve_index_dict(deployment_vector, coordinate_dict):
 
-    d = model_parameters['deployment_vector']
-    if isinstance(d[list(d.keys())[0]], int):
-        dict_deployment = d
-        n = sum(dict_deployment[item] for item in dict_deployment)
-        partitions = [item for item in d]
-        if model_parameters['deployment_constraint'] == 'country':
-            indices = get_partition_index(coordinate_dict, d, capacity_split='per_country')
-        elif model_parameters['deployment_constraint'] == 'tech':
-            indices = get_partition_index(coordinate_dict, d, capacity_split='per_tech')
-    else:
-        dict_deployment = concatenate_dict_keys(d)
-        n = sum(dict_deployment[item] for item in dict_deployment)
-        partitions = [item for item in dict_deployment]
-        indices = concatenate_dict_keys(get_partition_index(coordinate_dict, d, capacity_split='per_country_and_tech'))
+    dict_deployment = concatenate_dict_keys(deployment_vector)
+    n = sum(dict_deployment[item] for item in dict_deployment)
+    partitions = [item for item in dict_deployment]
+    indices = concatenate_dict_keys(get_partition_index(coordinate_dict))
 
     return n, dict_deployment, partitions, indices
 
 
-def retrieve_site_data(model_parameters, coordinates_dict, output_data, criticality_data, location_mapping, c,
-                       site_coordinates, objective, output_folder):
+def retrieve_site_data(model_parameters, deployment_dict, coordinates_dict, output_data, criticality_data,
+                       location_mapping, c, site_coordinates, objective, output_folder, benchmarks=True):
 
-    deployment_dict = model_parameters['deployment_vector']
     output_by_tech = collapse_dict_region_level(output_data)
     time_slice = model_parameters['time_slice']
     time_dt = date_range(start=time_slice[0], end=time_slice[1], freq='H')
@@ -859,6 +683,16 @@ def retrieve_site_data(model_parameters, coordinates_dict, output_data, critical
     for tech in output_by_tech:
         _, index = unique(output_by_tech[tech].locations, return_index=True)
         output_by_tech[tech] = output_by_tech[tech].isel(locations=index)
+
+    # Init coordinate set.
+    tech_dict = {key: [] for key in list(output_by_tech.keys())}
+    for tech in tech_dict:
+        for region in coordinates_dict.keys():
+            for t in coordinates_dict[region].keys():
+                if t == tech:
+                    tech_dict[tech].extend(sorted(coordinates_dict[region][t], key=lambda x: (x[0], x[1])))
+
+    pickle.dump(tech_dict, open(join(output_folder, 'init_coordinates_dict.p'), 'wb'))
 
     # Retrieve complementary sites
     comp_site_data = {key: None for key in site_coordinates}
@@ -872,111 +706,96 @@ def retrieve_site_data(model_parameters, coordinates_dict, output_data, critical
     reform = {(outerKey, innerKey): values for outerKey, innerDict in comp_site_data.items() for innerKey, values in
               innerDict.items()}
     comp_site_data_df = DataFrame(reform, index=time_dt)
-
-    if model_parameters['solution_method']['RAND']['set']:
-        name = 'rand_site_data.p'
-    else:
-        name = 'comp_site_data.p'
-    pickle.dump(comp_site_data_df, open(join(output_folder, name), 'wb'))
-    # obj_comp = get_objective_from_mapfile(comp_site_data_df, location_mapping, criticality_data, c)
+    pickle.dump(comp_site_data_df, open(join(output_folder,  'comp_site_data.p'), 'wb'))
+    # Similarly done for any other deployment scheme done via the Julia heuristics.
 
     with open(join(output_folder, 'objective_comp.txt'), "w") as file:
         print(objective, file=file)
 
-    # Retrieve max sites
-    key_list = return_dict_keys(output_data)
-    output_location = deepcopy(output_data)
+    if benchmarks:
 
-    for region, tech in key_list:
-        n = deployment_dict[region][tech]
-        output_data_sum = output_data[region][tech].sum(dim='time')
-        if n != 0:
-            locs = output_data_sum.argsort()[-n:].values
-            output_location[region][tech] = sorted(output_data_sum.isel(locations=locs).locations.values.flatten())
-        else:
-            output_location[region][tech] = None
+        # Retrieve max sites
+        key_list = return_dict_keys(output_data)
+        output_location = deepcopy(output_data)
 
-    output_location_per_tech = {key: [] for key in model_parameters['technologies']}
-    for region in output_location:
-        for tech in output_location[region]:
-            if output_location[region][tech] is not None:
-                for item in output_location[region][tech]:
-                    output_location_per_tech[tech].append(item)
+        for region, tech in key_list:
+            n = deployment_dict[region][tech]
+            output_data_sum = output_data[region][tech].sum(dim='time')
+            if n != 0:
+                locs = output_data_sum.argsort()[-n:].values
+                output_location[region][tech] = sorted(output_data_sum.isel(locations=locs).locations.values.flatten())
+            else:
+                output_location[region][tech] = None
 
-    max_site_data = {key: None for key in model_parameters['technologies']}
-    for item in model_parameters['technologies']:
-        max_site_data[item] = {key: None for key in output_location_per_tech[item]}
+        output_location_per_tech = {key: [] for key in model_parameters['technologies']}
+        for region in output_location:
+            for tech in output_location[region]:
+                if output_location[region][tech] is not None:
+                    for item in output_location[region][tech]:
+                        output_location_per_tech[tech].append(item)
 
-    for tech in max_site_data.keys():
-        for coord in max_site_data[tech].keys():
-            max_site_data[tech][coord] = output_by_tech[tech].sel(locations=coord).values.flatten()
+        max_site_data = {key: None for key in model_parameters['technologies']}
+        for item in model_parameters['technologies']:
+            max_site_data[item] = {key: None for key in output_location_per_tech[item]}
 
-    reform = {(outerKey, innerKey): values for outerKey, innerDict in max_site_data.items() for innerKey, values in
-              sorted(innerDict.items())}
-    max_site_data_df = DataFrame(reform, index=time_dt)
-    pickle.dump(max_site_data_df, open(join(output_folder, 'prod_site_data.p'), 'wb'))
+        for tech in max_site_data.keys():
+            for coord in max_site_data[tech].keys():
+                max_site_data[tech][coord] = output_by_tech[tech].sel(locations=coord).values.flatten()
 
-    objective_prod = get_objective_from_mapfile(max_site_data_df, location_mapping, criticality_data, c)
-    with open(join(output_folder, 'objective_prod.txt'), "w") as file:
-        print(objective_prod, file=file)
+        reform = {(outerKey, innerKey): values for outerKey, innerDict in max_site_data.items() for innerKey, values in
+                  sorted(innerDict.items())}
+        max_site_data_df = DataFrame(reform, index=time_dt)
+        pickle.dump(max_site_data_df, open(join(output_folder, 'prod_site_data.p'), 'wb'))
 
-    # Capacity credit sites.
+        objective_prod = get_objective_from_mapfile(max_site_data_df, location_mapping, criticality_data, c)
+        with open(join(output_folder, 'objective_prod.txt'), "w") as file:
+            print(objective_prod, file=file)
 
-    load_data = read_csv(join(model_parameters['path_load_data'], 'load_2009_2018.csv'), index_col=0)
-    load_data.index = to_datetime(load_data.index)
-    load_data = load_data[(load_data.index > time_slice[0]) & (load_data.index < time_slice[1])]
+        # Capacity credit sites.
 
-    df_list = []
-    no_index = 0.05 * len(load_data.index)
-    for country in deployment_dict:
+        load_data_fn = join(model_parameters['data_path'], 'input_data/load_data', 'load_2009_2018.csv')
+        load_data = read_csv(load_data_fn, index_col=0)
+        load_data.index = to_datetime(load_data.index)
+        load_data = load_data[(load_data.index > time_slice[0]) & (load_data.index < time_slice[1])]
 
-        if country in load_data.columns:
-            load_country = load_data.loc[:, country]
-        else:
-            countries = return_region_divisions([country], model_parameters['path_shapefile_data'])
-            load_country = load_data.loc[:, countries].sum(axis=1)
-        load_country_max = load_country.nlargest(int(no_index)).index
+        df_list = []
+        no_index = 0.05 * len(load_data.index)
+        for country in deployment_dict:
 
-        for tech in model_parameters['technologies']:
+            if country in load_data.columns:
+                load_country = load_data.loc[:, country]
+            else:
+                countries = return_region_divisions([country], model_parameters['data_path'])
+                load_country = load_data.loc[:, countries].sum(axis=1)
+            load_country_max = load_country.nlargest(int(no_index)).index
 
-            country_data = output_data[country][tech]
-            country_data_avg_at_load_max = country_data.sel(time=load_country_max).mean(dim='time')
-            locs = country_data_avg_at_load_max.argsort()[-deployment_dict[country][tech]:].values
-            country_sites = country_data_avg_at_load_max.isel(locations=locs).locations.values.flatten()
+            for tech in model_parameters['technologies']:
 
-            xarray_data = country_data.sel(locations=country_sites)
-            df_data = xarray_data.to_pandas()
-            col_list_updated = [(tech, item) for item in df_data.columns]
-            df_data.columns = MultiIndex.from_tuples(col_list_updated)
-            df_list.append(df_data)
+                country_data = output_data[country][tech]
+                country_data_avg_at_load_max = country_data.sel(time=load_country_max).mean(dim='time')
+                locs = country_data_avg_at_load_max.argsort()[-deployment_dict[country][tech]:].values
+                country_sites = country_data_avg_at_load_max.isel(locations=locs).locations.values.flatten()
 
-    capv_site_data_df = concat(df_list, axis=1)
-    pickle.dump(capv_site_data_df, open(join(output_folder, 'capv_site_data.p'), 'wb'))
+                xarray_data = country_data.sel(locations=country_sites)
+                df_data = xarray_data.to_pandas()
+                col_list_updated = [(tech, item) for item in df_data.columns]
+                df_data.columns = MultiIndex.from_tuples(col_list_updated)
+                df_list.append(df_data)
 
-    objective_capv = get_objective_from_mapfile(capv_site_data_df, location_mapping, criticality_data, c)
-    with open(join(output_folder, 'objective_capv.txt'), "w") as file:
-        print(objective_capv, file=file)
+        capv_site_data_df = concat(df_list, axis=1)
+        pickle.dump(capv_site_data_df, open(join(output_folder, 'capv_site_data.p'), 'wb'))
 
-    # Init coordinate set.
-
-    tech_dict = {key: [] for key in list(comp_site_data.keys())}
-    for tech in tech_dict:
-        for region in coordinates_dict.keys():
-            for t in coordinates_dict[region].keys():
-                if t == tech:
-                    tech_dict[tech].extend(sorted(coordinates_dict[region][t], key=lambda x: (x[0], x[1])))
-
-    pickle.dump(tech_dict, open(join(output_folder, 'init_coordinates_dict.p'), 'wb'))
-
-    return output_location
+        objective_capv = get_objective_from_mapfile(capv_site_data_df, location_mapping, criticality_data, c)
+        with open(join(output_folder, 'objective_capv.txt'), "w") as file:
+            print(objective_capv, file=file)
 
 
-def get_objective_from_mapfile(df_sites, mapping_file, D, c):
+def get_objective_from_mapfile(df_sites, mapping_file, criticality_data, c):
 
     sites = [item for item in df_sites.columns]
     positions_in_matrix = [mapping_file[s] for s in sites]
 
-    xs = zeros(shape=D.shape[1])
+    xs = zeros(shape=criticality_data.shape[1])
     xs[positions_in_matrix] = 1
 
-    return (D.dot(xs) >= c).astype(int).sum()
+    return (criticality_data.dot(xs) >= c).astype(int).sum()

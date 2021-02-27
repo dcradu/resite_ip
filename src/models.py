@@ -5,92 +5,10 @@ from pyomo.environ import ConcreteModel, Var, Binary, maximize
 from pyomo.opt import ProblemFormat
 from pypsa.opt import l_constraint, LConstraint, l_objective, LExpression
 
-from src.helpers import custom_log, xarray_to_ndarray
-from src.tools import read_database, return_filtered_coordinates, selected_data, return_output, \
-    resource_quality_mapping, critical_window_mapping, retrieve_index_dict, critical_data_position_mapping
+from tools import retrieve_index_dict
 
 
-def preprocess_input_data(model_parameters):
-    """Data pre-processing.
-
-    Parameters:
-
-    ------------
-
-    parameters : dict
-        Dict containing parameters of the run.
-
-
-    Returns:
-
-    -----------
-
-    output_dictionary : dict
-        Dict containing various data structures.
-
-    """
-
-    regions = model_parameters['regions']
-    technologies = model_parameters['technologies']
-
-    time_horizon = model_parameters['time_slice']
-    spatial_resolution = model_parameters['spatial_resolution']
-
-    path_resource_data = model_parameters['path_resource_data'] + '/' + str(spatial_resolution)
-    path_transfer_function_data = model_parameters['path_transfer_function_data']
-    path_population_density_data = model_parameters['path_population_density_data']
-    path_land_data = model_parameters['path_land_data']
-    path_load_data = model_parameters['path_load_data']
-    path_shapefile_data = model_parameters['path_shapefile_data']
-
-    resource_quality_layer = model_parameters['resource_quality_layer']
-    population_layer = model_parameters['population_density_layer']
-    protected_areas_layer = model_parameters['protected_areas_layer']
-    bathymetry_layer = model_parameters['bathymetry_layer']
-    forestry_layer = model_parameters['forestry_layer']
-    orography_layer = model_parameters['orography_layer']
-    water_mask_layer = model_parameters['water_mask_layer']
-    latitude_layer = model_parameters['latitude_layer']
-    distance_layer = model_parameters['distance_layer']
-
-    delta = model_parameters['delta']
-    alpha = model_parameters['alpha']
-    measure = model_parameters['smooth_measure']
-    norm_type = model_parameters['norm_type']
-
-    database = read_database(path_resource_data)
-    filtered_coordinates = return_filtered_coordinates(database, spatial_resolution, technologies, regions,
-                                                     path_land_data, path_resource_data,
-                                                     path_shapefile_data, path_population_density_data,
-                                                     resource_quality_layer=resource_quality_layer,
-                                                     population_density_layer=population_layer,
-                                                     protected_areas_layer=protected_areas_layer,
-                                                     orography_layer=orography_layer,
-                                                     forestry_layer=forestry_layer,
-                                                     water_mask_layer=water_mask_layer,
-                                                     bathymetry_layer=bathymetry_layer,
-                                                     latitude_layer=latitude_layer,
-                                                     distance_layer=distance_layer)
-
-    truncated_data = selected_data(database, filtered_coordinates, time_horizon)
-    output_data = return_output(truncated_data, path_transfer_function_data)
-
-    smooth_data = resource_quality_mapping(output_data, delta, measure)
-    critical_data = critical_window_mapping(smooth_data, alpha, delta, regions, time_horizon, path_load_data, norm_type)
-    position_mapping, filtered_coordinates_on_loc = critical_data_position_mapping(critical_data, filtered_coordinates)
-
-    output_dict = {
-                'coordinates_data': filtered_coordinates_on_loc,
-                'capacity_factor_data': output_data,
-                'criticality_data': xarray_to_ndarray(critical_data),
-                'site_positions_in_matrix': position_mapping}
-
-    custom_log(' Input data read...')
-
-    return output_dict
-
-
-def build_model(model_parameters, coordinate_dict, D, output_folder, write_lp=False):
+def build_ip_model(deployment_dict, coordinate_dict, critical_matrix, c, output_folder, write_lp=False):
     """Model build-up.
 
     Parameters:
@@ -104,12 +22,11 @@ def build_model(model_parameters, coordinate_dict, D, output_folder, write_lp=Fa
 
     """
 
-    no_windows = D.shape[0]
-    no_locations = D.shape[1]
+    no_windows = critical_matrix.shape[0]
+    no_locations = critical_matrix.shape[1]
 
-    n, dict_deployment, partitions, indices = retrieve_index_dict(model_parameters, coordinate_dict)
+    n, dict_deployment, partitions, indices = retrieve_index_dict(deployment_dict, coordinate_dict)
 
-    c = model_parameters['solution_method']['BB']['c']
     for item in partitions:
         if item in indices:
             if dict_deployment[item] > len(indices[item]):
@@ -129,7 +46,7 @@ def build_model(model_parameters, coordinate_dict, D, output_folder, write_lp=Fa
     activation_constraint = {}
 
     for w in model.W:
-        lhs = LExpression([(D[w - 1, l - 1], model.x[l]) for l in model.L])
+        lhs = LExpression([(critical_matrix[w - 1, l - 1], model.x[l]) for l in model.L])
         rhs = LExpression([(c, model.y[w])])
 
         activation_constraint[w] = LConstraint(lhs, ">=", rhs)

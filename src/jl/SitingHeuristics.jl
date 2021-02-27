@@ -3,9 +3,6 @@ using PyCall
 include("optimisation_models.jl")
 include("MCP_heuristics.jl")
 
-module SitingHeuristics
-
-# Simulated Annealing & Local Search algorithm
 function main_MIRSA(index_dict, deployment_dict, D, c, N, I, E, T_init, R, run)
 
   index_dict = Dict([(convert(Int64, k), convert(Int64, index_dict[k])) for k in keys(index_dict)])
@@ -58,34 +55,6 @@ function main_MIRSA(index_dict, deployment_dict, D, c, N, I, E, T_init, R, run)
 
 end
 
-# Random Search algorithm
-function main_RAND(deployment_dict, D, c, run)
-
-  deployment_dict = Dict([(convert(Int64, k), convert(Int64, deployment_dict[k])) for k in keys(deployment_dict)])
-  D  = convert.(Float64, D)
-  c = convert(Float64, c)
-
-  if run == "RS"
-
-    x_sol, LB_sol = Array{Float64, 2}(undef, R, L), Array{Float64, 1}(undef, R)
-    n = convert(Float64, deployment_dict[1])
-    runs = convert(Int64, I*E)
-
-    for r = 1:R
-      println("Run ", r, "/", R)
-      x_sol[r, :], LB_sol[r] = random_search(D, c, n, runs)
-    end
-
-  else
-    println("No such run available.")
-    throw(ArgumentError)
-  end
-
-  return x_sol, LB_sol
-
-end
-
-# Greedy algorithms
 function main_GRED(deployment_dict, D, c, R, eps, run)
 
   deployment_dict = Dict([(convert(Int64, k), convert(Int64, deployment_dict[k])) for k in keys(deployment_dict)])
@@ -126,7 +95,33 @@ function main_GRED(deployment_dict, D, c, R, eps, run)
 
 end
 
-#Local Search algorithm
+function main_RAND(deployment_dict, D, c, run)
+
+  deployment_dict = Dict([(convert(Int64, k), convert(Int64, deployment_dict[k])) for k in keys(deployment_dict)])
+  D  = convert.(Float64, D)
+  c = convert(Float64, c)
+
+  if run == "RS"
+
+    x_sol, LB_sol = Array{Float64, 2}(undef, R, L), Array{Float64, 1}(undef, R)
+    n = convert(Float64, deployment_dict[1])
+    runs = convert(Int64, I*E)
+
+    for r = 1:R
+      println("Run ", r, "/", R)
+      x_sol[r, :], LB_sol[r] = random_search(D, c, n, runs)
+    end
+
+  else
+    println("No such run available.")
+    throw(ArgumentError)
+  end
+
+  return x_sol, LB_sol
+
+end
+
+# Local Search algorithm
 function main_LSEA(index_dict, deployment_dict, D, c, N, I, E, run)
 
   index_dict = Dict([(convert(Int64, k), convert(Int64, index_dict[k])) for k in keys(index_dict)])
@@ -159,7 +154,5 @@ function main_LSEA(index_dict, deployment_dict, D, c, N, I, E, run)
   end
 
   return x_sol, LB_sol, obj_sol
-
-end
 
 end

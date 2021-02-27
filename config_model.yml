@@ -1,84 +1,58 @@
+# Path to data folder
+data_path: 'D:/ULg_PhD_work/datasets/resite_ip/'
+#data_path: '/data/dcradu/resite_ip/'
+
 # Spatial resolution (in degrees) of the potential sites.
-spatial_resolution: 0.5
-# Path towards the various input data.
-path_resource_data: '../input_data/resource_data'
-path_transfer_function_data: '../input_data/transfer_functions'
-path_population_density_data: '../input_data/population_density'
-path_protected_areas_data: '../input_data/protected_areas'
-path_land_data: '../input_data/land_data'
-path_load_data: '../input_data/load_data'
-path_transmission_data: '../input_data/transmission_data'
-path_potential_data: '../input_data/potentials'
-path_shapefile_data: '../input_data/shapefiles'
-
-# Various data layers to be taken into account in potential site selection.
-resource_quality_layer: True
-population_density_layer: True
-protected_areas_layer: False # expensive
-bathymetry_layer: False # for offshore
-orography_layer: True
-forestry_layer: True
-water_mask_layer: True
-latitude_layer: True
-distance_layer: False # for offshore
-
+spatial_resolution: 0.28
 # Start time and end time of the analysis.
-time_slice: ['2018-01-01T00:00', '2018-01-31T23:00']
-# List of regions to be considered in the optimization.
-regions: ['EU']
+time_slice: ['2014-01-01T00:00', '2014-12-31T23:00']
 # Technologies to deploy.
-technologies: ['wind_onshore', 'pv_utility']
-deployment_vector: {'EU': {'wind_onshore': 64, 'pv_utility': 28}}
+regions: ['FR', 'SE', 'NO']
+technologies: ['wind_onshore']
+deployments: [10, 5, 3]
 
-# Assessment measure for each time window. Available: mean, median or percentiles.
-smooth_measure: 'mean'
-# Defines how \alpha is considered in space and time.
-alpha: 'load_central'
-# Normalization procedures (detailed in tools.py). (min, max)
-norm_type: 'max'
-# Time-window length used to compute the criticality indicator. Integer value.
-delta: 1
-
-
-# Keeping files at the end of the run.
-keep_files: True
-# Run name
-name_prefix: 'book_'
-
-# Solution method: BB or HEU or RAND or GRED.
-solution_method:
-  BB:
-    # Branch & Bound
-    set: True
-    c: 1
-    solver: 'gurobi'
-    mipgap: 0.04
-    timelimit: 1800
-    threads: 4
-  MIRSA:
-    # Simulated Annealing with Local Search
-    set: False
-    c: [46]
-    neighborhood: 1
-    no_iterations: 1000
-    no_epochs: 1000
-    initial_temp: 200.
-    no_runs: 1
-    algorithm: 'SALSR' #'GLS'
-    which_sol: 'rand' #'rand'
-    seed: 1
-    purpose: 'planning' # 'ol'
-  GRED:
-    set: False
-    epsilon: 0.001
-    c: [1, 106, 212, 318, 424, 530]
-    no_runs: 1
-    algorithm: 'RGH' # SGA
-  RAND:
-    # Random Search
-    set: False
-    c: [318]
-    no_iterations: 50
-    no_epochs: 500
-    no_runs: 1
-    algorithm: 'RS'
+siting_params:
+  smooth_measure: 'mean'
+  # Defines how \alpha is considered in space and time.
+  alpha: 'load_central'
+  # Normalization procedures (detailed in tools.py). (min, max)
+  norm_type: 'max'
+  # Time-window length used to compute the criticality indicator. Integer value.
+  delta: 1
+  # Solution method: BB or HEU or RAND or GRED.
+  solution_method:
+    BB:
+      # Branch & Bound
+      set: False
+      c: 1
+      solver: 'gurobi'
+      mipgap: 0.05
+      timelimit: 1800
+      threads: 4
+    MIRSA:
+      # Simulated Annealing with Local Search
+      set: True
+      c: [10]
+      neighborhood: 1
+      no_iterations: 1000
+      no_epochs: 1000
+      initial_temp: 200.
+      no_runs: 1
+      algorithm: 'SALS' #'GLS'
+      which_sol: 'rand' #'rand'
+      seed: 1
+      purpose: 'planning' # 'ol'
+    GRED:
+      set: False
+      epsilon: 0.001
+      c: [1, 106, 212, 318, 424, 530]
+      no_runs: 1
+      algorithm: 'RGH' # SGA
+    RAND:
+      # Random Search
+      set: False
+      c: [318]
+      no_iterations: 50
+      no_epochs: 500
+      no_runs: 1
+      algorithm: 'RS'

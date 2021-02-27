@@ -1,4 +1,4 @@
-name: resite
+name: resite_ip
 channels:
   - conda-forge
   - defaults
@@ -7,16 +7,13 @@ dependencies:
   - cdsapi
   - dask
   - matplotlib
-  - Pyomo
+  - pyomo
   - scipy
   - toolz
   - xarray
   - geopandas
-  - cartopy
   - pyyaml
   - xlrd
-  - tqdm
-  - joblib
   - geopy
   - pypsa
   - shapely
