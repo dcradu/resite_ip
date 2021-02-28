@@ -595,14 +595,14 @@ def critical_window_mapping(input_dict, model_params):
     alpha = model_params['siting_params']['alpha']
     delta = model_params['siting_params']['delta']
     norm_type = model_params['siting_params']['norm_type']
-    path_load_data = join(model_params['data_path'], 'input_data/load_data')
+    data_path = model_params['data_path']
 
     key_list = return_dict_keys(input_dict)
     output_dict = deepcopy(input_dict)
 
     if alpha == 'load_central':
 
-        l_norm = retrieve_load_data_partitions(path_load_data, date_slice, alpha, delta, regions, norm_type)
+        l_norm = retrieve_load_data_partitions(data_path, date_slice, alpha, delta, regions, norm_type)
         # Flip axes
         alpha_reference = l_norm[:, newaxis]
 
@@ -613,7 +613,7 @@ def critical_window_mapping(input_dict, model_params):
     elif alpha == 'load_partition':
 
         for region, tech in key_list:
-            l_norm = retrieve_load_data_partitions(path_load_data, date_slice, alpha, delta, region, norm_type)
+            l_norm = retrieve_load_data_partitions(data_path, date_slice, alpha, delta, region, norm_type)
             # Flip axes.
             alpha_reference = l_norm[:, newaxis]
 

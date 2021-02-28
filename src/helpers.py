@@ -140,6 +140,7 @@ def get_deployment_vector(regions, technologies, deployments):
 
     return d
 
+
 def return_region_divisions(region_list, data_path):
 
     onshore_shapes = get_onshore_shapes(region_list, data_path)
@@ -158,8 +159,10 @@ def return_region_divisions(region_list, data_path):
         elif region == 'NA':
             region_subdivisions = ['DZ', 'EG', 'MA', 'LY', 'TN']
         elif region == 'ME':
-            region_subdivisions = ['AE', 'BH', 'CY', 'IR', 'IQ', 'IL', 'JO', 'KW', 'LB', 'OM', 'PS', 'QA', 'SA', 'SY',
-                                   'YE']
+            region_subdivisions = ['AE', 'BH', 'CY', 'IR', 'IQ', 'IL', 'JO', 'KW', 'LB', 'OM',
+                                   'PS', 'QA', 'SA', 'SY', 'YE']
+        elif region == 'CWE':
+            region_subdivisions = ['FR', 'BE', 'LU', 'NL', 'DE']
         elif region in onshore_shapes.index:
             region_subdivisions = [region]
 
@@ -329,56 +332,31 @@ def return_coordinates_from_shapefiles(resource_dataset, shapefiles_region):
     return coordinates_in_region
 
 
-def retrieve_load_data_partitions(path_load_data, date_slice, alpha, delta, regions, norm_type):
+def retrieve_load_data_partitions(data_path, date_slice, alpha, delta, regions, norm_type):
 
-    dict_regions = {'EU': ['AT', 'BE', 'CH', 'DE', 'DK', 'ES',
-                           'FR', 'UK', 'IE', 'IT', 'LU',
-                           'NL', 'PT', 'SE', 'CZ',
-                           'BG', 'CH', 'EE',
-                           'FI', 'EL', 'HR', 'HU', 'LT', 'LV', 'PL', 'RO', 'SI', 'SK'],
-                    'CWE': ['FR', 'BE', 'LU', 'NL', 'DE'],
-                    'BL': ['BE', 'LU', 'NL']}
-
-    load_data = read_csv(join(path_load_data, 'load_2009_2018.csv'), index_col=0)
+    load_data_fn = join(data_path, 'input_data/load_data', 'load_2009_2018.csv')
+    load_data = read_csv(load_data_fn, index_col=0)
     load_data.index = date_range('2009-01-01T00:00', '2018-12-31T23:00', freq='H')
-
     load_data_sliced = load_data.loc[date_slice[0]:date_slice[1]]
 
-    # Adding the stand-alone regions to load dict.
-    standalone_regions = list(load_data.columns)
-    for region in standalone_regions:
-        dict_regions.update({str(region): str(region)})
+    regions_list = return_region_divisions(regions, data_path)
 
     if alpha == 'load_central':
-
-        # Extract lists of load subdivisions from load_dict.
-        # e.g.: for regions ['BL', 'DE'] => ['BE', 'NL', 'LU', 'DE']
-        regions_list = []
-        for key in regions:
-            if isinstance(dict_regions[key], str):
-                regions_list.append(str(dict_regions[key]))
-            elif isinstance(dict_regions[key], list):
-                regions_list.extend(dict_regions[key])
-            else:
-                raise TypeError('Check again the type. Should be str or list.')
-
         load_vector = load_data_sliced[regions_list].sum(axis=1)
-        load_vector_norm = return_filtered_and_normed(load_vector, delta, norm_type)
-
     elif alpha == 'load_partition':
+        load_vector = load_data_sliced[regions_list]
+    else:
+        raise ValueError(' This way of defining criticality is not available.')
 
-        if regions in standalone_regions:
-            load_vector = load_data_sliced[dict_regions[regions]]
-        else:
-            load_vector = load_data_sliced[dict_regions[regions]].sum(axis=1)
-        load_vector_norm = return_filtered_and_normed(load_vector, delta, norm_type)
+    load_vector_norm = return_filtered_and_normed(load_vector, delta, norm_type)
 
     return load_vector_norm
 
 
-def return_filtered_and_normed(signal, delta, type='min'):
+def return_filtered_and_normed(signal, delta, norm_type='min'):
+
     l_smooth = signal.rolling(window=delta, center=True).mean().dropna()
-    if type == 'min':
+    if norm_type == 'min':
         l_norm = (l_smooth - l_smooth.min()) / (l_smooth.max() - l_smooth.min())
     else:
         l_norm = l_smooth / l_smooth.max()
