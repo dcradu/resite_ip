@@ -7,7 +7,7 @@ import time
 
 from helpers import read_inputs, init_folder, custom_log, xarray_to_ndarray, generate_jl_input, get_deployment_vector
 from tools import read_database, return_filtered_coordinates, selected_data, return_output, resource_quality_mapping, \
-    critical_window_mapping, sites_position_mapping, retrieve_location_dict, retrieve_site_data
+    critical_window_mapping, sites_position_mapping, retrieve_location_dict, retrieve_site_data, get_potential_per_site
 from models import build_ip_model
 
 if __name__ == '__main__':
@@ -21,6 +21,12 @@ if __name__ == '__main__':
     data_path = model_parameters['data_path']
     spatial_resolution = model_parameters['spatial_resolution']
     time_horizon = model_parameters['time_slice']
+
+    assert len(model_parameters['regions']) == len(model_parameters['deployments']), \
+        "The `regions` and `deployments` lists must have the same length."
+    assert all(len(subset) == len(model_parameters['technologies']) for subset in model_parameters['deployments']), \
+        "At least one technology does not have a deployment constraint in the `deployments` list."
+
     deployment_dict = get_deployment_vector(model_parameters['regions'],
                                             model_parameters['technologies'],
                                             model_parameters['deployments'])
@@ -32,8 +38,13 @@ if __name__ == '__main__':
     capacity_factors_data = return_output(truncated_data, data_path)
     time_windows_data = resource_quality_mapping(capacity_factors_data, siting_parameters)
 
-    criticality_data = xarray_to_ndarray(critical_window_mapping(time_windows_data, model_parameters))
+    cell_potential_data = get_potential_per_site(time_windows_data, tech_parameters, spatial_resolution)
+    criticality_data = xarray_to_ndarray(critical_window_mapping(time_windows_data, cell_potential_data,
+                                                                 deployment_dict, model_parameters))
     site_positions = sites_position_mapping(time_windows_data)
+
+    import sys
+    sys.exit()
 
     custom_log(' Data read. Building model.')
 

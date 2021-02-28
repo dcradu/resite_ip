@@ -133,10 +133,7 @@ def get_deployment_vector(regions, technologies, deployments):
     for i, region in enumerate(regions):
         d[region] = {}
         for j, tech in enumerate(technologies):
-            if isinstance(deployments[i], int):
-                d[region][tech] = deployments[i]
-            else:
-                d[region][tech] = deployments[i][j]
+            d[region][tech] = deployments[i][j]
 
     return d
 
@@ -332,36 +329,20 @@ def return_coordinates_from_shapefiles(resource_dataset, shapefiles_region):
     return coordinates_in_region
 
 
-def retrieve_load_data_partitions(data_path, date_slice, alpha, delta, regions, norm_type):
+def retrieve_load_data_partitions(data_path, date_slice, delta, regions, deployments):
 
     load_data_fn = join(data_path, 'input_data/load_data', 'load_2009_2018.csv')
     load_data = read_csv(load_data_fn, index_col=0)
-    load_data.index = date_range('2009-01-01T00:00', '2018-12-31T23:00', freq='H')
+    load_data.index = to_datetime(load_data.index)
     load_data_sliced = load_data.loc[date_slice[0]:date_slice[1]]
 
     regions_list = return_region_divisions(regions, data_path)
+    load_series = load_data_sliced[regions_list]
 
-    if alpha == 'load_central':
-        load_vector = load_data_sliced[regions_list].sum(axis=1)
-    elif alpha == 'load_partition':
-        load_vector = load_data_sliced[regions_list]
-    else:
-        raise ValueError(' This way of defining criticality is not available.')
+    load_time_windows = load_series.rolling(window=delta, center=True).mean().dropna()
+    load_normed = load_time_windows.divide(deployments)
 
-    load_vector_norm = return_filtered_and_normed(load_vector, delta, norm_type)
-
-    return load_vector_norm
-
-
-def return_filtered_and_normed(signal, delta, norm_type='min'):
-
-    l_smooth = signal.rolling(window=delta, center=True).mean().dropna()
-    if norm_type == 'min':
-        l_norm = (l_smooth - l_smooth.min()) / (l_smooth.max() - l_smooth.min())
-    else:
-        l_norm = l_smooth / l_smooth.max()
-
-    return l_norm.values
+    return load_normed
 
 
 def filter_onshore_offshore_locations(coordinates_in_region, data_path, spatial_resolution, tech_dict, tech):

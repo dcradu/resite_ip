@@ -11,7 +11,7 @@ import xarray as xr
 import xarray.ufuncs as xu
 from geopandas import read_file
 from numpy import arange, interp, float32, datetime64, sqrt, asarray, newaxis, sum, max, unique, \
-    radians, cos, sin, arctan2, zeros
+    radians, cos, sin, arctan2, zeros, random
 from pandas import read_csv, Series, DataFrame, date_range, concat, MultiIndex, to_datetime
 from shapely.geometry import Point
 from shapely.ops import nearest_points
@@ -345,7 +345,7 @@ def return_filtered_coordinates(dataset, model_params, tech_params):
         unique_list_of_points = []
         for region in regions:
 
-            shape_region = union_regions([region], model_params['data_path'], which='both')
+            shape_region = union_regions([region], model_params['data_path'], which=tech_dict['where'])
             points_in_region = return_coordinates_from_shapefiles(dataset, shape_region)
 
             points_to_keep = list(set(coordinates_dict[tech]).intersection(set(points_in_region)))
@@ -588,38 +588,79 @@ def resource_quality_mapping(input_dict, siting_params):
     return output_dict
 
 
-def critical_window_mapping(input_dict, model_params):
+def get_potential_per_site(input_dict, tech_parameters, spatial_resolution):
+    """Compute cell potential of candidate siting locations based on reanalysis grids with different resolutions.
+
+     Parameters
+     ----------
+     input_dict: dict
+     tech_parameters: dict
+     spatial_resolution: float
+
+     Returns
+     -------
+     output_dict: dict
+     """
+
+    key_list = return_dict_keys(input_dict)
+    output_dict = deepcopy(input_dict)
+
+    for region, tech in key_list:
+        tech_dict = tech_parameters[tech]
+        locations = MultiIndex.from_tuples(input_dict[region][tech].locations.values, names=('longitude', 'latitude'))
+        potentials = Series(0., index=locations)
+
+        for (lon, lat) in potentials.index:
+            lat_south = (lon, lat - spatial_resolution / 2.)
+            lat_north = (lon, lat + spatial_resolution / 2.)
+            lon_west = (lon - spatial_resolution / 2., lat)
+            lon_east = (lon + spatial_resolution / 2., lat)
+
+            dist_lat = geopy.distance.distance(geopy.distance.lonlat(*lat_south), geopy.distance.lonlat(*lat_north)).km
+            dist_lon = geopy.distance.distance(geopy.distance.lonlat(*lon_west), geopy.distance.lonlat(*lon_east)).km
+            # 1e-3 converts from MW to GW
+            potentials[(lon, lat)] = \
+                dist_lat * dist_lon * tech_dict['power_density'] * tech_dict['land_utilization_factor'] * 1e-3
+
+        output_dict[region][tech] = xr.DataArray.from_series(potentials).stack(locations=('longitude', 'latitude'))\
+            .dropna(dim='locations').reindex_like(input_dict[region][tech])
+
+    return output_dict
+
+
+def critical_window_mapping(time_windows_dict, potentials_dict, deployments_dict, model_params):
 
     regions = model_params['regions']
     date_slice = model_params['time_slice']
     alpha = model_params['siting_params']['alpha']
     delta = model_params['siting_params']['delta']
-    norm_type = model_params['siting_params']['norm_type']
     data_path = model_params['data_path']
 
-    key_list = return_dict_keys(input_dict)
-    output_dict = deepcopy(input_dict)
+    key_list = return_dict_keys(time_windows_dict)
+    output_dict = deepcopy(time_windows_dict)
 
     if alpha == 'load_central':
 
-        l_norm = retrieve_load_data_partitions(data_path, date_slice, alpha, delta, regions, norm_type)
-        # Flip axes
-        alpha_reference = l_norm[:, newaxis]
+        deployments = sum(deployments_dict[key][subkey] for key in deployments_dict for subkey in deployments_dict[key])
+        l_norm = retrieve_load_data_partitions(data_path, date_slice, delta, regions, deployments).sum(axis=1)
+        # Flipping axes.
+        l_norm = l_norm.values[:, newaxis]
 
         for region, tech in key_list:
-            critical_windows = (input_dict[region][tech] > alpha_reference).astype(int)
-            output_dict[region][tech] = critical_windows
+            measure = time_windows_dict[region][tech] * potentials_dict[region][tech]
+            output_dict[region][tech] = (measure > l_norm).astype(int)
 
     elif alpha == 'load_partition':
 
         for region, tech in key_list:
-            l_norm = retrieve_load_data_partitions(data_path, date_slice, alpha, delta, region, norm_type)
-            # Flip axes.
-            alpha_reference = l_norm[:, newaxis]
+            deployments = sum(deployments_dict[key][subkey] for key in deployments_dict
+                              for subkey in deployments_dict[key] if key == region)
+            l_norm = retrieve_load_data_partitions(data_path, date_slice, delta, region, deployments)
+            # Flipping axes.
+            l_norm = l_norm.values[:, newaxis]
 
-            # Select region of interest within the dict value with 'tech' key.
-            critical_windows = (input_dict[region][tech] > alpha_reference).astype(int)
-            output_dict[region][tech] = critical_windows
+            measure = time_windows_dict[region][tech] * potentials_dict[region][tech]
+            output_dict[region][tech] = (measure > l_norm).astype(int)
 
     else:
         raise ValueError('No such alpha rule. Retry.')

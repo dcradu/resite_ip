@@ -1,5 +1,6 @@
 # Config file for various conversion technologies.
 wind_onshore:
+  where: 'onshore'
   filters: ['resource_quality', 'population_density', 'orography', 'forestry', 'water_mask', 'latitude']
   converter_IV: 'V110'
   converter_III: 'E103'
@@ -18,8 +19,11 @@ wind_onshore:
   terrain_slope_threshold: 0.03
   forestry_ratio_threshold: 0.8
   latitude_threshold: 65.
+  power_density: 6.5
+  land_utilization_factor: 0.3
 
 wind_offshore:
+  where: 'onshore'
   filters: ['resource_quality', 'bathymetry', 'latitude', 'distance']
   converter_IV: 'V90'
   converter_III: 'V90'
@@ -40,8 +44,11 @@ wind_offshore:
   latitude_threshold: 70.
   distance_threshold_min: 22.2
   distance_threshold_max: 222.2 # 111.
+  power_density: 5.
+  land_utilization_factor: 0.5
 
 wind_floating:
+  where: 'onshore'
   filters: ['resource_quality', 'bathymetry', 'latitude', 'distance']
   converter_IV: 'V90'
   converter_III: 'V90'
@@ -62,8 +69,11 @@ wind_floating:
   latitude_threshold: 65.
   distance_threshold_min: 23.
   distance_threshold_max: 180.
+  power_density: 5.
+  land_utilization_factor: 0.5
 
 pv_utility:
+  where: 'onshore'
   filters: ['resource_quality', 'population_density', 'orography', 'forestry', 'water_mask', 'latitude']
   converter: 'DEG15MC'
   resource: 'solar'
@@ -79,6 +89,8 @@ pv_utility:
   terrain_slope_threshold: 0.03
   forestry_ratio_threshold: 0.8
   latitude_threshold: 65.
+  power_density: 50.
+  land_utilization_factor: 0.1
 
 #TODO: fix pv_residential filters
 pv_residential:
@@ -97,3 +109,5 @@ pv_residential:
   terrain_slope_threshold: 1.
   forestry_ratio_threshold: 1.
   latitude_threshold: 65.
+  power_density: 80.
+  land_utilization_factor: 0.05
