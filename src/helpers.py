@@ -45,8 +45,8 @@ def xarray_to_ndarray(input_dict):
     """
 
     key_list = return_dict_keys(input_dict)
-    array_list = []
 
+    array_list = []
     for region, tech in key_list:
         array_list.append(input_dict[region][tech])
     dataset = xr.concat(array_list, dim='locations')

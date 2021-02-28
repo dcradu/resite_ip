@@ -2,7 +2,6 @@ import pickle
 import yaml
 from os.path import join
 from numpy import array
-from itertools import cycle
 from pyomo.opt import SolverFactory
 import time
 
@@ -30,11 +29,11 @@ if __name__ == '__main__':
     site_coordinates = return_filtered_coordinates(database, model_parameters, tech_parameters)
 
     truncated_data = selected_data(database, site_coordinates, time_horizon)
-    output_data = return_output(truncated_data, data_path)
+    capacity_factors_data = return_output(truncated_data, data_path)
+    time_windows_data = resource_quality_mapping(capacity_factors_data, siting_parameters)
 
-    smooth_data = resource_quality_mapping(output_data, siting_parameters)
-    criticality_data = xarray_to_ndarray(critical_window_mapping(smooth_data, model_parameters))
-    site_positions = sites_position_mapping(smooth_data)
+    criticality_data = xarray_to_ndarray(critical_window_mapping(time_windows_data, model_parameters))
+    site_positions = sites_position_mapping(time_windows_data)
 
     custom_log(' Data read. Building model.')
 
@@ -67,7 +66,7 @@ if __name__ == '__main__':
         objective = instance.objective()
         x_values = array(list(instance.x.extract_values().values()))
         comp_location_dict = retrieve_location_dict(x_values, model_parameters, site_positions)
-        retrieve_site_data(model_parameters, deployment_dict, site_coordinates, output_data, criticality_data,
+        retrieve_site_data(model_parameters, deployment_dict, site_coordinates, capacity_factors_data, criticality_data,
                            site_positions, params['c'], comp_location_dict, objective, output_folder)
 
     elif siting_parameters['solution_method']['MIRSA']['set']:
@@ -94,32 +93,24 @@ if __name__ == '__main__':
                                                                  params['initial_temp'], params['no_runs'],
                                                                  params['algorithm'])
 
-            if params['purpose'] == 'planning':
-                seed = params['seed']
-                for i in range(jl_selected.shape[0]):
+            seed = params['seed']
+            for i in range(jl_selected.shape[0]):
 
-                    output_folder = init_folder(model_parameters, c, suffix='_MIRSA_seed' + str(seed))
-                    seed += 1
+                output_folder = init_folder(model_parameters, c, suffix='_MIRSA_seed' + str(seed))
+                seed += 1
 
-                    with open(join(output_folder, 'config_model.yaml'), 'w') as outfile:
-                        yaml.dump(model_parameters, outfile, default_flow_style=False, sort_keys=False)
-                    with open(join(output_folder, 'config_techs.yaml'), 'w') as outfile:
-                        yaml.dump(tech_parameters, outfile, default_flow_style=False, sort_keys=False)
+                with open(join(output_folder, 'config_model.yaml'), 'w') as outfile:
+                    yaml.dump(model_parameters, outfile, default_flow_style=False, sort_keys=False)
+                with open(join(output_folder, 'config_techs.yaml'), 'w') as outfile:
+                    yaml.dump(tech_parameters, outfile, default_flow_style=False, sort_keys=False)
 
-                    jl_selected_seed = jl_selected[i, :]
-                    jl_objective_seed = jl_objective[i]
+                jl_selected_seed = jl_selected[i, :]
+                jl_objective_seed = jl_objective[i]
 
-                    jl_locations = retrieve_location_dict(jl_selected_seed, model_parameters, site_positions)
-                    retrieve_site_data(model_parameters, deployment_dict, site_coordinates, output_data,
-                                       criticality_data, site_positions, c, jl_locations, jl_objective_seed,
-                                       output_folder, benchmarks=True)
-            else:
-
-                output_folder = init_folder(model_parameters, suffix='_c' + str(c) + '_MIRSA')
-
-                pickle.dump(jl_selected, open(join(output_folder, 'solution_matrix.p'), 'wb'))
-                pickle.dump(jl_objective, open(join(output_folder, 'objective_vector.p'), 'wb'))
-                pickle.dump(jl_traj, open(join(output_folder, 'trajectory_matrix.p'), 'wb'))
+                jl_locations = retrieve_location_dict(jl_selected_seed, model_parameters, site_positions)
+                retrieve_site_data(model_parameters, deployment_dict, site_coordinates, capacity_factors_data,
+                                   criticality_data, site_positions, c, jl_locations, jl_objective_seed,
+                                   output_folder, benchmarks=True)
 
     elif siting_parameters['solution_method']['RAND']['set']:
 
