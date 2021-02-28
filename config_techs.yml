@@ -1,5 +1,6 @@
 # Config file for various conversion technologies.
 wind_onshore:
+  where: 'onshore'
   filters: ['resource_quality', 'population_density', 'orography', 'forestry', 'water_mask', 'latitude']
   converter_IV: 'V110'
   converter_III: 'E103'
@@ -20,6 +21,7 @@ wind_onshore:
   latitude_threshold: 65.
 
 wind_offshore:
+  where: 'offshore'
   filters: ['resource_quality', 'bathymetry', 'latitude', 'distance']
   converter_IV: 'V90'
   converter_III: 'V90'
@@ -42,6 +44,7 @@ wind_offshore:
   distance_threshold_max: 222.2 # 111.
 
 wind_floating:
+  where: 'offshore'
   filters: ['resource_quality', 'bathymetry', 'latitude', 'distance']
   converter_IV: 'V90'
   converter_III: 'V90'
@@ -64,6 +67,7 @@ wind_floating:
   distance_threshold_max: 180.
 
 pv_utility:
+  where: 'onshore'
   filters: ['resource_quality', 'population_density', 'orography', 'forestry', 'water_mask', 'latitude']
   converter: 'DEG15MC'
   resource: 'solar'
@@ -82,6 +86,7 @@ pv_utility:
 
 #TODO: fix pv_residential filters
 pv_residential:
+  where: 'onshore'
   filters: ['population_density', 'water_mask']
   converter: 'DD06M'
   resource: 'solar'
