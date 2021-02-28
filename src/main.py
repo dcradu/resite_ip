@@ -93,7 +93,7 @@ if __name__ == '__main__':
                                                                  params['initial_temp'], params['no_runs'],
                                                                  params['algorithm'])
 
-            seed = params['seed']
+            seed = 1  # for folder naming purposes only
             for i in range(jl_selected.shape[0]):
 
                 output_folder = init_folder(model_parameters, c, suffix='_MIRSA_seed' + str(seed))
