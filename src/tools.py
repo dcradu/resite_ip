@@ -345,7 +345,7 @@ def return_filtered_coordinates(dataset, model_params, tech_params):
         unique_list_of_points = []
         for region in regions:
 
-            shape_region = union_regions([region], model_params['data_path'], which='both')
+            shape_region = union_regions([region], model_params['data_path'], which=tech_dict['where'])
             points_in_region = return_coordinates_from_shapefiles(dataset, shape_region)
 
             points_to_keep = list(set(coordinates_dict[tech]).intersection(set(points_in_region)))
