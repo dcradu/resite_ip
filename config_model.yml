@@ -1,15 +1,15 @@
 # Path to data folder
-data_path: 'D:/ULg_PhD_work/datasets/resite_ip/'
-#data_path: '/data/dcradu/resite_ip/'
+#data_path: 'D:/ULg_PhD_work/datasets/resite_ip/'
+data_path: '/data/dcradu/resite_ip/'
 
 # Spatial resolution (in degrees) of the potential sites.
-spatial_resolution: 0.5
+spatial_resolution: 0.28
 # Start time and end time of the analysis.
-time_slice: ['2014-01-01T00:00', '2014-01-31T23:00']
+time_slice: ['2014-01-01T00:00', '2018-12-31T23:00']
 # Technologies to deploy.
-regions: ['FR', 'SE', 'RO']
+regions: ['FR']
 technologies: ['wind_onshore']
-deployments: [[7], [5], [5]]
+deployments: [[19]]
 
 siting_params:
   smooth_measure: 'mean'
@@ -32,9 +32,9 @@ siting_params:
     MIRSA:
       # Simulated Annealing with Local Search
       set: True
-      c: [9]
+      c: [1, 2, 4, 10, 19]
       neighborhood: 1
-      no_iterations: 100
+      no_iterations: 1000
       no_epochs: 1000
       initial_temp: 200.
       no_runs: 1

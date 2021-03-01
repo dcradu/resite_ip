@@ -36,7 +36,7 @@ def read_database(data_path, spatial_resolution):
     dataset: xarray.Dataset
 
     """
-    file_path = join(data_path, 'input_data/resource_data', str(spatial_resolution))
+    file_path = join(data_path, 'input/resource_data', str(spatial_resolution))
     # Read through all files, extract the first 2 characters (giving the
     # macro-region) and append in a list that will keep the unique elements.
     files = [f for f in listdir(file_path) if isfile(join(file_path, f))]
@@ -104,7 +104,7 @@ def filter_locations_by_layer(regions, start_coordinates, model_params, tech_par
         threshold_distance = tech_params['protected_areas_distance_threshold']
         coords_to_remove = []
 
-        areas_fn = join(data_path, 'input_data/land_data', 'WDPA_Feb2019-shapefile-points.shp')
+        areas_fn = join(data_path, 'input/land_data', 'WDPA_Feb2019-shapefile-points.shp')
         dataset = read_file(areas_fn)
 
         lons = []
@@ -191,7 +191,7 @@ def filter_locations_by_layer(regions, start_coordinates, model_params, tech_par
     elif which == 'orography':
 
         orography_fn = 'ERA5_orography_characteristics_20181231_' + str(model_params['spatial_resolution']) + '.nc'
-        orography_path = join(data_path, 'input_data/land_data', orography_fn)
+        orography_path = join(data_path, 'input/land_data', orography_fn)
         dataset = xr.open_dataset(orography_path).astype(float32)
         dataset = dataset.sortby([dataset.longitude, dataset.latitude])
         dataset = dataset.assign_coords(longitude=(((dataset.longitude
@@ -217,7 +217,7 @@ def filter_locations_by_layer(regions, start_coordinates, model_params, tech_par
     elif which in ['forestry', 'water_mask', 'bathymetry']:
 
         surface_fn = 'ERA5_surface_characteristics_20181231_' + str(model_params['spatial_resolution']) + '.nc'
-        surface_path = join(data_path, 'input_data/land_data', surface_fn)
+        surface_path = join(data_path, 'input/land_data', surface_fn)
         dataset = xr.open_dataset(surface_path).astype(float32)
         dataset = dataset.sortby([dataset.longitude, dataset.latitude])
         dataset = dataset.assign_coords(longitude=(((dataset.longitude
@@ -263,7 +263,7 @@ def filter_locations_by_layer(regions, start_coordinates, model_params, tech_par
     elif which == 'population_density':
 
         population_fn = 'gpw_v4_population_density_adjusted_rev11_0.5.nc'
-        population_path = join(data_path, 'input_data/population_density', population_fn)
+        population_path = join(data_path, 'input/population_density', population_fn)
         dataset = xr.open_dataset(population_path)
 
         varname = [item for item in dataset.data_vars][0]
@@ -337,7 +337,7 @@ def return_filtered_coordinates(dataset, model_params, tech_params):
             coords_to_remove.extend(to_remove_from_filter)
 
         original_coordinates_list = []
-        start_coordinates_reversed = dict(map(reversed, start_coordinates.items()))
+        start_coordinates_reversed = {v: k for k, v in start_coordinates.items()}
         for item in set(start_coordinates.values()).difference(set(coords_to_remove)):
             original_coordinates_list.append(start_coordinates_reversed[item])
         coordinates_dict[tech] = original_coordinates_list
@@ -435,9 +435,9 @@ def return_output(input_dict, data_path, smooth_wind_power_curve=True):
     output_dict = deepcopy(input_dict)
     tech_dict = read_inputs('../config_techs.yml')
 
-    wind_data_path = join(data_path, 'input_data/transfer_functions', 'data_wind_turbines.csv')
+    wind_data_path = join(data_path, 'input/transfer_functions', 'data_wind_turbines.csv')
     data_converter_wind = read_csv(wind_data_path, sep=';', index_col=0)
-    solar_data_path = join(data_path, 'input_data/transfer_functions', 'data_solar_modules.csv')
+    solar_data_path = join(data_path, 'input/transfer_functions', 'data_solar_modules.csv')
     data_converter_solar = read_csv(solar_data_path, sep=';', index_col=0)
 
     for region, tech in key_list:
@@ -674,7 +674,7 @@ def sites_position_mapping(input_dict):
     locations_list = []
     for region, tech in key_list:
         locations_list.extend([(tech, loc) for loc in input_dict[region][tech].locations.values.flatten()])
-    locations_dict = dict(zip(locations_list, list(arange(len(locations_list)))))
+    locations_dict = dict(zip(list(arange(len(locations_list))), locations_list))
 
     return locations_dict
 
@@ -694,12 +694,11 @@ def spatiotemporal_criticality_mapping(data_array, c):
 def retrieve_location_dict(x_values, model_parameters, site_positions):
 
     output_dict = {key: [] for key in model_parameters['technologies']}
-    reversed_site_positions = dict(map(reversed, site_positions.items()))
 
     for tech in output_dict:
         for item, val in enumerate(x_values):
-            if (val == 1.0) and (reversed_site_positions[item][0] == tech):
-                output_dict[tech].append(reversed_site_positions[item][1])
+            if (val == 1.0) and (site_positions[item][0] == tech):
+                output_dict[tech].append(site_positions[item][1])
 
     return output_dict
 
@@ -794,7 +793,7 @@ def retrieve_site_data(model_parameters, deployment_dict, coordinates_dict, outp
 
         # Capacity credit sites.
 
-        load_data_fn = join(model_parameters['data_path'], 'input_data/load_data', 'load_2009_2018.csv')
+        load_data_fn = join(model_parameters['data_path'], 'input/load_data', 'load_2009_2018.csv')
         load_data = read_csv(load_data_fn, index_col=0)
         load_data.index = to_datetime(load_data.index)
         load_data = load_data[(load_data.index > time_slice[0]) & (load_data.index < time_slice[1])]
@@ -834,7 +833,8 @@ def retrieve_site_data(model_parameters, deployment_dict, coordinates_dict, outp
 def get_objective_from_mapfile(df_sites, mapping_file, criticality_data, c):
 
     sites = [item for item in df_sites.columns]
-    positions_in_matrix = [mapping_file[s] for s in sites]
+    mapping_file_reversed = {v: k for k, v in mapping_file.items()}
+    positions_in_matrix = [mapping_file_reversed[s] for s in sites]
 
     xs = zeros(shape=criticality_data.shape[1])
     xs[positions_in_matrix] = 1
