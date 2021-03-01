@@ -133,10 +133,7 @@ def get_deployment_vector(regions, technologies, deployments):
     for i, region in enumerate(regions):
         d[region] = {}
         for j, tech in enumerate(technologies):
-            if isinstance(deployments[i], int):
-                d[region][tech] = deployments[i]
-            else:
-                d[region][tech] = deployments[i][j]
+            d[region][tech] = deployments[i][j]
 
     return d
 
