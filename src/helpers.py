@@ -143,18 +143,23 @@ def get_deployment_vector(regions, technologies, deployments):
 
 def return_region_divisions(region_list, data_path):
 
-    onshore_shapes = get_onshore_shapes(region_list, data_path)
-    region_subdivisions = None
+    arcgis_fn = f"{data_path}input/shapefiles/Longitude_Graticules_and_World_Countries_Boundaries-shp/" \
+                f"99bfd9e7-bb42-4728-87b5-07f8c8ac631c2020328-1-1vef4ev.lu5nk.shp"
+    shapes = read_file(arcgis_fn)
+    shapes["CNTRY_NAME"] = shapes["CNTRY_NAME"].apply(convert_old_country_names)
+    shapes["iso2"] = Series(convert_country_codes(shapes["CNTRY_NAME"].values, "name", "alpha_2"))
+    shapes = shapes[notnull(shapes["iso2"])]
+    shapes = shapes.set_index("iso2")['geometry']
 
     regions = []
     for region in region_list:
 
         if region == 'EU':
             region_subdivisions = ['AT', 'BE', 'DE', 'DK', 'ES',
-                                   'FR', 'UK', 'IE', 'IT', 'LU',
+                                   'FR', 'GB', 'IE', 'IT', 'LU',
                                    'NL', 'NO', 'PT', 'SE', 'CH', 'CZ',
-                                   'EE', 'LV', 'RO', 'BG', 'EL', 'HR', 'RS',
-                                   'FI', 'EL', 'HR', 'HU', 'LT',
+                                   'EE', 'LV', 'RO', 'BG', 'HR', 'RS',
+                                   'FI', 'GR', 'HR', 'HU', 'LT',
                                    'PL', 'SI', 'SK']
         elif region == 'NA':
             region_subdivisions = ['DZ', 'EG', 'MA', 'LY', 'TN']
@@ -163,8 +168,11 @@ def return_region_divisions(region_list, data_path):
                                    'PS', 'QA', 'SA', 'SY', 'YE']
         elif region == 'CWE':
             region_subdivisions = ['FR', 'BE', 'LU', 'NL', 'DE']
-        elif region in onshore_shapes.index:
+        elif region in shapes.index:
             region_subdivisions = [region]
+        else:
+            custom_log(f"{region} not in shapes list!")
+            continue
 
         regions.extend(region_subdivisions)
 
@@ -239,7 +247,7 @@ def get_onshore_shapes(regions, data_path):
 
     """
 
-    arcgis_fn = f"{data_path}input_data/shapefiles/Longitude_Graticules_and_World_Countries_Boundaries-shp/" \
+    arcgis_fn = f"{data_path}input/shapefiles/Longitude_Graticules_and_World_Countries_Boundaries-shp/" \
                 f"99bfd9e7-bb42-4728-87b5-07f8c8ac631c2020328-1-1vef4ev.lu5nk.shp"
     shapes = read_file(arcgis_fn)
     shapes["CNTRY_NAME"] = shapes["CNTRY_NAME"].apply(convert_old_country_names)
@@ -249,7 +257,7 @@ def get_onshore_shapes(regions, data_path):
 
     if regions is not None:
         missing_codes = set(regions) - set(shapes.index)
-        assert not missing_codes, f"Error: Shapes are not available for the " \
+        assert not missing_codes, f"Shapes are not available for the " \
                                   f"following codes: {sorted(list(missing_codes))}"
         shapes = shapes[regions]
 
@@ -264,7 +272,7 @@ def get_offshore_shapes(regions, data_path):
     # Remove landlocked countries for which there is no offshore shapes
     iso_codes = remove_landlocked_countries(regions)
 
-    eez_fn = f"{data_path}input_data/shapefiles/eez/World_EEZ_v8_2014.shp"
+    eez_fn = f"{data_path}input/shapefiles/eez/World_EEZ_v8_2014.shp"
     eez_shapes = read_file(eez_fn)
 
     eez_shapes = eez_shapes[notnull(eez_shapes['ISO_3digit'])]
@@ -334,7 +342,7 @@ def return_coordinates_from_shapefiles(resource_dataset, shapefiles_region):
 
 def retrieve_load_data_partitions(data_path, date_slice, alpha, delta, regions, norm_type):
 
-    load_data_fn = join(data_path, 'input_data/load_data', 'load_2009_2018.csv')
+    load_data_fn = join(data_path, 'input/load_data', 'load_2009_2018.csv')
     load_data = read_csv(load_data_fn, index_col=0)
     load_data.index = date_range('2009-01-01T00:00', '2018-12-31T23:00', freq='H')
     load_data_sliced = load_data.loc[date_slice[0]:date_slice[1]]
@@ -383,7 +391,7 @@ def filter_onshore_offshore_locations(coordinates_in_region, data_path, spatial_
     """
 
     land_fn = 'ERA5_surface_characteristics_20181231_' + str(spatial_resolution) + '.nc'
-    land_path = join(data_path, 'input_data/land_data', land_fn)
+    land_path = join(data_path, 'input/land_data', land_fn)
 
     dataset = xr.open_dataset(land_path)
     dataset = dataset.sortby([dataset.longitude, dataset.latitude])
@@ -457,7 +465,7 @@ def init_folder(parameters, c, suffix=None):
         Relative path of the folder.
 
     """
-    output_data_path = join(parameters['data_path'], 'output_data')
+    output_data_path = join(parameters['data_path'], 'output')
 
     no_locs = str(sum(parameters['deployments']))
     no_part = str(len(parameters['regions']))

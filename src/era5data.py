@@ -12,7 +12,7 @@ regions = {'EU': '75/-20/30/40'}
 years = ['2017', '2018']
 months = ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12']
 
-directory = join(data_path, 'input_data/resource_data/', str(spatial_resolution))
+directory = join(data_path, 'input/resource_data/', str(spatial_resolution))
 if not os.path.exists(directory):
     os.makedirs(directory)
 
@@ -22,9 +22,9 @@ for region, coords in regions.items():
         for month in months:
             c.retrieve(
                 'reanalysis-era5-single-levels',
-                {'variable':['100m_u_component_of_wind','100m_v_component_of_wind',
-                             '2m_temperature', 'surface_solar_radiation_downwards', 'forecast_surface_roughness'],
-                 'product_type':'reanalysis',
+                {'variable': ['100m_u_component_of_wind','100m_v_component_of_wind',
+                              '2m_temperature', 'surface_solar_radiation_downwards', 'forecast_surface_roughness'],
+                 'product_type': 'reanalysis',
                  'area': str(coords),
                  'grid': str(spatial_resolution)+'/'+str(spatial_resolution),
                  'year': year,
