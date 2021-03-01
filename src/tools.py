@@ -337,7 +337,7 @@ def return_filtered_coordinates(dataset, model_params, tech_params):
             coords_to_remove.extend(to_remove_from_filter)
 
         original_coordinates_list = []
-        start_coordinates_reversed = dict(map(reversed, start_coordinates.items()))
+        start_coordinates_reversed = {v: k for k, v in start_coordinates.items()}
         for item in set(start_coordinates.values()).difference(set(coords_to_remove)):
             original_coordinates_list.append(start_coordinates_reversed[item])
         coordinates_dict[tech] = original_coordinates_list
@@ -633,7 +633,7 @@ def sites_position_mapping(input_dict):
     locations_list = []
     for region, tech in key_list:
         locations_list.extend([(tech, loc) for loc in input_dict[region][tech].locations.values.flatten()])
-    locations_dict = dict(zip(locations_list, list(arange(len(locations_list)))))
+    locations_dict = dict(zip(list(arange(len(locations_list))), locations_list))
 
     return locations_dict
 
@@ -653,12 +653,11 @@ def spatiotemporal_criticality_mapping(data_array, c):
 def retrieve_location_dict(x_values, model_parameters, site_positions):
 
     output_dict = {key: [] for key in model_parameters['technologies']}
-    reversed_site_positions = dict(map(reversed, site_positions.items()))
 
     for tech in output_dict:
         for item, val in enumerate(x_values):
-            if (val == 1.0) and (reversed_site_positions[item][0] == tech):
-                output_dict[tech].append(reversed_site_positions[item][1])
+            if (val == 1.0) and (site_positions[item][0] == tech):
+                output_dict[tech].append(site_positions[item][1])
 
     return output_dict
 
@@ -793,7 +792,8 @@ def retrieve_site_data(model_parameters, deployment_dict, coordinates_dict, outp
 def get_objective_from_mapfile(df_sites, mapping_file, criticality_data, c):
 
     sites = [item for item in df_sites.columns]
-    positions_in_matrix = [mapping_file[s] for s in sites]
+    mapping_file_reversed = {v: k for k, v in mapping_file.items()}
+    positions_in_matrix = [mapping_file_reversed[s] for s in sites]
 
     xs = zeros(shape=criticality_data.shape[1])
     xs[positions_in_matrix] = 1
