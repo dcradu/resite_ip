@@ -1,7 +1,7 @@
 import pickle
 import yaml
-from os.path import join
-from numpy import array
+from os.path import join, isfile
+from numpy import array, argsort
 from pyomo.opt import SolverFactory
 import time
 
@@ -12,8 +12,6 @@ from models import build_ip_model
 
 if __name__ == '__main__':
 
-    custom_log(' Starting data pre-processing')
-
     model_parameters = read_inputs('../config_model.yml')
     siting_parameters = model_parameters['siting_params']
     tech_parameters = read_inputs('../config_techs.yml')
@@ -21,21 +19,37 @@ if __name__ == '__main__':
     data_path = model_parameters['data_path']
     spatial_resolution = model_parameters['spatial_resolution']
     time_horizon = model_parameters['time_slice']
+
     deployment_dict = get_deployment_vector(model_parameters['regions'],
                                             model_parameters['technologies'],
                                             model_parameters['deployments'])
 
-    database = read_database(data_path, spatial_resolution)
-    site_coordinates = return_filtered_coordinates(database, model_parameters, tech_parameters)
+    if isfile(join(data_path, 'input_data/criticality_matrix.p')):
 
-    truncated_data = selected_data(database, site_coordinates, time_horizon)
-    capacity_factors_data = return_output(truncated_data, data_path)
-    time_windows_data = resource_quality_mapping(capacity_factors_data, siting_parameters)
+        custom_log(' WARNING! Instance data read from files. Make sure the files are the ones that you need.')
+        criticality_data = pickle.load(open(join(data_path, 'input_data/criticality_matrix.p', 'rb')))
+        site_coordinates = pickle.load(open(join(data_path, 'input_data/site_coordinates.p', 'rb')))
+        capacity_factors_data = pickle.load(open(join(data_path, 'input_data/capacity_factors_data.p', 'rb')))
+        site_positions = pickle.load(open(join(data_path, 'input_data/site_positions.p', 'rb')))
 
-    criticality_data = xarray_to_ndarray(critical_window_mapping(time_windows_data, model_parameters))
-    site_positions = sites_position_mapping(time_windows_data)
+    else:
 
-    custom_log(' Data read. Building model.')
+        custom_log('Files not available. Starting data pre-processing.')
+
+        database = read_database(data_path, spatial_resolution)
+        site_coordinates = return_filtered_coordinates(database, model_parameters, tech_parameters)
+        truncated_data = selected_data(database, site_coordinates, time_horizon)
+        capacity_factors_data = return_output(truncated_data, data_path)
+        time_windows_data = resource_quality_mapping(capacity_factors_data, siting_parameters)
+        criticality_data = xarray_to_ndarray(critical_window_mapping(time_windows_data, model_parameters))
+        site_positions = sites_position_mapping(time_windows_data)
+
+        pickle.dump(criticality_data, open(join(data_path, 'input_data/criticality_matrix.p', 'wb')), protocol=4)
+        pickle.dump(site_coordinates, open(join(data_path, 'input_data/site_coordinates.p', 'wb')), protocol=4)
+        pickle.dump(capacity_factors_data, open(join(data_path, 'input_data/capacity_factors_data.p', 'wb')), protocol=4)
+        pickle.dump(site_positions, open(join(data_path, 'input_data/site_positions.p', 'wb')), protocol=4)
+
+        custom_log(' Data read. Building model.')
 
     if siting_parameters['solution_method']['BB']['set']:
 
@@ -93,24 +107,25 @@ if __name__ == '__main__':
                                                                  params['initial_temp'], params['no_runs'],
                                                                  params['algorithm'])
 
-            seed = 1  # for folder naming purposes only
-            for i in range(jl_selected.shape[0]):
+            output_folder = init_folder(model_parameters, suffix='_c' + str(c) + '_MIRSA')
 
-                output_folder = init_folder(model_parameters, c, suffix='_MIRSA_seed' + str(seed))
-                seed += 1
+            with open(join(output_folder, 'config_model.yaml'), 'w') as outfile:
+                yaml.dump(model_parameters, outfile, default_flow_style=False, sort_keys=False)
+            with open(join(output_folder, 'config_techs.yaml'), 'w') as outfile:
+                yaml.dump(tech_parameters, outfile, default_flow_style=False, sort_keys=False)
 
-                with open(join(output_folder, 'config_model.yaml'), 'w') as outfile:
-                    yaml.dump(model_parameters, outfile, default_flow_style=False, sort_keys=False)
-                with open(join(output_folder, 'config_techs.yaml'), 'w') as outfile:
-                    yaml.dump(tech_parameters, outfile, default_flow_style=False, sort_keys=False)
+            pickle.dump(jl_selected, open(join(output_folder, 'solution_matrix.p'), 'wb'))
+            pickle.dump(jl_objective, open(join(output_folder, 'objective_vector.p'), 'wb'))
+            pickle.dump(jl_traj, open(join(output_folder, 'trajectory_matrix.p'), 'wb'))
 
-                jl_selected_seed = jl_selected[i, :]
-                jl_objective_seed = jl_objective[i]
+            med_run = argsort(jl_objective)[c//2]
+            jl_selected_seed = jl_selected[med_run, :]
+            jl_objective_seed = jl_objective[med_run]
 
-                jl_locations = retrieve_location_dict(jl_selected_seed, model_parameters, site_positions)
-                retrieve_site_data(model_parameters, deployment_dict, site_coordinates, capacity_factors_data,
-                                   criticality_data, site_positions, c, jl_locations, jl_objective_seed,
-                                   output_folder, benchmarks=True)
+            jl_locations = retrieve_location_dict(jl_selected_seed, model_parameters, site_positions)
+            retrieve_site_data(model_parameters, deployment_dict, site_coordinates, capacity_factors_data,
+                               criticality_data, site_positions, c, jl_locations, jl_objective_seed,
+                               output_folder, benchmarks=True)
 
     elif siting_parameters['solution_method']['RAND']['set']:
 
@@ -140,6 +155,15 @@ if __name__ == '__main__':
             pickle.dump(jl_selected, open(join(output_folder, 'solution_matrix.p'), 'wb'))
             pickle.dump(jl_objective, open(join(output_folder, 'objective_vector.p'), 'wb'))
 
+            med_run = argsort(jl_objective)[c//2]
+            jl_selected_seed = jl_selected[med_run, :]
+            jl_objective_seed = jl_objective[med_run]
+
+            jl_locations = retrieve_location_dict(jl_selected_seed, model_parameters, site_positions)
+            retrieve_site_data(model_parameters, deployment_dict, site_coordinates, capacity_factors_data,
+                               criticality_data, site_positions, c, jl_locations, jl_objective_seed,
+                               output_folder, benchmarks=True)
+
     elif siting_parameters['solution_method']['GRED']['set']:
 
         custom_log(' GRED chosen to solve the IP. Opening a Julia instance. Resulting coordinates are not obtained!')
@@ -164,6 +188,15 @@ if __name__ == '__main__':
 
             pickle.dump(jl_selected, open(join(output_folder, 'solution_matrix.p'), 'wb'))
             pickle.dump(jl_objective, open(join(output_folder, 'objective_vector.p'), 'wb'))
+
+            med_run = argsort(jl_objective)[c//2]
+            jl_selected_seed = jl_selected[med_run, :]
+            jl_objective_seed = jl_objective[med_run]
+
+            jl_locations = retrieve_location_dict(jl_selected_seed, model_parameters, site_positions)
+            retrieve_site_data(model_parameters, deployment_dict, site_coordinates, capacity_factors_data,
+                               criticality_data, site_positions, c, jl_locations, jl_objective_seed,
+                               output_folder, benchmarks=True)
 
     else:
         raise ValueError(' This solution method is not available. ')
