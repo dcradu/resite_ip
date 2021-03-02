@@ -1,7 +1,7 @@
 import pickle
 import yaml
 from os.path import join, isfile
-from numpy import array, argsort
+from numpy import array, argsort, sum
 from pyomo.opt import SolverFactory
 import time
 
@@ -24,13 +24,20 @@ if __name__ == '__main__':
                                             model_parameters['technologies'],
                                             model_parameters['deployments'])
 
-    if isfile(join(data_path, 'input_data/criticality_matrix.p')):
+    if isfile(join(data_path, 'input/criticality_matrix.p')):
 
-        custom_log(' WARNING! Instance data read from files. Make sure the files are the ones that you need.')
-        criticality_data = pickle.load(open(join(data_path, 'input_data/criticality_matrix.p', 'rb')))
-        site_coordinates = pickle.load(open(join(data_path, 'input_data/site_coordinates.p', 'rb')))
-        capacity_factors_data = pickle.load(open(join(data_path, 'input_data/capacity_factors_data.p', 'rb')))
-        site_positions = pickle.load(open(join(data_path, 'input_data/site_positions.p', 'rb')))
+        custom_log(' WARNING! Instance data read from files.')
+        criticality_data = pickle.load(open(join(data_path, 'input/criticality_matrix.p'), 'rb'))
+        site_coordinates = pickle.load(open(join(data_path, 'input/site_coordinates.p'), 'rb'))
+        capacity_factors_data = pickle.load(open(join(data_path, 'input/capacity_factors_data.p'), 'rb'))
+        site_positions = pickle.load(open(join(data_path, 'input/site_positions.p'), 'rb'))
+
+        r = list(site_coordinates.keys())
+        d = sum(model_parameters['deployments'])
+        t = model_parameters['technologies']
+        ts = len(capacity_factors_data[list(site_coordinates.keys())[0]][model_parameters['technologies'][0]].time)
+        custom_log(f" Reading data for a model with a spatial resolution of {float(spatial_resolution)}, "
+                   f"covering {r}, siting {d} {t} sites and {ts} time steps.")
 
     else:
 
@@ -44,10 +51,10 @@ if __name__ == '__main__':
         criticality_data = xarray_to_ndarray(critical_window_mapping(time_windows_data, model_parameters))
         site_positions = sites_position_mapping(time_windows_data)
 
-        pickle.dump(criticality_data, open(join(data_path, 'input_data/criticality_matrix.p', 'wb')), protocol=4)
-        pickle.dump(site_coordinates, open(join(data_path, 'input_data/site_coordinates.p', 'wb')), protocol=4)
-        pickle.dump(capacity_factors_data, open(join(data_path, 'input_data/capacity_factors_data.p', 'wb')), protocol=4)
-        pickle.dump(site_positions, open(join(data_path, 'input_data/site_positions.p', 'wb')), protocol=4)
+        pickle.dump(criticality_data, open(join(data_path, 'input/criticality_matrix.p'), 'wb'), protocol=4)
+        pickle.dump(site_coordinates, open(join(data_path, 'input/site_coordinates.p'), 'wb'), protocol=4)
+        pickle.dump(capacity_factors_data, open(join(data_path, 'input/capacity_factors_data.p'), 'wb'), protocol=4)
+        pickle.dump(site_positions, open(join(data_path, 'input/site_positions.p'), 'wb'), protocol=4)
 
         custom_log(' Data read. Building model.')
 
