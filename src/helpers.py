@@ -287,7 +287,14 @@ def get_offshore_shapes(regions, data_path):
     unique_codes = set(eez_shapes.index)
     offshore_shapes = GeoSeries(name='geometry')
     for c in unique_codes:
-        offshore_shapes[c] = unary_union(eez_shapes[c])
+        # TODO: quick hack to retrieve the continental waters for ES, PT. To be properly addressed.
+        if c == 'ES':
+            # offshore_shapes[c] = unary_union(eez_shapes[c])
+            offshore_shapes[c] = eez_shapes.loc[c].iloc[1]
+        elif c == 'PT':
+            offshore_shapes[c] = eez_shapes.loc[c].iloc[2]
+        else:
+            offshore_shapes[c] = eez_shapes[c]
 
     return offshore_shapes
 

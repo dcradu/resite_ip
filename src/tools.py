@@ -454,10 +454,7 @@ def return_output(input_dict, data_path, smooth_wind_power_curve=True):
             # Compute the resultant of the two wind components.
             wind = xu.sqrt(input_dict[region][tech].u100 ** 2 +
                            input_dict[region][tech].v100 ** 2)
-
             wind_mean = wind.mean(dim='time')
-            # wind_mean.unstack('locations').plot(x='longitude', y='latitude')
-            # plt.show()
 
             # Split according to the IEC 61400 WTG classes
             wind_classes = {'IV': [0., 6.5], 'III': [6.5, 8.], 'II': [8., 9.5], 'I': [9.5, 99.]}

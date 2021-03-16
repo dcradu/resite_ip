@@ -5,11 +5,14 @@ data_path: '/data/dcradu/resite_ip/'
 # Spatial resolution (in degrees) of the potential sites.
 spatial_resolution: 0.28
 # Start time and end time of the analysis.
-time_slice: ['2014-01-01T00:00', '2018-12-31T23:00']
+time_slice: ['2016-01-01T00:00', '2018-12-31T23:00']
 # Technologies to deploy.
-regions: ['FR']
-technologies: ['wind_onshore']
-deployments: [[19]]
+regions: ['GB', 'NL', 'FR', 'DE', 'DK', 'NO', 'PL', 'IE', 'IT', 'SE', 'FI', 'ES', 'GR', 'PT', 'BE', 'LT', 'LV', 'EE']
+technologies: ['wind_offshore']
+deployments: [[48], [36], [35], [22], [21], [18], [17], [14], [12], [12], [9], [8], [6], [6], [3], [3], [2], [1]]
+# deployments: [[21], [16], [15], [10], [9], [8], [8], [6], [6], [6], [4], [4], [3], [3], [2], [2], [1], [1]]
+# deployments: [[14], [10], [10], [6], [6], [5], [5], [4], [4], [4], [3], [3], [2], [2], [1], [1], [1], [1]]
+# deployments: [[10], [8], [7], [5], [5], [4], [4], [3], [3], [3], [2], [2], [2], [2], [1], [1], [1], [1]]
 
 siting_params:
   smooth_measure: 'mean'
@@ -32,12 +35,12 @@ siting_params:
     MIRSA:
       # Simulated Annealing with Local Search
       set: True
-      c: [1, 2, 4, 10, 19]
+      c: [27, 68, 136] # [136, 62, 41, 32]
       neighborhood: 1
       no_iterations: 1000
       no_epochs: 1000
       initial_temp: 200.
-      no_runs: 1
+      no_runs: 50
       algorithm: 'SALS' #'GLS'
     GRED:
       set: False
