@@ -114,7 +114,7 @@ if __name__ == '__main__':
                                                                  params['initial_temp'], params['no_runs'],
                                                                  params['algorithm'])
 
-            output_folder = init_folder(model_parameters, suffix='_c' + str(c) + '_MIRSA')
+            output_folder = init_folder(model_parameters, c, suffix='_MIRSA')
 
             with open(join(output_folder, 'config_model.yaml'), 'w') as outfile:
                 yaml.dump(model_parameters, outfile, default_flow_style=False, sort_keys=False)
@@ -125,7 +125,7 @@ if __name__ == '__main__':
             pickle.dump(jl_objective, open(join(output_folder, 'objective_vector.p'), 'wb'))
             pickle.dump(jl_traj, open(join(output_folder, 'trajectory_matrix.p'), 'wb'))
 
-            med_run = argsort(jl_objective)[c//2]
+            med_run = argsort(jl_objective)[params['no_runs']//2]
             jl_selected_seed = jl_selected[med_run, :]
             jl_objective_seed = jl_objective[med_run]
 
@@ -136,8 +136,8 @@ if __name__ == '__main__':
 
     elif siting_parameters['solution_method']['RAND']['set']:
 
-        custom_log(' Locations to be chosen via random search. Resulting coordinates are not obtained!')
-        params = model_parameters['solution_method']['RAND']
+        custom_log(' Locations to be chosen via random search.')
+        params = siting_parameters['solution_method']['RAND']
 
         if not isinstance(params['c'], list):
             raise ValueError(' Values of c have to provided as list for the RAND set-up.')
@@ -155,14 +155,15 @@ if __name__ == '__main__':
             print('Running heuristic for c value of', c)
 
             jl_selected, jl_objective = Main.main_RAND(jl_dict['deployment_dict'], criticality_data,
-                                                       c, params['algorithm'])
+                                                       c, params['no_iterations'], params['no_runs'],
+                                                       params['algorithm'])
 
-            output_folder = init_folder(model_parameters, suffix='_c' + str(c) + '_RS')
+            output_folder = init_folder(model_parameters, c, suffix='_RS')
 
             pickle.dump(jl_selected, open(join(output_folder, 'solution_matrix.p'), 'wb'))
             pickle.dump(jl_objective, open(join(output_folder, 'objective_vector.p'), 'wb'))
 
-            med_run = argsort(jl_objective)[c//2]
+            med_run = argsort(jl_objective)[params['no_runs']//2]
             jl_selected_seed = jl_selected[med_run, :]
             jl_objective_seed = jl_objective[med_run]
 
@@ -173,8 +174,8 @@ if __name__ == '__main__':
 
     elif siting_parameters['solution_method']['GRED']['set']:
 
-        custom_log(' GRED chosen to solve the IP. Opening a Julia instance. Resulting coordinates are not obtained!')
-        params = model_parameters['solution_method']['GRED']
+        custom_log(' GRED chosen to solve the IP. Opening a Julia instance.')
+        params = siting_parameters['solution_method']['GRED']
 
         if not isinstance(params['c'], list):
             raise ValueError(' Values of c have to elements of a list for the heuristic set-up.')
@@ -189,14 +190,14 @@ if __name__ == '__main__':
         for c in params['c']:
             print('Running heuristic for c value of', c)
             jl_selected, jl_objective = Main.main_GRED(jl_dict['deployment_dict'], criticality_data, c,
-                                                       params['no_runs'], params['eps'], params['algorithm'])
+                                                       params['no_runs'], params['epsilon'], params['algorithm'])
 
-            output_folder = init_folder(model_parameters, suffix='_c' + str(c) + '_GRED')
+            output_folder = init_folder(model_parameters, c, suffix='_GRED')
 
             pickle.dump(jl_selected, open(join(output_folder, 'solution_matrix.p'), 'wb'))
             pickle.dump(jl_objective, open(join(output_folder, 'objective_vector.p'), 'wb'))
 
-            med_run = argsort(jl_objective)[c//2]
+            med_run = argsort(jl_objective)[params['no_runs']//2]
             jl_selected_seed = jl_selected[med_run, :]
             jl_objective_seed = jl_objective[med_run]
 

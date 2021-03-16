@@ -52,7 +52,6 @@ function randomised_greedy_heuristic(D::Array{Float64,2}, c::Float64, n::Float64
     y_incumbent .= Dx_incumbent .>= c
     LB_incumbent = sum(y_incumbent)
     locations_removed += 1
-    println(locations_removed)
   end
   x_incumbent[ind_incumbent] .= 1.
   return x_incumbent, LB_incumbent
