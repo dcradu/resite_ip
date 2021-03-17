@@ -107,13 +107,11 @@ if __name__ == '__main__':
 
         for c in params['c']:
             print('Running heuristic for c value of', c)
-            start = time.time()
             jl_selected, jl_objective, jl_traj = Main.main_MIRSA(jl_dict['index_dict'], jl_dict['deployment_dict'],
                                                                  criticality_data, c, params['neighborhood'],
                                                                  params['no_iterations'], params['no_epochs'],
                                                                  params['initial_temp'], params['no_runs'],
                                                                  params['algorithm'])
-
             output_folder = init_folder(model_parameters, c, suffix='_MIRSA')
 
             with open(join(output_folder, 'config_model.yaml'), 'w') as outfile:
