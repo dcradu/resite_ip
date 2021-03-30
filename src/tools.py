@@ -673,7 +673,7 @@ def retrieve_index_dict(deployment_vector, coordinate_dict):
 
 
 def retrieve_site_data(model_parameters, deployment_dict, coordinates_dict, output_data, criticality_data,
-                       location_mapping, c, site_coordinates, objective, output_folder, benchmarks=True):
+                       location_mapping, c, site_coordinates, objective, output_folder, benchmarks=False):
 
     output_by_tech = collapse_dict_region_level(output_data)
     time_slice = model_parameters['time_slice']
@@ -752,7 +752,7 @@ def retrieve_site_data(model_parameters, deployment_dict, coordinates_dict, outp
 
         # Capacity credit sites.
 
-        load_data_fn = join(model_parameters['data_path'], 'input/load_data', 'load_2009_2018.csv')
+        load_data_fn = join(model_parameters['data_path'], 'input/load_data', 'load_2000_2019.csv')
         load_data = read_csv(load_data_fn, index_col=0)
         load_data.index = to_datetime(load_data.index)
         load_data = load_data[(load_data.index > time_slice[0]) & (load_data.index < time_slice[1])]

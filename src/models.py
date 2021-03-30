@@ -1,14 +1,14 @@
 from os.path import join
 
 from numpy import arange
-from pyomo.environ import ConcreteModel, Var, Binary, maximize
+from pyomo.environ import ConcreteModel, Var, Binary, maximize, NonNegativeReals
 from pyomo.opt import ProblemFormat
 from pypsa.opt import l_constraint, LConstraint, l_objective, LExpression
 
 from tools import retrieve_index_dict
 
 
-def build_ip_model(deployment_dict, coordinate_dict, critical_matrix, c, output_folder, write_lp=False):
+def build_ip_model(deployment_dict, coordinate_dict, critical_matrix, c, output_folder, mir=False, write_lp=False):
     """Model build-up.
 
     Parameters:
@@ -41,7 +41,10 @@ def build_ip_model(deployment_dict, coordinate_dict, critical_matrix, c, output_
     model.L = arange(1, no_locations + 1)
 
     model.x = Var(model.L, within=Binary)
-    model.y = Var(model.W, within=Binary)
+    if not mir:
+        model.y = Var(model.W, within=Binary)
+    else:
+        model.y = Var(model.W, within=NonNegativeReals, bounds=(0, 1))
 
     activation_constraint = {}
 

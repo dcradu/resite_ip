@@ -1,15 +1,16 @@
 # Path to data folder
 data_path: 'D:/ULg_PhD_work/datasets/resite_ip/'
 #data_path: '/data/dcradu/resite_ip/'
+#data_path: '../../EVO/dcradu/resite_ip/'
 
 # Spatial resolution (in degrees) of the potential sites.
-spatial_resolution: 0.28
+spatial_resolution: 0.25
 # Start time and end time of the analysis.
-time_slice: ['2014-01-01T00:00', '2014-01-07T23:00']
+time_slice: ['2017-01-01T00:00', '2019-12-31T23:00']
 # Technologies to deploy.
-regions: ['FR', 'ES']
+regions: ['EU']
 technologies: ['wind_onshore']
-deployments: [[19], [12]]
+deployments: [[560]]
 
 siting_params:
   smooth_measure: 'mean'
@@ -23,32 +24,33 @@ siting_params:
   solution_method:
     BB:
       # Branch & Bound
-      set: False
-      c: 1
+      set: True
+      mir: True
+      c: [1, 112, 224, 336, 448, 560]
       solver: 'gurobi'
-      mipgap: 0.05
-      timelimit: 1800
-      threads: 4
+      mipgap: 0.01
+      timelimit: 3600
+      threads: 1
     MIRSA:
       # Simulated Annealing with Local Search
-      set: True
-      c: [1, 2, 4, 10, 19]
+      set: False
+      c: [1, 112, 224, 336, 448, 560]
       neighborhood: 1
-      no_iterations: 1000
-      no_epochs: 1000
+      no_iterations: 2000
+      no_epochs: 500
       initial_temp: 200.
       no_runs: 1
-      algorithm: 'SALS' #'GLS'
+      algorithm: 'SALS' # 'GLS' (Greedy Local Search)
     GRED:
       set: False
-      epsilon: 0.001
-      c: [1, 106, 212, 318, 424, 530]
+      p: 0.10 # [0.05, 0.10, 0.15, 0.20]
+      c: [1, 112, 224, 336, 448, 560]
       no_runs: 1
-      algorithm: 'RGH' # SGA
+      algorithm: 'STGH' # TGH, STGH
     RAND:
       # Random Search
       set: False
-      c: [318]
+      c: [1, 112, 224, 336, 448, 560]
       no_iterations: 50
       no_epochs: 500
       no_runs: 1
