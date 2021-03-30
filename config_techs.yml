@@ -1,7 +1,7 @@
 # Config file for various conversion technologies.
 wind_onshore:
   where: 'onshore'
-  filters: ['resource_quality', 'population_density', 'orography', 'forestry', 'water_mask', 'latitude']
+  filters: ['water_mask']
   converter_IV: 'V110'
   converter_III: 'E103'
   converter_II: 'V90'
