@@ -30,7 +30,6 @@ function main_MIRSA(index_dict, deployment_dict, D, c, N, I, E, T_init, R, run)
     x_init = solve_MILP_partitioning(D, c, n_partitions, index_dict, "Gurobi")
     
     for r = 1:R
-      println("Run ", r, "/", R)
       x_sol[r, :], LB_sol[r], obj_sol[r, :] = simulated_annealing_local_search_partition(D, c, n_partitions, N, I, E, x_init, T_init, index_dict)
     end
 
@@ -51,7 +50,6 @@ function main_MIRSA(index_dict, deployment_dict, D, c, N, I, E, T_init, R, run)
     x_init = convert.(Float64, x_init)
 
     for r = 1:R
-      println("Run ", r, "/", R)
       x_sol[r, :], LB_sol[r], obj_sol[r, :] = simulated_annealing_local_search_partition(D, c, n_partitions, N, I, E, x_init, T_init, index_dict)
     end
 
@@ -77,15 +75,14 @@ function main_GRED(deployment_dict, D, c, R, p, run)
     x_sol, LB_sol = Array{Float64, 2}(undef, R, L), Array{Float64, 1}(undef, R)
     n = convert(Float64, deployment_dict[1])
     for r = 1:R
-      println("Run ", r, "/", R)
       x_sol[r, :], LB_sol[r] = threshold_greedy_algorithm(D, c, n)
     end
+
   elseif run == "STGH"
     x_sol, LB_sol = Array{Float64, 2}(undef, R, L), Array{Float64, 1}(undef, R)
     n = convert(Float64, deployment_dict[1])
     p = convert(Float64, p)
     for r = 1:R
-      println("Run ", r, "/", R)
       x_sol[r, :], LB_sol[r] = stochastic_threshold_greedy_algorithm(D, c, n, p)
     end
   else
@@ -111,7 +108,6 @@ function main_RAND(deployment_dict, D, c, I, R, run)
     x_sol, LB_sol = Array{Float64, 2}(undef, R, L), Array{Float64, 1}(undef, R)
     n = convert(Float64, deployment_dict[1])
     for r = 1:R
-      println("Run ", r, "/", R)
       x_sol[r, :], LB_sol[r] = random_search(D, c, n, I)
     end
 
@@ -148,7 +144,6 @@ function main_LSEA(index_dict, deployment_dict, D, c, N, I, E, run)
     x_sol, LB_sol, obj_sol = Array{Float64, 2}(undef, R, L), Array{Float64, 1}(undef, R), Array{Float64, 2}(undef, R, I)
     x_init = solve_MILP_partitioning(D, c, n_partitions, index_dict, "Gurobi")
     for r = 1:R
-      println("Run ", r, "/", R)
       x_sol[r, :], LB_sol[r], obj_sol[r, :] = greedy_local_search_partition(D, c, n_partitions, N, I, E, x_init, index_dict)
     end
   else

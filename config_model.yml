@@ -5,7 +5,7 @@ data_path: '/home/dcradu/data/resite_ip/'
 # Spatial resolution (in degrees) of the potential sites.
 spatial_resolution: 0.25
 # Start time and end time of the analysis.
-time_slice: ['2017-01-01T00:00', '2019-12-31T23:00']
+time_slice: ['2010-01-01T00:00', '2019-12-31T23:00']
 # Technologies to deploy.
 regions: ['EU']
 technologies: ['wind_onshore']
@@ -20,36 +20,38 @@ siting_params:
   # Time-window length used to compute the criticality indicator. Integer value.
   delta: 1
   # Solution method: BB or HEU or RAND or GRED.
+  c: 112
+
   solution_method:
     BB:
       # Branch & Bound
-      set: True
+      set: False
       mir: True
-      c: [1, 112, 224, 336, 448, 560]
       solver: 'gurobi'
       mipgap: 0.01
       timelimit: 3600
       threads: 1
     MIRSA:
       # Simulated Annealing with Local Search
-      set: False
-      c: [1, 112, 224, 336, 448, 560]
+      set: True
       neighborhood: 1
-      no_iterations: 2000
+      no_iterations: 1000
       no_epochs: 500
       initial_temp: 200.
       no_runs: 1
-      algorithm: 'SALS' # 'GLS' (Greedy Local Search)
-    GRED:
+      algorithm: 'RSSA' # 'GLS' (Greedy Local Search),  'RSSA', 'SALS'
+    GRED_DET:
       set: False
-      p: 0.10 # [0.05, 0.10, 0.15, 0.20]
-      c: [1, 112, 224, 336, 448, 560]
-      no_runs: 1
-      algorithm: 'STGH' # TGH, STGH
+      no_runs: 5
+      algorithm: 'TGH'
+    GRED_STO:
+      set: False
+      p: 55 # 10% of 10150 locations
+      no_runs: 100
+      algorithm: 'STGH'
     RAND:
       # Random Search
       set: False
-      c: [1, 112, 224, 336, 448, 560]
       no_iterations: 50
       no_epochs: 500
       no_runs: 1
