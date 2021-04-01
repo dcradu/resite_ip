@@ -5,7 +5,9 @@ from glob import glob
 from os import listdir
 from os.path import join, isfile
 
+import dask
 import dask.array as da
+dask.config.set({"array.slicing.split_large_chunks": True})
 import geopy.distance
 import xarray as xr
 import xarray.ufuncs as xu

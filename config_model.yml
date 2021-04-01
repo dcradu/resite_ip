@@ -1,7 +1,6 @@
 # Path to data folder
-data_path: 'D:/ULg_PhD_work/datasets/resite_ip/'
-#data_path: '/data/dcradu/resite_ip/'
-#data_path: '../../EVO/dcradu/resite_ip/'
+#data_path: 'D:/ULg_PhD_work/datasets/resite_ip/'
+data_path: '/home/dcradu/data/resite_ip/'
 
 # Spatial resolution (in degrees) of the potential sites.
 spatial_resolution: 0.25
