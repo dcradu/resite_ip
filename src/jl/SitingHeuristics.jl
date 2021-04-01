@@ -1,5 +1,6 @@
 using PyCall
 using Dates
+using Random
 
 include("optimisation_models.jl")
 include("MCP_heuristics.jl")
@@ -27,15 +28,32 @@ function main_MIRSA(index_dict, deployment_dict, D, c, N, I, E, T_init, R, run)
 
     x_sol, LB_sol, obj_sol = Array{Float64, 2}(undef, R, L), Array{Float64, 1}(undef, R), Array{Float64, 2}(undef, R, I)
     x_init = solve_MILP_partitioning(D, c, n_partitions, index_dict, "Gurobi")
-
-    t1 = now()
+    
     for r = 1:R
       println("Run ", r, "/", R)
       x_sol[r, :], LB_sol[r], obj_sol[r, :] = simulated_annealing_local_search_partition(D, c, n_partitions, N, I, E, x_init, T_init, index_dict)
     end
-    t2 = now()
-    dt = (t2 - t1)/R
-    println(dt)
+
+  elseif run == "RSSA"
+
+    x_sol, LB_sol, obj_sol = Array{Float64, 2}(undef, R, L), Array{Float64, 1}(undef, R), Array{Float64, 2}(undef, R, I)
+    x_init = zeros(Int64, L)
+    ind_set = [l for l in 1:L]
+    n_while = n_partitions[1]
+
+    while n_while > 0
+      loc = sample(ind_set)
+      deleteat!(ind_set, findall(x->x==loc, ind_set))
+      x_init[loc] = 1
+      n_while -= 1
+    end
+
+    x_init = convert.(Float64, x_init)
+
+    for r = 1:R
+      println("Run ", r, "/", R)
+      x_sol[r, :], LB_sol[r], obj_sol[r, :] = simulated_annealing_local_search_partition(D, c, n_partitions, N, I, E, x_init, T_init, index_dict)
+    end
 
   else
     println("No such run available.")
