@@ -440,3 +440,49 @@ function stochastic_threshold_greedy_algorithm(D::Array{Float64,2}, c::Float64, 
   return x_incumbent, obj_incumbent
 
 end
+
+function stochastic_threshold_greedy_algorithm_trajectory(D::Array{Float64,2}, c::Float64, n::Float64, p::Float64)
+  W, L = size(D)
+  s = convert(Int64, round((L/n)*p))
+  random_ind_set = Vector{Int64}(undef, s)
+  ind_compl_incumbent = [i for i in 1:L]
+  ind_incumbent = zeros(Int64, 0)
+  Dx_incumbent = zeros(Float64, W)
+  y_incumbent = zeros(Float64, W)
+  obj_incumbent = 0
+  obj_incumbent_vec = zeros(Float64, convert(Int64,n))
+  Dx_tmp = Vector{Float64}(undef, W)
+  y_tmp = Vector{Float64}(undef, W)
+  locations_added, threshold = 0, 0
+  @inbounds while locations_added < n
+    if locations_added < c
+      threshold = locations_added + 1
+      obj_candidate = 0
+    else
+      obj_candidate = obj_incumbent
+    end
+    ind_candidate_list = Vector{Int64}(undef, 0)
+    random_ind_set .= sample(ind_compl_incumbent, s, replace=false)
+    @inbounds for ind in random_ind_set
+        Dx_tmp .= Dx_incumbent .+ view(D, :, ind)
+        y_tmp .= Dx_tmp .>= threshold
+        obj_tmp = sum(y_tmp)
+        if obj_tmp > obj_candidate
+          ind_candidate_list = [ind]
+          obj_candidate = obj_tmp
+        elseif obj_tmp == obj_candidate
+          ind_candidate_list = union(ind, ind_candidate_list)
+        end
+    end
+    ind_candidate = sample(ind_candidate_list)
+    ind_incumbent = union(ind_incumbent, ind_candidate)
+    ind_compl_incumbent = setdiff(ind_compl_incumbent, ind_candidate)
+    Dx_incumbent .= Dx_incumbent .+ view(D, :, ind_candidate)
+    y_incumbent .= Dx_incumbent .>= threshold
+    obj_incumbent = sum(y_incumbent)
+    obj_incumbent_vec[locations_added+1] = obj_incumbent
+    locations_added += 1
+  end
+  return ind_incumbent, obj_incumbent
+
+end

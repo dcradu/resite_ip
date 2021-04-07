@@ -22,6 +22,7 @@ def parse_args():
     parser.add_argument('--run_GRED_DET', type=bool, default=False)
     parser.add_argument('--run_GRED_STO', type=bool, default=False)
     parser.add_argument('--run_RAND', type=bool, default=False)
+    parser.add_argument('--run_SGHLS', type=bool, default=False)
 
     parsed_args = vars(parser.parse_args())
 
@@ -88,10 +89,12 @@ if __name__ == '__main__':
     siting_parameters['solution_method']['GRED_DET']['set'] = args['run_GRED_DET']
     siting_parameters['solution_method']['GRED_STO']['set'] = args['run_GRED_STO']
     siting_parameters['solution_method']['RAND']['set'] = args['run_RAND']
+    siting_parameters['solution_method']['SGHLS']['set'] = args['run_SGHLS']
 
     c = args['c']
 
-    if not single_true([args['run_BB'], args['run_MIRSA'], args['run_GRED_DET'], args['run_GRED_STO'], args['run_RAND']]):
+    if not single_true([args['run_BB'], args['run_MIRSA'], args['run_GRED_DET'], args['run_GRED_STO'],
+                        args['run_RAND'], args['run_SGHLS']]):
         raise ValueError(' More than one run selected in the argparser.')
 
     if siting_parameters['solution_method']['BB']['set']:
@@ -167,8 +170,7 @@ if __name__ == '__main__':
         j = julia.Julia(compiled_modules=False)
         from julia import Main
         Main.include("jl/SitingHeuristics.jl")
-    
- 
+
         jl_selected, jl_objective = Main.main_RAND(jl_dict['deployment_dict'], criticality_data,
                                                    c, params['no_iterations'], params['no_runs'],
                                                    params['algorithm'])
@@ -223,6 +225,34 @@ if __name__ == '__main__':
 
         pickle.dump(jl_selected, open(join(output_folder, 'solution_matrix.p'), 'wb'))
         pickle.dump(jl_objective, open(join(output_folder, 'objective_vector.p'), 'wb'))
+
+    elif siting_parameters['solution_method']['SGHLS']['set']:
+
+        params = siting_parameters['solution_method']['SGHLS']
+        custom_log(f" SHGLS_{params['algorithm']} chosen to solve the IP. Opening a Julia instance.")
+
+        jl_dict = generate_jl_input(deployment_dict, site_coordinates)
+
+        import julia
+        j = julia.Julia(compiled_modules=False)
+        from julia import Main
+        Main.include("jl/SitingHeuristics.jl")
+
+        start = time.time()
+        jl_selected, jl_objective, jl_traj = Main.main_SGHLS(jl_dict['index_dict'], jl_dict['deployment_dict'],
+                                                             criticality_data, c, params['neighborhood'],
+                                                             params['no_iterations'], params['no_epochs'],
+                                                             params['initial_temp'], params['p'],
+                                                             params['no_runs_SGH'], params['no_runs_LS'],
+                                                             params['algorithm'])
+        end = time.time()
+        print(f"Average CPU time for c={c}: {round((end-start)/params['no_runs_LS'], 1)} s")
+
+        output_folder = init_folder(model_parameters, c, suffix=f"_SGHLS_{params['algorithm']}_p{params['p']}")
+
+        pickle.dump(jl_selected, open(join(output_folder, 'solution_matrix.p'), 'wb'))
+        pickle.dump(jl_objective, open(join(output_folder, 'objective_vector.p'), 'wb'))
+        pickle.dump(jl_traj, open(join(output_folder, 'trajectory_matrix.p'), 'wb'))
 
     else:
         raise ValueError(' This solution method is not available. ')

@@ -62,6 +62,69 @@ function main_MIRSA(index_dict, deployment_dict, D, c, N, I, E, T_init, R, run)
 
 end
 
+function main_SGHLS(index_dict, deployment_dict, D, c, N, I, E, T_init, p, R_SGH, R_LS, run)
+
+  index_dict = Dict([(convert(Int64, k), convert(Int64, index_dict[k])) for k in keys(index_dict)])
+  deployment_dict = Dict([(convert(Int64, k), convert(Int64, deployment_dict[k])) for k in keys(deployment_dict)])
+  n = convert(Float64, deployment_dict[1])
+  D  = convert.(Float64, D)
+
+  c = convert(Float64, c)
+  N = convert(Int64, N)
+  I = convert(Int64, I)
+  E = convert(Int64, E)
+  T_init = convert(Float64, T_init)
+  p = convert(Float64, p)
+  R_SGH = convert(Int64, R_SGH)
+  R_LS = convert(Int64, R_LS)
+  run = string(run)
+
+  n_partitions = [deployment_dict[i] for i in 1:maximum(values(index_dict))]
+
+  W, L = size(D)
+
+  if run == "STGHSAS"
+
+    x_init, LB_init = Array{Float64, 2}(undef, R_SGH, L), Array{Float64, 1}(undef, R_SGH)
+    x_sol, LB_sol, obj_sol = Array{Float64, 2}(undef, R_LS, L), Array{Float64, 1}(undef, R_LS), Array{Float64, 2}(undef, R_LS, I)
+
+    for r = 1:R_SGH
+      x_init[r, :], LB_init[r] = stochastic_threshold_greedy_algorithm(D, c, n, p)
+    end
+
+    LB_init_best = argmax(LB_init)
+    x_init_best = x_init[LB_init_best, :]
+
+    for r = 1:R_LS
+      x_sol[r, :], LB_sol[r], obj_sol[r, :] = simulated_annealing_local_search_partition(D, c, n_partitions, N, I, E, x_init_best, T_init, index_dict)
+    end
+
+  elseif run == "STGHSAP"
+
+    x_sol, LB_sol, obj_sol = Array{Float64, 2}(undef, R_LS, L), Array{Float64, 1}(undef, R_LS), Array{Float64, 2}(undef, R_LS, I)
+
+    for r = 1:R_LS
+
+      x_init, LB_init = Array{Float64, 2}(undef, 1, L), Array{Float64, 1}(undef, 1)
+      x_init[1, :], LB_init[1] = stochastic_threshold_greedy_algorithm(D, c, n, p)
+
+      x_init_best = x_init[1, :]
+
+      x_sol[r, :], LB_sol[r], obj_sol[r, :] = simulated_annealing_local_search_partition(D, c, n_partitions, N, I, E, x_init_best, T_init, index_dict)
+
+    end
+
+  else
+    println("No such run available.")
+    throw(ArgumentError)
+  end
+
+  return x_sol, LB_sol, obj_sol
+
+end
+
+
+
 function main_GRED(deployment_dict, D, c, R, p, run)
 
   deployment_dict = Dict([(convert(Int64, k), convert(Int64, deployment_dict[k])) for k in keys(deployment_dict)])
