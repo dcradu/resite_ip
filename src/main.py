@@ -16,11 +16,12 @@ def parse_args():
 
     parser = argparse.ArgumentParser(description='Command line arguments.')
 
-    parser.add_argument('-c', '--threshold', type=int)
-    parser.add_argument('-run_BB', '--run_BB_algorithm', type=bool, default=False)
-    parser.add_argument('-run_MIRSA', '--run_MIRSA_algorithm', type=bool, default=False)
-    parser.add_argument('-run_GRED_DET', '--run_GRED_DET_algorithm', type=bool, default=False)
-    parser.add_argument('-run_GRED_STO', '--run_GRED_STO_algorithm', type=bool, default=False)
+    parser.add_argument('--c', type=int)
+    parser.add_argument('--run_BB', type=bool, default=False)
+    parser.add_argument('--run_MIRSA', type=bool, default=False)
+    parser.add_argument('--run_GRED_DET', type=bool, default=False)
+    parser.add_argument('--run_GRED_STO', type=bool, default=False)
+    parser.add_argument('--run_RAND', type=bool, default=False)
 
     parsed_args = vars(parser.parse_args())
 
@@ -86,10 +87,11 @@ if __name__ == '__main__':
     siting_parameters['solution_method']['MIRSA']['set'] = args['run_MIRSA']
     siting_parameters['solution_method']['GRED_DET']['set'] = args['run_GRED_DET']
     siting_parameters['solution_method']['GRED_STO']['set'] = args['run_GRED_STO']
+    siting_parameters['solution_method']['RAND']['set'] = args['run_RAND']
 
     c = args['c']
 
-    if not single_true([args['run_BB'], args['run_MIRSA'], args['run_GRED_DET'], args['GRED_STO']]):
+    if not single_true([args['run_BB'], args['run_MIRSA'], args['run_GRED_DET'], args['run_GRED_STO'], args['run_RAND']]):
         raise ValueError(' More than one run selected in the argparser.')
 
     if siting_parameters['solution_method']['BB']['set']:
@@ -97,7 +99,7 @@ if __name__ == '__main__':
         custom_log(' BB chosen to solve the IP.')
         params = siting_parameters['solution_method']['BB']
 
-        output_folder = init_folder(model_parameters, c, f"_BB_MIR_str{params['mir']}")
+        output_folder = init_folder(model_parameters, c, f"_BB_MIR_{params['mir']}")
         with open(join(output_folder, 'config_model.yaml'), 'w') as outfile:
             yaml.dump(model_parameters, outfile, default_flow_style=False, sort_keys=False)
         with open(join(output_folder, 'config_techs.yaml'), 'w') as outfile:
@@ -154,43 +156,27 @@ if __name__ == '__main__':
         pickle.dump(jl_objective, open(join(output_folder, 'objective_vector.p'), 'wb'))
         pickle.dump(jl_traj, open(join(output_folder, 'trajectory_matrix.p'), 'wb'))
 
-    # elif siting_parameters['solution_method']['RAND']['set']:
-    #
-    #     custom_log(' Locations to be chosen via random search.')
-    #     params = siting_parameters['solution_method']['RAND']
-    #
-    #     if not isinstance(params['c'], list):
-    #         raise ValueError(' Values of c have to provided as list for the RAND set-up.')
-    #     if len(model_parameters['technologies']) > 1:
-    #         raise ValueError(' This method is currently implemented for one single technology only.')
-    #
-    #     jl_dict = generate_jl_input(deployment_dict, site_coordinates)
-    #
-    #     import julia
-    #     j = julia.Julia(compiled_modules=False)
-    #     from julia import Main
-    #     Main.include("jl/SitingHeuristics.jl")
-    #
-    #     for c in params['c']:
-    #         print('Running heuristic for c value of', c)
-    #
-    #         jl_selected, jl_objective = Main.main_RAND(jl_dict['deployment_dict'], criticality_data,
-    #                                                    c, params['no_iterations'], params['no_runs'],
-    #                                                    params['algorithm'])
-    #
-    #         output_folder = init_folder(model_parameters, c, suffix='_RS')
-    #
-    #         pickle.dump(jl_selected, open(join(output_folder, 'solution_matrix.p'), 'wb'))
-    #         pickle.dump(jl_objective, open(join(output_folder, 'objective_vector.p'), 'wb'))
-    #
-    #         med_run = argsort(jl_objective)[params['no_runs']//2]
-    #         jl_selected_seed = jl_selected[med_run, :]
-    #         jl_objective_seed = jl_objective[med_run]
-    #
-    #         jl_locations = retrieve_location_dict(jl_selected_seed, model_parameters, site_positions)
-    #         retrieve_site_data(model_parameters, deployment_dict, site_coordinates, capacity_factors_data,
-    #                            criticality_data, site_positions, c, jl_locations, jl_objective_seed,
-    #                            output_folder, benchmarks=False)
+    elif siting_parameters['solution_method']['RAND']['set']:
+    
+        custom_log(' Locations to be chosen via random search.')
+        params = siting_parameters['solution_method']['RAND']
+    
+        jl_dict = generate_jl_input(deployment_dict, site_coordinates)
+    
+        import julia
+        j = julia.Julia(compiled_modules=False)
+        from julia import Main
+        Main.include("jl/SitingHeuristics.jl")
+    
+ 
+        jl_selected, jl_objective = Main.main_RAND(jl_dict['deployment_dict'], criticality_data,
+                                                   c, params['no_iterations'], params['no_runs'],
+                                                   params['algorithm'])
+    
+        output_folder = init_folder(model_parameters, c, suffix='_RS')
+    
+        pickle.dump(jl_selected, open(join(output_folder, 'solution_matrix.p'), 'wb'))
+        pickle.dump(jl_objective, open(join(output_folder, 'objective_vector.p'), 'wb'))
 
     elif siting_parameters['solution_method']['GRED_DET']['set']:
 
@@ -219,9 +205,6 @@ if __name__ == '__main__':
 
         params = siting_parameters['solution_method']['GRED_STO']
         custom_log(f" GRED_{params['algorithm']} chosen to solve the IP. Opening a Julia instance.")
-
-        if not isinstance(params['c'], list):
-            raise ValueError(' Values of c have to elements of a list for the heuristic set-up.')
 
         jl_dict = generate_jl_input(deployment_dict, site_coordinates)
 

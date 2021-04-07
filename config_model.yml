@@ -26,33 +26,34 @@ siting_params:
     BB:
       # Branch & Bound
       set: False
-      mir: True
+      mir: False
       solver: 'gurobi'
       mipgap: 0.01
-      timelimit: 3600
-      threads: 1
+      timelimit: 43200
+      threads: 36
     MIRSA:
       # Simulated Annealing with Local Search
       set: True
       neighborhood: 1
-      no_iterations: 1000
+      no_iterations: 2000
       no_epochs: 500
       initial_temp: 200.
-      no_runs: 1
-      algorithm: 'RSSA' # 'GLS' (Greedy Local Search),  'RSSA', 'SALS'
+      no_runs: 50
+      algorithm: 'SALS' # 'GLS' (Greedy Local Search), 'RSSA', 'SALS', 'STGHSA'
     GRED_DET:
       set: False
-      no_runs: 5
+      no_runs: 10
+      p: 0
       algorithm: 'TGH'
     GRED_STO:
       set: False
-      p: 55 # 10% of 10150 locations
-      no_runs: 100
+      p: 27 # 10% of 10150 locations
+      no_runs: 200
       algorithm: 'STGH'
     RAND:
       # Random Search
       set: False
-      no_iterations: 50
-      no_epochs: 500
-      no_runs: 1
+      no_iterations: 1000
+      no_epochs: 1000
+      no_runs: 200
       algorithm: 'RS'
