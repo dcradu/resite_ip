@@ -18,6 +18,7 @@ def parse_args():
 
     parser.add_argument('--c', type=int)
     parser.add_argument('--run_BB', type=bool, default=False)
+    parser.add_argument('--run_MIR', type=bool, default=False)
     parser.add_argument('--run_MIRSA', type=bool, default=False)
     parser.add_argument('--run_GRED_DET', type=bool, default=False)
     parser.add_argument('--run_GRED_STO', type=bool, default=False)
@@ -85,6 +86,7 @@ if __name__ == '__main__':
         custom_log(' Data read. Building model.')
 
     siting_parameters['solution_method']['BB']['set'] = args['run_BB']
+    siting_parameters['solution_method']['BB']['mir'] = args['run_MIR']
     siting_parameters['solution_method']['MIRSA']['set'] = args['run_MIRSA']
     siting_parameters['solution_method']['GRED_DET']['set'] = args['run_GRED_DET']
     siting_parameters['solution_method']['GRED_STO']['set'] = args['run_GRED_STO']
@@ -102,7 +104,7 @@ if __name__ == '__main__':
         custom_log(' BB chosen to solve the IP.')
         params = siting_parameters['solution_method']['BB']
 
-        output_folder = init_folder(model_parameters, c, f"_BB_MIR_{params['mir']}")
+        output_folder = init_folder(model_parameters, c, f"_BB_MIR_{args['run_MIR']}")
         with open(join(output_folder, 'config_model.yaml'), 'w') as outfile:
             yaml.dump(model_parameters, outfile, default_flow_style=False, sort_keys=False)
         with open(join(output_folder, 'config_techs.yaml'), 'w') as outfile:
@@ -115,7 +117,7 @@ if __name__ == '__main__':
         opt.options['TimeLimit'] = params['timelimit']
 
         instance = build_ip_model(deployment_dict, site_coordinates, criticality_data,
-                                  c, output_folder, params['mir'])
+                                  c, output_folder, args['run_MIR'])
         custom_log(' Sending model to solver.')
 
         results = opt.solve(instance, tee=False, keepfiles=False,

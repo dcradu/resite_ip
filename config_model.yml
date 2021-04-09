@@ -5,7 +5,7 @@ data_path: '/home/dcradu/data/resite_ip/'
 # Spatial resolution (in degrees) of the potential sites.
 spatial_resolution: 0.25
 # Start time and end time of the analysis.
-time_slice: ['2010-01-01T00:00', '2019-12-31T23:00']
+time_slice: ['2011-01-01T00:00', '2020-12-31T23:00']
 # Technologies to deploy.
 regions: ['EU']
 technologies: ['wind_onshore']
@@ -20,17 +20,17 @@ siting_params:
   # Time-window length used to compute the criticality indicator. Integer value.
   delta: 1
   # Solution method: BB or HEU or RAND or GRED.
-  c: 112
+  c: 1
 
   solution_method:
     BB:
       # Branch & Bound
-      set: False
+      set: True
       mir: False
       solver: 'gurobi'
       mipgap: 0.01
-      timelimit: 43200
-      threads: 36
+      timelimit: 1800
+      threads: 0
     MIRSA:
       # Simulated Annealing with Local Search
       set: False
@@ -59,7 +59,7 @@ siting_params:
       algorithm: 'RS'
     SGHLS:
       # Stochastic greedy & simulated annealing
-      set: True
+      set: False
       neighborhood: 1
       no_iterations: 2000
       no_epochs: 500

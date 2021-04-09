@@ -339,21 +339,26 @@ def return_coordinates_from_shapefiles(resource_dataset, shapefiles_region):
 
 def retrieve_load_data_partitions(data_path, date_slice, alpha, delta, regions, norm_type):
 
-    load_data_fn = join(data_path, 'input/load_data', 'load_2000_2019.csv')
+    load_data_fn = join(data_path, 'input/load_data', 'load_entsoe_2006_2020_patch.csv')
     load_data = read_csv(load_data_fn, index_col=0)
-    load_data.index = date_range('2000-01-02T00:00', '2019-12-31T23:00', freq='H')
+    load_data.index = to_datetime(load_data.index)
     load_data_sliced = load_data.loc[date_slice[0]:date_slice[1]]
 
     regions_list = return_region_divisions(regions, data_path)
+    load_data_sliced = load_data_sliced[regions_list].fillna(method='pad', axis='index')
+    nan_regions = load_data_sliced.columns[load_data_sliced.isna().any()].tolist()
+
+    if nan_regions:
+        raise ValueError(f"Regions {nan_regions} have missing load values. To be filled before proceeding.")
 
     if alpha == 'load_central':
-        load_vector = load_data_sliced[regions_list].sum(axis=1)
+        load_data_sliced = load_data_sliced.sum(axis=1)
     elif alpha == 'load_partition':
-        load_vector = load_data_sliced[regions_list]
+        pass
     else:
         raise ValueError(' This way of defining criticality is not available.')
 
-    load_vector_norm = return_filtered_and_normed(load_vector, delta, norm_type)
+    load_vector_norm = return_filtered_and_normed(load_data_sliced, delta, norm_type)
 
     return load_vector_norm
 
