@@ -141,6 +141,7 @@ def filter_locations_by_layer(regions, start_coordinates, model_params, tech_par
     elif which == 'resource_quality':
 
         database = read_database(data_path, model_params['spatial_resolution'])
+        print(database)
 
         if tech_params['resource'] == 'wind':
             array_resource = xu.sqrt(database.u100 ** 2 +
@@ -148,7 +149,7 @@ def filter_locations_by_layer(regions, start_coordinates, model_params, tech_par
         elif tech_params['resource'] == 'solar':
             array_resource = database.ssrd / 3600.
         else:
-            raise ValueError (" This resource is not available.")
+            raise ValueError(" This resource is not available.")
 
         array_resource_mean = array_resource.mean(dim='time')
         mask_resource = array_resource_mean.where(array_resource_mean.data < tech_params['resource_threshold'])

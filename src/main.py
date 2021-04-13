@@ -35,6 +35,11 @@ if __name__ == '__main__':
     criticality_data = xarray_to_ndarray(critical_window_mapping(time_windows_data, model_parameters))
     site_positions = sites_position_mapping(time_windows_data)
 
+    import pickle
+    pickle.dump(site_coordinates, open(join(data_path, 'input/site_coordinates.p'), 'wb'), protocol=4)
+    import sys
+    sys.exit()
+
     custom_log(' Data read. Building model.')
 
     if siting_parameters['solution_method']['BB']['set']:

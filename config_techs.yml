@@ -35,13 +35,13 @@ wind_offshore:
   protected_areas_selection: ['Ia', 'Ib', 'II', 'V']
   protected_areas_distance_threshold: 5.
   depth_threshold_low: 0.
-  depth_threshold_high: 999.
+  depth_threshold_high: 99.
   altitude_threshold: 0.
   terrain_slope_threshold: 1.
   forestry_ratio_threshold: 1.
-  latitude_threshold: 70.
+  latitude_threshold: 65.
   distance_threshold_min: 22.2
-  distance_threshold_max: 222.2 # 111.
+  distance_threshold_max: 111.0 # 111.
 
 wind_floating:
   where: 'offshore'
