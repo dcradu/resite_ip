@@ -17,6 +17,7 @@ def parse_args():
     parser = argparse.ArgumentParser(description='Command line arguments.')
 
     parser.add_argument('--c', type=int)
+    parser.add_argument('--p', type=int, default=None)
     parser.add_argument('--run_BB', type=bool, default=False)
     parser.add_argument('--run_MIR', type=bool, default=False)
     parser.add_argument('--run_MIRSA', type=bool, default=False)
@@ -90,8 +91,10 @@ if __name__ == '__main__':
     siting_parameters['solution_method']['MIRSA']['set'] = args['run_MIRSA']
     siting_parameters['solution_method']['GRED_DET']['set'] = args['run_GRED_DET']
     siting_parameters['solution_method']['GRED_STO']['set'] = args['run_GRED_STO']
+    siting_parameters['solution_method']['GRED_STO']['p'] = args['p']
     siting_parameters['solution_method']['RAND']['set'] = args['run_RAND']
     siting_parameters['solution_method']['SGHLS']['set'] = args['run_SGHLS']
+    siting_parameters['solution_method']['SGHLS']['p'] = args['p']
 
     c = args['c']
 

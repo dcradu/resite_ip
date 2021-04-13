@@ -29,7 +29,7 @@ siting_params:
       mir: False
       solver: 'gurobi'
       mipgap: 0.01
-      timelimit: 1800
+      timelimit: 43200
       threads: 0
     MIRSA:
       # Simulated Annealing with Local Search
@@ -42,20 +42,20 @@ siting_params:
       algorithm: 'SALS' # 'GLS' (Greedy Local Search), 'RSSA', 'SALS', 'STGHSAS', 'STGHSAP'
     GRED_DET:
       set: False
-      no_runs: 10
+      no_runs: 100
       p: 0
       algorithm: 'TGH'
     GRED_STO:
       set: False
-      p: 27 # 10% of 10150 locations
-      no_runs: 200
+      p: 27 # 5% of 10150 locations, 55, 110
+      no_runs: 500
       algorithm: 'STGH'
     RAND:
       # Random Search
       set: False
       no_iterations: 1000
       no_epochs: 1000
-      no_runs: 200
+      no_runs: 100
       algorithm: 'RS'
     SGHLS:
       # Stochastic greedy & simulated annealing
