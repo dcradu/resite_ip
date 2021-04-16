@@ -85,7 +85,7 @@ pv_utility:
   forestry_ratio_threshold: 0.8
   latitude_threshold: 65.
 
-#TODO: fix pv_residential filters
+#TODO: adjust pv_residential filters
 pv_residential:
   where: 'onshore'
   filters: ['population_density', 'water_mask']

@@ -1,14 +1,13 @@
 from copy import deepcopy
-from datetime import datetime
 from os import makedirs
 from os.path import join, isdir, abspath
-
+import warnings
 import pycountry as pyc
 import xarray as xr
 import yaml
 from geopandas import read_file, GeoSeries
 from numpy import hstack, arange, dtype, array, timedelta64, nan, sum
-from pandas import read_csv, date_range, to_datetime, Series, notnull
+from pandas import read_csv, to_datetime, Series, notnull
 from shapely import prepared
 from shapely.geometry import Point
 from shapely.ops import unary_union
@@ -168,7 +167,7 @@ def return_region_divisions(region_list, data_path):
         elif region in shapes.index:
             region_subdivisions = [region]
         else:
-            custom_log(f"{region} not in shapes list!")
+            warnings.warn(f"{region} not in shapes list!")
             continue
 
         regions.extend(region_subdivisions)
@@ -346,6 +345,8 @@ def return_coordinates_from_shapefiles(resource_dataset, shapefiles_region):
 
 def retrieve_load_data_partitions(data_path, date_slice, alpha, delta, regions, norm_type):
 
+    assert alpha in ['load_central', 'load_partition'], f"Criticality definition {alpha} not available."
+
     load_data_fn = join(data_path, 'input/load_data', 'load_entsoe_2006_2020_full.csv')
     load_data = read_csv(load_data_fn, index_col=0)
     load_data.index = to_datetime(load_data.index)
@@ -357,8 +358,6 @@ def retrieve_load_data_partitions(data_path, date_slice, alpha, delta, regions, 
         load_vector = load_data_sliced[regions_list].sum(axis=1)
     elif alpha == 'load_partition':
         load_vector = load_data_sliced[regions_list]
-    else:
-        raise ValueError(' This way of defining criticality is not available.')
 
     load_vector_norm = return_filtered_and_normed(load_vector, delta, norm_type)
 
@@ -394,6 +393,9 @@ def filter_onshore_offshore_locations(coordinates_in_region, data_path, spatial_
         Coordinates filtered via land/water mask.
     """
 
+    assert tech in ['wind_onshore', 'pv_utility', 'pv_residential', 'wind_offshore', 'wind_floating'], \
+        f"Technology {tech} not available."
+
     land_fn = 'ERA5_surface_characteristics_20181231_' + str(spatial_resolution) + '.nc'
     land_path = join(data_path, 'input/land_data', land_fn)
 
@@ -420,9 +422,6 @@ def filter_onshore_offshore_locations(coordinates_in_region, data_path, spatial_
 
     elif tech in ['wind_offshore', 'wind_floating']:
         updated_coordinates = list(set(coordinates_in_region).difference(set(coords_mask_offshore)))
-
-    else:
-        raise ValueError(' This technology does not exist.')
 
     return updated_coordinates
 
@@ -483,12 +482,10 @@ def init_folder(parameters, c, suffix=None):
     path = abspath(output_data_path + '/' + no_yrs + 'y_n' + no_locs + '_k' + no_part + '_c' + c + suffix)
     makedirs(path)
 
-    custom_log(f"Folder path is: {path}")
-
     return path
 
 
-def generate_jl_input(deployment_dict, filtered_coordinates):
+def generate_jl_input(deployment_dict, filtered_coordinates, site_positions, legacy_sites):
 
     concat_deployment_dict = concatenate_dict_keys(deployment_dict)
     region_list = [tuple for tuple in concat_deployment_dict.keys()]
@@ -496,6 +493,18 @@ def generate_jl_input(deployment_dict, filtered_coordinates):
     int_to_region_map = {}
     for idx, region in enumerate(region_list):
         int_to_region_map[region] = idx + 1
+
+    legacy_sites_index = []
+
+    for tech in legacy_sites:
+        if len(legacy_sites[tech]) > 0:
+            for site in legacy_sites[tech]:
+                tech_site_tuple = (tech, site)
+                for s in site_positions:
+                    if site_positions[s] == tech_site_tuple:
+                        legacy_sites_index.append(s+1)
+        else:
+            continue
 
     deployment_dict_int = dict(zip(int_to_region_map.values(), concat_deployment_dict.values()))
 
@@ -505,19 +514,10 @@ def generate_jl_input(deployment_dict, filtered_coordinates):
         index_dict_swap[key] = int_to_region_map[value]
 
     output_dict = {'deployment_dict': deployment_dict_int,
-                   'index_dict': index_dict_swap}
+                   'index_dict': index_dict_swap,
+                   'legacy_site_list': array(sorted(legacy_sites_index))}
 
     return output_dict
-
-
-def custom_log(message):
-    """
-    Parameters
-    ----------
-    message : str
-
-    """
-    print(datetime.now().strftime('%H:%M:%S') + ' --- ' + str(message))
 
 
 def read_inputs(inputs):

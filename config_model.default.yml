@@ -1,6 +1,5 @@
 # Path to data folder
-data_path: 'D:/ULg_PhD_work/datasets/resite_ip/'
-#data_path: '/data/dcradu/resite_ip/'
+data_path: 'path_to_data'
 
 # Spatial resolution (in degrees) of the potential sites.
 spatial_resolution: 0.25
@@ -24,17 +23,17 @@ siting_params:
   # Solution method: BB or HEU or RAND or GRED.
   solution_method:
     SA:
-      set: True
+      set: False
       neighborhood: 1
       no_iterations: 100
       no_epochs: 100
       initial_temp: 200.
       p: 0.05
-      no_runs: 30
-      no_runs_init: 20
+      no_runs: 3
+      no_runs_init: 5
       algorithm: 'MIR' # 'MIR', 'SGH'
     SGH:
-      set: False
+      set: True
       p: 0.05
-      no_runs: 30
+      no_runs: 3
       algorithm: 'SGH'

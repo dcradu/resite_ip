@@ -1,158 +1,105 @@
 using PyCall
+using Dates
 
-include("optimisation_models.jl")
-include("MCP_heuristics.jl")
+include("models.jl")
+include("heuristics.jl")
 
-function main_MIRSA(index_dict, deployment_dict, D, c, N, I, E, T_init, R, run)
+function main_SA(index_dict, deployment_dict, legacy_index_list,
+                 criticality_matrix, c,
+                 neighborhood_radius=1, T_init=200, p=0.05,
+                 no_iterations=1000, no_epochs=500, no_runs=100, no_runs_init=100,
+                 init_sol_algorithm="MIR")
 
   index_dict = Dict([(convert(Int64, k), convert(Int64, index_dict[k])) for k in keys(index_dict)])
   deployment_dict = Dict([(convert(Int64, k), convert(Int64, deployment_dict[k])) for k in keys(deployment_dict)])
-  D  = convert.(Float64, D)
+  legacy_index_list = convert.(Int64, legacy_index_list)
 
+  D  = convert.(Float64, criticality_matrix)
   c = convert(Float64, c)
-  N = convert(Int64, N)
-  I = convert(Int64, I)
-  E = convert(Int64, E)
+  N = convert(Int64, neighborhood_radius)
+  I = convert(Int64, no_iterations)
+  E = convert(Int64, no_epochs)
   T_init = convert(Float64, T_init)
-  R = convert(Int64, R)
-  run = string(run)
+  p = convert(Float64, p)
+  R = convert(Int64, no_runs)
+  R_init = convert(Int64, no_runs_init)
+  init_sol_algorithm = string(init_sol_algorithm)
 
   W, L = size(D)
 
   P = maximum(values(index_dict))
   n_partitions = [deployment_dict[i] for i in 1:P]
 
-  if run == "SALS"
+  x_sol, LB_sol, obj_sol = Array{Float64, 2}(undef, R, L), Array{Float64, 1}(undef, R), Array{Float64, 2}(undef, R, I)
 
-    x_sol, LB_sol, obj_sol = Array{Float64, 2}(undef, R, L), Array{Float64, 1}(undef, R), Array{Float64, 2}(undef, R, I)
-    x_init = solve_MILP_partitioning(D, c, n_partitions, index_dict, "Gurobi")
+  if init_sol_algorithm == "MIR"
+    x_init = solve_MILP_partitioning(D, c, n_partitions, index_dict, legacy_index_list, "Gurobi")
 
-    for r = 1:R
-      println("Run ", r, "/", R)
-      x_sol[r, :], LB_sol[r], obj_sol[r, :] = simulated_annealing_local_search_partition(D, c, n_partitions, N, I, E, x_init, T_init, index_dict)
+  elseif init_sol_algorithm == "SGH"
+    x_init_alg, LB_init_alg = Array{Float64, 2}(undef, R_init, L), Array{Float64, 1}(undef, R_init)
+    for r = 1:R_init
+      if (div(r, 10) > 0) & (mod(r, 10) == 0)
+        @info "$(Dates.format(now(), "HH:MM:SS")) Run $(r)/$(R) of $(init_sol_algorithm)"
+      end
+      x_init_alg[r, :], LB_init_alg[r, :] = randomised_threshold_greedy_heuristic_partition(D, c, n_partitions, p,
+                                                                                            index_dict, legacy_index_list)
     end
-
-  elseif run == "SALSR"
-
-    x_sol, LB_sol, obj_sol = Array{Float64, 2}(undef, R, L), Array{Float64, 1}(undef, R), Array{Float64, 2}(undef, R, I)
-    x_init = zeros(Float64, L)
-    ind = collect(1:L)
-    x_ind = sample(ind, convert(Int64, deployment_dict[1]))
-    x_init[x_ind] .= 1.
-    n = convert(Float64, deployment_dict[1])
-
-    for r = 1:R
-      println("Run ", r, "/", R)
-      x_sol[r, :], LB_sol[r], obj_sol[r, :] = simulated_annealing_local_search(D, c, n, N, I, E, x_init, T_init)
-    end
+    LB_init_alg_best = argmax(LB_init_alg)
+    x_init = x_init_alg[LB_init_alg_best, :]
 
   else
-    println("No such run available.")
+    println("No such algorithm available.")
     throw(ArgumentError)
+  end
+
+  println("Initial solution retrieved. Starting local search.")
+  for r = 1:R
+    if (div(r, 10) > 0) & (mod(r, 10) == 0)
+      @info "$(Dates.format(now(), "HH:MM:SS")) Run $(r)/$(R) of LS"
+    end
+    x_sol[r, :], LB_sol[r], obj_sol[r, :] = simulated_annealing_local_search_partition(D, c, n_partitions,
+                                                                                       N, I, E, T_init,
+                                                                                       x_init, index_dict, legacy_index_list)
   end
 
   return x_sol, LB_sol, obj_sol
 
 end
 
-function main_GRED(deployment_dict, D, c, R, eps, run)
-
-  deployment_dict = Dict([(convert(Int64, k), convert(Int64, deployment_dict[k])) for k in keys(deployment_dict)])
-  D  = convert.(Float64, D)
-  c = convert(Float64, c)
-  R = convert(Int64, R)
-
-  W, L = size(D)
-
-  if run == "RGH"
-    x_sol, LB_sol = Array{Float64, 2}(undef, R, L), Array{Float64, 1}(undef, R)
-    n = convert(Float64, deployment_dict[1])
-    for r = 1:R
-      println("Run ", r, "/", R)
-      x_sol[r, :], LB_sol[r] = randomised_greedy_heuristic(D, c, n)
-    end
-  elseif run == "CGA"
-    x_sol, LB_sol = Array{Float64, 2}(undef, R, L), Array{Float64, 1}(undef, R)
-    n = convert(Float64, deployment_dict[1])
-    for r = 1:R
-      println("Run ", r, "/", R)
-      x_sol[r, :], LB_sol[r] = classic_greedy_algorithm(D, c, n)
-    end
-  elseif run == "SGA"
-    x_sol, LB_sol = Array{Float64, 2}(undef, R, L), Array{Float64, 1}(undef, R)
-    n = convert(Float64, deployment_dict[1])
-    eps = convert(Float64, 0.001)
-    for r = 1:R
-      println("Run ", r, "/", R)
-      x_sol[r, :], LB_sol[r] = stochastic_greedy_algorithm(D, c, n, eps)
-    end
-  else
-    println("No such run available.")
-    throw(ArgumentError)
-  end
-
-  return x_sol, LB_sol
-
-end
-
-function main_RAND(deployment_dict, D, c, run)
-
-  deployment_dict = Dict([(convert(Int64, k), convert(Int64, deployment_dict[k])) for k in keys(deployment_dict)])
-  D  = convert.(Float64, D)
-  c = convert(Float64, c)
-
-  if run == "RS"
-
-    x_sol, LB_sol = Array{Float64, 2}(undef, R, L), Array{Float64, 1}(undef, R)
-    n = convert(Float64, deployment_dict[1])
-    runs = convert(Int64, I*E)
-
-    for r = 1:R
-      println("Run ", r, "/", R)
-      x_sol[r, :], LB_sol[r] = random_search(D, c, n, runs)
-    end
-
-  else
-    println("No such run available.")
-    throw(ArgumentError)
-  end
-
-  return x_sol, LB_sol
-
-end
-
-# Local Search algorithm
-function main_LSEA(index_dict, deployment_dict, D, c, N, I, E, run)
+function main_SGH(index_dict, deployment_dict, legacy_index_list,
+                  criticality_matrix, c,
+                  p=0.05, no_runs=100, algorithm="SGH")
 
   index_dict = Dict([(convert(Int64, k), convert(Int64, index_dict[k])) for k in keys(index_dict)])
   deployment_dict = Dict([(convert(Int64, k), convert(Int64, deployment_dict[k])) for k in keys(deployment_dict)])
-  D  = convert.(Float64, D)
+  legacy_index_list = Vector{Int64}(vec(legacy_index_list))
 
+  D  = convert.(Float64, criticality_matrix)
   c = convert(Float64, c)
-  N = convert(Int64, N)
-  I = convert(Int64, I)
-  E = convert(Int64, E)
-  T_init = convert(Float64, T_init)
-  R = convert(Int64, R)
-  run = string(run)
+  R = convert(Int64, no_runs)
+  p = convert(Float64, p)
+  algorithm = string(algorithm)
 
   W, L = size(D)
 
   P = maximum(values(index_dict))
-  n_partitions = [deployment_dict[i] for i in 1:P]
+  n_partitions = Vector{Int64}(vec([deployment_dict[i] for i in 1:P]))
 
-  if run == "GLS"
-    x_sol, LB_sol, obj_sol = Array{Float64, 2}(undef, R, L), Array{Float64, 1}(undef, R), Array{Float64, 2}(undef, R, I)
-    x_init = solve_MILP_partitioning(D, c, n_partitions, index_dict, "Gurobi")
+  if algorithm == "SGH"
+    x_sol, LB_sol = Array{Float64, 2}(undef, R, L), Array{Float64, 1}(undef, R)
     for r = 1:R
-      println("Run ", r, "/", R)
-      x_sol[r, :], LB_sol[r], obj_sol[r, :] = greedy_local_search_partition(D, c, n_partitions, N, I, E, x_init, index_dict)
+      if (div(r, 10) > 0) & (mod(r, 10) == 0)
+        @info "$(Dates.format(now(), "HH:MM:SS")) Run $(r)/$(R)"
+      end
+      x_sol[r, :], LB_sol[r] = randomised_threshold_greedy_heuristic_partition(D, c, n_partitions, p,
+                                                                               index_dict, legacy_index_list)
     end
+
   else
-    println("No such run available.")
+    println("No such algorithm available.")
     throw(ArgumentError)
   end
 
-  return x_sol, LB_sol, obj_sol
+  return x_sol, LB_sol
 
 end

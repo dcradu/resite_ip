@@ -3,3 +3,5 @@
 *.pyc
 src/__pycache*
 .idea
+config_model.yml
+config_techs.yml

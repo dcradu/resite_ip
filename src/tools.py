@@ -19,7 +19,7 @@ from windpowerlib import power_curves, wind_speed
 
 from helpers import filter_onshore_offshore_locations, union_regions, return_coordinates_from_shapefiles, \
     concatenate_dict_keys, return_dict_keys, chunk_split, collapse_dict_region_level, read_inputs, \
-    retrieve_load_data_partitions, get_partition_index, return_region_divisions
+    retrieve_load_data_partitions, get_partition_index, return_region_divisions, get_deployment_vector
 
 
 def read_database(data_path, spatial_resolution):
@@ -98,6 +98,10 @@ def filter_locations_by_layer(regions, start_coordinates, model_params, tech_par
     coords_to_remove = None
     data_path = model_params['data_path']
 
+    assert which in ['protected_areas', 'resource_quality', 'latitude', 'distance', 'orography',
+                     'forestry', 'water_mask', 'bathymetry', 'population_density', 'legacy'], \
+        f"Filtering layer {which} not available."
+
     if which == 'protected_areas':
 
         protected_areas_selection = tech_params['protected_areas_selection']
@@ -141,15 +145,14 @@ def filter_locations_by_layer(regions, start_coordinates, model_params, tech_par
     elif which == 'resource_quality':
 
         database = read_database(data_path, model_params['spatial_resolution'])
-        print(database)
+
+        assert tech_params['resource'] in ['wind', 'solar'], f"Resource {tech_params['resource']} not available."
 
         if tech_params['resource'] == 'wind':
             array_resource = xu.sqrt(database.u100 ** 2 +
                                      database.v100 ** 2)
         elif tech_params['resource'] == 'solar':
             array_resource = database.ssrd / 3600.
-        else:
-            raise ValueError(" This resource is not available.")
 
         array_resource_mean = array_resource.mean(dim='time')
         mask_resource = array_resource_mean.where(array_resource_mean.data < tech_params['resource_threshold'])
@@ -292,8 +295,17 @@ def filter_locations_by_layer(regions, start_coordinates, model_params, tech_par
         coords_mask = [(round(lon, 2), round(lat, 2)) for (lon, lat) in coords_mask_population]
         coords_to_remove = sorted(list(set(start_coordinates).intersection(set(coords_mask))))
 
-    else:
-        raise ValueError(' Layer {} is not available.'.format(str(which)))
+    elif which == 'legacy':
+
+        legacy_fn = 'aggregated_capacity.csv'
+        legacy_path = join(data_path, 'input/legacy_data', legacy_fn)
+        legacy_data = read_csv(legacy_path)
+
+        legacy_data = legacy_data[(legacy_data['Plant'] == tech_params['resource'].capitalize()) &
+                                  (legacy_data['Type'] == tech_params['deployment'].capitalize()) &
+                                  (legacy_data['Capacity (GW)'] >= tech_params['legacy_min'])]
+
+        coords_to_remove = list(zip(legacy_data.Longitude, legacy_data.Latitude))
 
     return coords_to_remove
 
@@ -319,8 +331,13 @@ def return_filtered_coordinates(dataset, model_params, tech_params):
     """
     technologies = model_params['technologies']
     regions = model_params['regions']
+    deployment_dict = get_deployment_vector(model_params['regions'],
+                                            model_params['technologies'],
+                                            model_params['deployments'])
+
     output_dict = {region: {tech: None for tech in technologies} for region in regions}
     coordinates_dict = {key: None for key in technologies}
+    legacy_dict = {key: None for key in technologies}
 
     region_shape = union_regions(regions, model_params['data_path'], which='both')
     coordinates = return_coordinates_from_shapefiles(dataset, region_shape)
@@ -330,12 +347,18 @@ def return_filtered_coordinates(dataset, model_params, tech_params):
 
     for tech in technologies:
         coords_to_remove = []
+        coords_to_add = []
         tech_dict = tech_params[tech]
 
         for layer in tech_dict['filters']:
             to_remove_from_filter = filter_locations_by_layer(regions, list(start_coordinates.values()),
                                                               model_params, tech_dict, which=layer)
-            coords_to_remove.extend(to_remove_from_filter)
+            if layer != 'legacy':
+                coords_to_remove.extend(to_remove_from_filter)
+            else:
+                coords_to_add.extend(to_remove_from_filter)
+        coords_to_remove = list(set(coords_to_remove).difference(set(coords_to_add)))
+        legacy_dict[tech] = coords_to_add
 
         original_coordinates_list = []
         start_coordinates_reversed = {v: k for k, v in start_coordinates.items()}
@@ -349,19 +372,24 @@ def return_filtered_coordinates(dataset, model_params, tech_params):
             shape_region = union_regions([region], model_params['data_path'], which=tech_dict['where'])
             points_in_region = return_coordinates_from_shapefiles(dataset, shape_region)
 
+            legacy_in_region = list(set(legacy_dict[tech]).intersection(set(points_in_region)))
+            assert len(legacy_in_region) <= deployment_dict[region][tech], \
+                f"More legacy sites ({len(legacy_in_region)}) than desired deployments " \
+                    f"({deployment_dict[region][tech]}) in {region}. Revise assumptions."
+
             points_to_keep = list(set(coordinates_dict[tech]).intersection(set(points_in_region)))
             output_dict[region][tech] = [p for p in points_to_keep if p not in unique_list_of_points]
             unique_list_of_points.extend(points_to_keep)
 
-            if len(output_dict[region][tech]) > 0:
-                print(f"{len(output_dict[region][tech])} {tech} sites in {region}.")
-            else:
-                print(f"No {tech} sites in {region}.")
+            assert deployment_dict[region][tech] <= len(output_dict[region][tech]), \
+                f"Not enough candidate {tech} sites ({len(output_dict[region][tech])}) " \
+                    f"for the desired deployments ({deployment_dict[region][tech]}) in {region}. Revise assumptions."
+            # print(f"{len(output_dict[region][tech])} {tech} sites in {region}.")
 
     for key, value in output_dict.items():
         output_dict[key] = {k: v for k, v in output_dict[key].items() if len(v) > 0}
 
-    return output_dict
+    return output_dict, legacy_dict
 
 
 def selected_data(dataset, input_dict, time_slice):
@@ -392,9 +420,8 @@ def selected_data(dataset, input_dict, time_slice):
 
     # This is a test which raised some problems on Linux distros, where for some
     # unknown reason the dataset is not sorted on the time dimension.
-    if (datetime_start < dataset.time.values[0]) or \
-            (datetime_end > dataset.time.values[-1]):
-        raise ValueError(' At least one of the time indices exceeds the available data.')
+    assert (datetime_start >= dataset.time.values[0]) or (datetime_end <= dataset.time.values[-1]), \
+        ' At least one of the time indices exceeds the available data.'
 
     for region, tech in key_list:
 
@@ -444,6 +471,8 @@ def return_output(input_dict, data_path, smooth_wind_power_curve=True):
     for region, tech in key_list:
 
         resource = tech.split('_')[0]
+
+        assert resource in ['wind', 'solar'], f"Resource {resource} not available in the model."
 
         if resource == 'wind':
 
@@ -541,9 +570,6 @@ def return_output(input_dict, data_path, smooth_wind_power_curve=True):
 
             output_array = xr.DataArray(power_output, coords=coordinates, dims=dimensions)
 
-        else:
-            raise ValueError(' The resource specified is not available yet.')
-
         output_array = output_array.where(output_array > 0.01, other=0.0)
         output_dict[region][tech] = output_array.reindex_like(input_dict[region][tech])
 
@@ -555,6 +581,8 @@ def resource_quality_mapping(input_dict, siting_params):
 
     delta = siting_params['delta']
     measure = siting_params['smooth_measure']
+
+    assert measure in ['mean', 'median'], f"Measure {measure} not available."
 
     key_list = return_dict_keys(input_dict)
     output_dict = deepcopy(input_dict)
@@ -572,10 +600,6 @@ def resource_quality_mapping(input_dict, siting_params):
             # window of length delta, centers the label and finally
             # drops NaN values resulted.
             time_array = input_dict[region][tech].rolling(time=delta, center=True).median().dropna('time')
-
-        else:
-
-            raise ValueError(' Measure {} is not available.'.format(str(measure)))
 
         # Renaming coordinate and updating its values to integers.
         time_array = time_array.rename({'time': 'windows'})
@@ -598,6 +622,8 @@ def critical_window_mapping(input_dict, model_params):
     key_list = return_dict_keys(input_dict)
     output_dict = deepcopy(input_dict)
 
+    assert alpha in ['load_central', 'load_partition'], f"Criticality definition {alpha} not available."
+
     if alpha == 'load_central':
 
         l_norm = retrieve_load_data_partitions(data_path, date_slice, alpha, delta, regions, norm_type)
@@ -618,9 +644,6 @@ def critical_window_mapping(input_dict, model_params):
             # Select region of interest within the dict value with 'tech' key.
             critical_windows = (input_dict[region][tech] > alpha_reference).astype(int)
             output_dict[region][tech] = critical_windows
-
-    else:
-        raise ValueError('No such alpha rule. Retry.')
 
     return output_dict
 
@@ -670,108 +693,126 @@ def retrieve_index_dict(deployment_vector, coordinate_dict):
     return n, dict_deployment, partitions, indices
 
 
-def retrieve_site_data(model_parameters, deployment_dict, coordinates_dict, output_data, criticality_data,
-                       location_mapping, c, site_coordinates, objective, output_folder, benchmarks=True):
+def retrieve_site_data(model_parameters, capacity_factor_data, criticality_data,
+                       location_mapping, comp_site_coordinates, legacy_sites, output_folder, benchmark):
 
-    output_by_tech = collapse_dict_region_level(output_data)
-    time_slice = model_parameters['time_slice']
-    time_dt = date_range(start=time_slice[0], end=time_slice[1], freq='H')
+    deployment_dict = get_deployment_vector(model_parameters['regions'],
+                                            model_parameters['technologies'],
+                                            model_parameters['deployments'])
+    c = model_parameters['siting_params']['c']
+
+    output_by_tech = collapse_dict_region_level(capacity_factor_data)
+    time_dt = date_range(start=model_parameters['time_slice'][0], end=model_parameters['time_slice'][1], freq='H')
 
     for tech in output_by_tech:
         _, index = unique(output_by_tech[tech].locations, return_index=True)
         output_by_tech[tech] = output_by_tech[tech].isel(locations=index)
 
-    # Init coordinate set.
-    tech_dict = {key: [] for key in list(output_by_tech.keys())}
-    for tech in tech_dict:
-        for region in coordinates_dict.keys():
-            for t in coordinates_dict[region].keys():
-                if t == tech:
-                    tech_dict[tech].extend(sorted(coordinates_dict[region][t], key=lambda x: (x[0], x[1])))
-
-    pickle.dump(tech_dict, open(join(output_folder, 'init_coordinates_dict.p'), 'wb'))
-
     # Retrieve complementary sites
-    comp_site_data = {key: None for key in site_coordinates}
-    for item in site_coordinates:
-        comp_site_data[item] = {key: None for key in site_coordinates[item]}
+    comp_site_data = {k1: {k2: None for k2 in comp_site_coordinates[k1]} for k1 in comp_site_coordinates}
 
-    for tech in comp_site_data.keys():
-        for coord in comp_site_data[tech].keys():
-            comp_site_data[tech][coord] = output_by_tech[tech].sel(locations=coord).values.flatten()
+    for tech in comp_site_data:
+        for site in comp_site_data[tech]:
+            comp_site_data[tech][site] = output_by_tech[tech].sel(locations=site).values.flatten()
 
     reform = {(outerKey, innerKey): values for outerKey, innerDict in comp_site_data.items() for innerKey, values in
               innerDict.items()}
-    comp_site_data_df = DataFrame(reform, index=time_dt)
+    comp_site_data_df = DataFrame(reform, index=time_dt).sort_index(axis='columns', level=1)
     pickle.dump(comp_site_data_df, open(join(output_folder,  'comp_site_data.p'), 'wb'))
-    # Similarly done for any other deployment scheme done via the Julia heuristics.
 
+    objective_comp = get_objective_from_mapfile(comp_site_data_df, location_mapping, criticality_data, c)
     with open(join(output_folder, 'objective_comp.txt'), "w") as file:
-        print(objective, file=file)
+        print(objective_comp, file=file)
 
-    if benchmarks:
-
+    if benchmark == 'PROD':
         # Retrieve max sites
-        key_list = return_dict_keys(output_data)
-        output_location = deepcopy(output_data)
+        key_list = return_dict_keys(capacity_factor_data)
+        output_location = deepcopy(capacity_factor_data)
 
         for region, tech in key_list:
             n = deployment_dict[region][tech]
-            output_data_sum = output_data[region][tech].sum(dim='time')
-            if n != 0:
-                locs = output_data_sum.argsort()[-n:].values
-                output_location[region][tech] = sorted(output_data_sum.isel(locations=locs).locations.values.flatten())
+            output_data_sum = capacity_factor_data[region][tech].sum(dim='time')
+
+            if n > 0:
+                locs_legacy = set(legacy_sites[tech]).intersection(set(output_data_sum.locations.values.flatten()))
+                if len(locs_legacy) > 0:
+                    locs_new = set(output_data_sum.locations.values.flatten()).difference(locs_legacy)
+                    output_data_sum_no_legacy = output_data_sum.sel(locations=list(locs_new))
+                    n_new = n - len(locs_legacy)
+                    if n_new > 0:
+                        locs_new_best = set(output_data_sum_no_legacy.argsort()[-n_new:].locations.values.flatten())
+                        locs = sorted(list(locs_legacy.union(locs_new_best)))
+                    else:
+                        locs = sorted(list(locs_legacy))
+                else:
+                    locs = sorted(list(set(output_data_sum.argsort()[-n:].locations.values.flatten())))
+                output_location[region][tech] = sorted(output_data_sum.sel(locations=locs).locations.values.flatten())
             else:
                 output_location[region][tech] = None
 
         output_location_per_tech = {key: [] for key in model_parameters['technologies']}
-        for region in output_location:
-            for tech in output_location[region]:
-                if output_location[region][tech] is not None:
-                    for item in output_location[region][tech]:
-                        output_location_per_tech[tech].append(item)
+        for region, tech in key_list:
+            if output_location[region][tech] is not None:
+                for site in output_location[region][tech]:
+                    output_location_per_tech[tech].append(site)
 
-        max_site_data = {key: None for key in model_parameters['technologies']}
-        for item in model_parameters['technologies']:
-            max_site_data[item] = {key: None for key in output_location_per_tech[item]}
+        max_site_data = \
+            {k1: {k2: None for k2 in output_location_per_tech[k1]} for k1 in model_parameters['technologies']}
 
         for tech in max_site_data.keys():
-            for coord in max_site_data[tech].keys():
-                max_site_data[tech][coord] = output_by_tech[tech].sel(locations=coord).values.flatten()
+            for site in max_site_data[tech].keys():
+                max_site_data[tech][site] = output_by_tech[tech].sel(locations=site).values.flatten()
 
         reform = {(outerKey, innerKey): values for outerKey, innerDict in max_site_data.items() for innerKey, values in
-                  sorted(innerDict.items())}
-        max_site_data_df = DataFrame(reform, index=time_dt)
+                  innerDict.items()}
+        max_site_data_df = DataFrame(reform, index=time_dt).sort_index(axis='columns', level=1)
         pickle.dump(max_site_data_df, open(join(output_folder, 'prod_site_data.p'), 'wb'))
 
         objective_prod = get_objective_from_mapfile(max_site_data_df, location_mapping, criticality_data, c)
         with open(join(output_folder, 'objective_prod.txt'), "w") as file:
             print(objective_prod, file=file)
 
-        # Capacity credit sites.
+    elif benchmark == 'CAPV':
 
-        load_data_fn = join(model_parameters['data_path'], 'input/load_data', 'load_2009_2018.csv')
+        # Capacity credit sites.
+        load_data_fn = join(model_parameters['data_path'], 'input/load_data', 'load_entsoe_2006_2020_full.csv')
         load_data = read_csv(load_data_fn, index_col=0)
         load_data.index = to_datetime(load_data.index)
-        load_data = load_data[(load_data.index > time_slice[0]) & (load_data.index < time_slice[1])]
+        load_data = load_data[(load_data.index > model_parameters['time_slice'][0]) &
+                              (load_data.index < model_parameters['time_slice'][1])]
 
         df_list = []
         no_index = 0.05 * len(load_data.index)
-        for country in deployment_dict:
+        for region in deployment_dict:
 
-            if country in load_data.columns:
-                load_country = load_data.loc[:, country]
+            if region in load_data.columns:
+                load_country = load_data.loc[:, region]
             else:
-                countries = return_region_divisions([country], model_parameters['data_path'])
+                countries = return_region_divisions([region], model_parameters['data_path'])
                 load_country = load_data.loc[:, countries].sum(axis=1)
             load_country_max = load_country.nlargest(int(no_index)).index
 
             for tech in model_parameters['technologies']:
 
-                country_data = output_data[country][tech]
+                country_data = capacity_factor_data[region][tech]
                 country_data_avg_at_load_max = country_data.sel(time=load_country_max).mean(dim='time')
-                locs = country_data_avg_at_load_max.argsort()[-deployment_dict[country][tech]:].values
-                country_sites = country_data_avg_at_load_max.isel(locations=locs).locations.values.flatten()
+                n = deployment_dict[region][tech]
+                if n > 0:
+                    locs_legacy = set(legacy_sites[tech]).intersection(set(country_data_avg_at_load_max.locations.values.flatten()))
+                    if len(locs_legacy) > 0:
+                        locs_new = set(country_data_avg_at_load_max.locations.values.flatten()).difference(locs_legacy)
+                        country_data_no_legacy = country_data_avg_at_load_max.sel(locations=list(locs_new))
+                        n_new = n - len(locs_legacy)
+                        if n_new > 0:
+                            locs_new_best = set(country_data_no_legacy.argsort()[-n_new:].locations.values.flatten())
+                            locs = list(locs_legacy.union(locs_new_best))
+                        else:
+                            locs = sorted(list(locs_legacy))
+                    else:
+                        locs = sorted(list(set(country_data_avg_at_load_max.argsort()[-n:].locations.values.flatten())))
+                    country_sites = sorted(country_data_avg_at_load_max.sel(locations=locs).locations.values.flatten())
+                else:
+                    country_sites = None
 
                 xarray_data = country_data.sel(locations=country_sites)
                 df_data = xarray_data.to_pandas()
@@ -779,7 +820,7 @@ def retrieve_site_data(model_parameters, deployment_dict, coordinates_dict, outp
                 df_data.columns = MultiIndex.from_tuples(col_list_updated)
                 df_list.append(df_data)
 
-        capv_site_data_df = concat(df_list, axis=1)
+        capv_site_data_df = concat(df_list, axis=1).sort_index(axis='columns', level=1)
         pickle.dump(capv_site_data_df, open(join(output_folder, 'capv_site_data.p'), 'wb'))
 
         objective_capv = get_objective_from_mapfile(capv_site_data_df, location_mapping, criticality_data, c)

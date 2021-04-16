@@ -4,7 +4,6 @@ channels:
   - defaults
 dependencies:
   - bottleneck
-  - cdsapi
   - dask
   - matplotlib
   - pyomo
@@ -17,3 +16,6 @@ dependencies:
   - geopy
   - pypsa
   - shapely
+  - geopy
+  - julia
+  - pycountry
