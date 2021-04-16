@@ -31,15 +31,14 @@ siting_params:
       mipgap: 0.01
       timelimit: 43200
       threads: 0
-    MIRSA:
-      # Simulated Annealing with Local Search
+    LS:
       set: False
       neighborhood: 1
       no_iterations: 2000
       no_epochs: 500
-      initial_temp: 200.
-      no_runs: 50
-      algorithm: 'SALS' # 'GLS' (Greedy Local Search), 'RSSA', 'SALS', 'STGHSAS', 'STGHSAP'
+      initial_temp: 100.
+      no_runs: 100
+      algorithm: 'MIR' # 'SGH', 'RS'
     GRED_DET:
       set: False
       no_runs: 100
@@ -57,14 +56,3 @@ siting_params:
       no_epochs: 1000
       no_runs: 100
       algorithm: 'RS'
-    SGHLS:
-      # Stochastic greedy & simulated annealing
-      set: False
-      neighborhood: 1
-      no_iterations: 2000
-      no_epochs: 500
-      initial_temp: 200.
-      no_runs_LS: 50
-      algorithm: 'STGHSAP' # 'STGHSAP'
-      p: 27 # 10% of 10150 locations
-      no_runs_SGH: 200
