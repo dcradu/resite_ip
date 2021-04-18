@@ -45,7 +45,7 @@ function main_MIRSA(index_dict, deployment_dict, D, c, N, I, E, T_init, R, run, 
   if run == "MIR"
 
     x_sol, LB_sol, obj_sol = Array{Float64, 2}(undef, R, L), Array{Float64, 1}(undef, R), Array{Float64, 2}(undef, R, I)
-    x_init = solve_MILP_partitioning(D, c, n_partitions, index_dict, "Gurobi")
+    x_init = solve_MILP(D, c, n, "Gurobi")
 
     for r = 1:R
       x_sol[r, :], LB_sol[r], obj_sol[r, :] = simulated_annealing_local_search(D, c, n, N, I, E, x_init, T_init, legacy_index)
@@ -56,7 +56,7 @@ function main_MIRSA(index_dict, deployment_dict, D, c, N, I, E, T_init, R, run, 
     x_sol, LB_sol, obj_sol = Array{Float64, 2}(undef, R, L), Array{Float64, 1}(undef, R), Array{Float64, 2}(undef, R, I)
     x_init = zeros(Int64, L)
     ind_set = [l for l in 1:L]
-    n_while = n_partitions[1]
+    n_while = n
 
     while n_while > 0
       loc = sample(ind_set)
@@ -151,40 +151,5 @@ function main_RAND(deployment_dict, D, c, I, R, run)
   end
 
   return x_sol, LB_sol
-
-end
-
-# Local Search algorithm
-function main_LSEA(index_dict, deployment_dict, D, c, N, I, E, run)
-
-  index_dict = Dict([(convert(Int64, k), convert(Int64, index_dict[k])) for k in keys(index_dict)])
-  deployment_dict = Dict([(convert(Int64, k), convert(Int64, deployment_dict[k])) for k in keys(deployment_dict)])
-  D  = convert.(Float64, D)
-
-  c = convert(Float64, c)
-  N = convert(Int64, N)
-  I = convert(Int64, I)
-  E = convert(Int64, E)
-  T_init = convert(Float64, T_init)
-  R = convert(Int64, R)
-  run = string(run)
-
-  W, L = size(D)
-
-  P = maximum(values(index_dict))
-  n_partitions = [deployment_dict[i] for i in 1:P]
-
-  if run == "GLS"
-    x_sol, LB_sol, obj_sol = Array{Float64, 2}(undef, R, L), Array{Float64, 1}(undef, R), Array{Float64, 2}(undef, R, I)
-    x_init = solve_MILP_partitioning(D, c, n_partitions, index_dict, "Gurobi")
-    for r = 1:R
-      x_sol[r, :], LB_sol[r], obj_sol[r, :] = greedy_local_search_partition(D, c, n_partitions, N, I, E, x_init, index_dict)
-    end
-  else
-    println("No such run available.")
-    throw(ArgumentError)
-  end
-
-  return x_sol, LB_sol, obj_sol
 
 end
