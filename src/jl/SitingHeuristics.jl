@@ -68,7 +68,6 @@ function main_MIRSA(index_dict, deployment_dict, D, c, N, I, E, T_init, R, run, 
     x_init = convert.(Float64, x_init)
 
     for r = 1:R
-      println(r)
       x_sol[r, :], LB_sol[r], obj_sol[r, :] = simulated_annealing_local_search(D, c, n, N, I, E, x_init, T_init, legacy_index)
     end
 
@@ -85,7 +84,6 @@ function main_MIRSA(index_dict, deployment_dict, D, c, N, I, E, T_init, R, run, 
     x_init_best = x_init[LB_init_best, :]
 
     for r = 1:R
-      println(r)
       x_sol[r, :], LB_sol[r], obj_sol[r, :] = simulated_annealing_local_search(D, c, n, N, I, E, x_init_best, T_init, legacy_index)
     end
 

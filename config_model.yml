@@ -37,7 +37,7 @@ siting_params:
       no_iterations: 2000
       no_epochs: 500
       initial_temp: 100.
-      no_runs: 100
+      no_runs: 50
       algorithm: 'MIR' # 'SGH', 'RS'
     GRED_DET:
       set: False

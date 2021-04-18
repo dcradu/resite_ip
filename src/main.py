@@ -154,7 +154,7 @@ if __name__ == '__main__':
         end = time.time()
         print(f"Average CPU time for c={c}: {round((end-start)/params['no_runs'], 1)} s")
 
-        output_folder = init_folder(model_parameters, c, suffix=f"_LS_{args['--LS_init_algorithm']}")
+        output_folder = init_folder(model_parameters, c, suffix=f"_LS_{args['LS_init_algorithm']}")
 
         with open(join(output_folder, 'config_model.yaml'), 'w') as outfile:
             yaml.dump(model_parameters, outfile, default_flow_style=False, sort_keys=False)
