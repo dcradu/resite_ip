@@ -35,11 +35,12 @@ function main_MIRSA(index_dict, deployment_dict, D, c, N, I, E, T_init, R, run, 
   run = string(run)
   p = string(p)
   data_path = string(data_path)
+  legacy_index = Vector{Float64}(undef, 0)
 
   W, L = size(D)
 
   P = maximum(values(index_dict))
-  n_partitions = [deployment_dict[i] for i in 1:P]
+  n = deployment_dict[1]
 
   if run == "MIR"
 
@@ -47,7 +48,7 @@ function main_MIRSA(index_dict, deployment_dict, D, c, N, I, E, T_init, R, run, 
     x_init = solve_MILP_partitioning(D, c, n_partitions, index_dict, "Gurobi")
 
     for r = 1:R
-      x_sol[r, :], LB_sol[r], obj_sol[r, :] = simulated_annealing_local_search_partition(D, c, n_partitions, N, I, E, x_init, T_init, index_dict)
+      x_sol[r, :], LB_sol[r], obj_sol[r, :] = simulated_annealing_local_search(D, c, n, N, I, E, x_init, T_init, legacy_index)
     end
 
   elseif run == "RS"
@@ -68,7 +69,7 @@ function main_MIRSA(index_dict, deployment_dict, D, c, N, I, E, T_init, R, run, 
 
     for r = 1:R
       println(r)
-      x_sol[r, :], LB_sol[r], obj_sol[r, :] = simulated_annealing_local_search_partition(D, c, n_partitions, N, I, E, x_init, T_init, index_dict)
+      x_sol[r, :], LB_sol[r], obj_sol[r, :] = simulated_annealing_local_search(D, c, n, N, I, E, x_init, T_init, legacy_index)
     end
 
   elseif run == "SGH"
@@ -85,7 +86,7 @@ function main_MIRSA(index_dict, deployment_dict, D, c, N, I, E, T_init, R, run, 
 
     for r = 1:R
       println(r)
-      x_sol[r, :], LB_sol[r], obj_sol[r, :] = simulated_annealing_local_search_partition(D, c, n_partitions, N, I, E, x_init_best, T_init, index_dict)
+      x_sol[r, :], LB_sol[r], obj_sol[r, :] = simulated_annealing_local_search(D, c, n, N, I, E, x_init_best, T_init, legacy_index)
     end
 
   else

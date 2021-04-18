@@ -486,3 +486,115 @@ function stochastic_threshold_greedy_algorithm_trajectory(D::Array{Float64,2}, c
   return ind_incumbent, obj_incumbent
 
 end
+
+#################### Simulated Annealing Local Search #######################
+
+# Description: function implementing a simulated annealing-inspired local search for unpartitioned geographical regions
+#
+# Comments: 1) types of inputs should match those declared in argument list
+#
+# Inputs: D - criticality matrix with entries in {0, 1}, where rows represent time windows and columns represent locations
+#         c - global criticality threshold
+#         n - number of sites to deploy
+#         N - number of locations to swap in order to obtain a neighbour of the incumbent solution
+#         I - number of iterations (outer loop), defines the number of times the incumbent solution may be updated
+#         E - number of epochs (inner loop), defines the number of neighbours of the incumbent solution sampled at each iteration
+#         x_init - initial solution, vector with entries in {0, 1}, with cardinality n and whose dimension is compatible with D
+#         T_init - initial temperature from which the (exponentially-decreasing) temperature schedule is constructed
+#
+# Outputs: x_incumbent - vector with entries in {0, 1} and cardinality n representing the incumbent solution at the last iteration
+#          LB_incumbent - objective value of incumbent solution, provides a lower bound on optimal objective
+#          obj - vector storing the incumbent objective value at each iteration
+#
+
+function simulated_annealing_local_search(D::Array{Float64, 2}, c::Float64, n::Float64, N::Int64, I::Int64, E::Int64, x_init::Array{Float64, 1}, T_init::Float64, legacy_locations::Vector{Int64})
+
+  W, L = size(D)
+  n = convert(Int64, n)
+  n_new = n - length(legacy_locations)
+
+  # Pre-allocate lower bound vector
+  obj = Vector{Int64}(undef, I)
+
+  # Pre-allocate x-related arrays
+  ind_ones_incumbent = Vector{Int64}(undef, n_new)
+  ind_ones_incumbent_filtered = Vector{Int64}(undef, n_new-N)
+  ind_zeros_incumbent = Vector{Int64}(undef, L-n)
+  ind_zeros_incumbent_filtered = Vector{Int64}(undef, L-n-N)
+  ind_ones2zeros_candidate = Vector{Int64}(undef, N)
+  ind_zeros2ones_candidate = Vector{Int64}(undef, N)
+  ind_ones2zeros_tmp = Vector{Int64}(undef, N)
+  ind_zeros2ones_tmp = Vector{Int64}(undef, N)
+
+  # Pre-allocate y-related arrays
+  y_incumbent = Array{Bool}(undef, W, 1)
+  y_tmp = Array{Bool}(undef, W, 1)
+
+  Dx_incumbent = Array{Float64}(undef, W, 1)
+  Dx_tmp = Array{Float64}(undef, W, 1)
+
+  # Initialise
+  ind_deployed = findall(x_init .== 1.)
+  Dx_incumbent .= sum(view(D, :, ind_deployed), dims = 2)
+  y_incumbent .= Dx_incumbent .>= c
+  ind_ones_incumbent .= filter(a -> !(a in legacy_locations), ind_deployed)
+  ind_zeros_incumbent .= findall(x_init .== 0.)
+
+  # Iterate
+  @inbounds for i = 1:I
+    obj[i] = sum(y_incumbent)
+    delta_candidate = -100000
+    @inbounds for e = 1:E
+      # Sample from neighbourhood
+      sample!(ind_ones_incumbent, ind_ones2zeros_tmp, replace=false)
+      sample!(ind_zeros_incumbent, ind_zeros2ones_tmp, replace=false)
+
+      # Compute y and associated objective value
+      @inbounds for j = 1:N
+        Dx_tmp .= Dx_incumbent .+ view(D, :, ind_zeros2ones_tmp[j]) .- view(D, :, ind_ones2zeros_tmp[j])
+      end
+      y_tmp .= Dx_tmp .>= c
+
+      # Update objective difference
+      delta_tmp = sum(y_tmp) - obj[i]
+
+      # Update candidate solution
+      if delta_tmp > delta_candidate
+        ind_ones2zeros_candidate .= ind_ones2zeros_tmp
+        ind_zeros2ones_candidate .= ind_zeros2ones_tmp
+        delta_candidate = delta_tmp
+      end
+    end
+    if delta_candidate > 0
+      ind_ones_incumbent_filtered .= filter(a -> !(a in ind_ones2zeros_candidate), ind_ones_incumbent)
+      ind_ones_incumbent[1:(n_new-N)] .= ind_ones_incumbent_filtered
+      ind_ones_incumbent[(n_new-N+1):n_new] .= ind_zeros2ones_candidate
+      ind_zeros_incumbent_filtered .= filter(a -> !(a in ind_zeros2ones_candidate), ind_zeros_incumbent)
+      ind_zeros_incumbent[1:(L-n-N)] .= ind_zeros_incumbent_filtered
+      ind_zeros_incumbent[(L-n-N+1):(L-n)] .= ind_ones2zeros_candidate
+      @inbounds for j = 1:N
+        Dx_incumbent .= Dx_incumbent .+ view(D, :, ind_zeros2ones_candidate[j]) .- view(D, :, ind_ones2zeros_candidate[j])
+      end
+      y_incumbent .= Dx_incumbent .>= c
+    else
+      T = T_init * exp(-10*i/I)
+      p = exp(delta_candidate / T)
+      d = Binomial(1, p)
+      b = rand(d)
+      if b == 1
+        ind_ones_incumbent_filtered .= filter(a -> !(a in ind_ones2zeros_candidate), ind_ones_incumbent)
+        ind_ones_incumbent[1:(n_new-N)] .= ind_ones_incumbent_filtered
+        ind_ones_incumbent[(n_new-N+1):n_new] .= ind_zeros2ones_candidate
+        ind_zeros_incumbent_filtered .= filter(a -> !(a in ind_zeros2ones_candidate), ind_zeros_incumbent)
+        ind_zeros_incumbent[1:(L-n-N)] .= ind_zeros_incumbent_filtered
+        ind_zeros_incumbent[(L-n-N+1):(L-n)] .= ind_ones2zeros_candidate
+        @inbounds for j = 1:N
+          Dx_incumbent .= Dx_incumbent .+ view(D, :, ind_zeros2ones_candidate[j]) .- view(D, :, ind_ones2zeros_candidate[j])
+        end
+        y_incumbent .= Dx_incumbent .>= c
+      end
+    end
+  end
+  obj_incumbent = sum(y_incumbent)
+  return ind_ones_incumbent, obj_incumbent, obj
+end
