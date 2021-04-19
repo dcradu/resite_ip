@@ -19,6 +19,9 @@ wind_onshore:
   terrain_slope_threshold: 0.03
   forestry_ratio_threshold: 0.8
   latitude_threshold: 65.
+  legacy_min: 0.1
+  power_density: 5. # MW/sqkm
+  land_utilization_factor: 0.5
 
 wind_offshore:
   where: 'offshore'
@@ -43,6 +46,8 @@ wind_offshore:
   distance_threshold_min: 22.2
   distance_threshold_max: 222.0 # 111.
   legacy_min: 0.1
+  power_density: 6. # MW/sqkm
+  land_utilization_factor: 0.5
 
 wind_floating:
   where: 'offshore'
@@ -66,6 +71,9 @@ wind_floating:
   latitude_threshold: 65.
   distance_threshold_min: 23.
   distance_threshold_max: 180.
+  legacy_min: 0.1
+  power_density: 5. # MW/sqkm
+  land_utilization_factor: 0.5
 
 pv_utility:
   where: 'onshore'
@@ -84,6 +92,9 @@ pv_utility:
   terrain_slope_threshold: 0.03
   forestry_ratio_threshold: 0.8
   latitude_threshold: 65.
+  legacy_min: 0.1
+  power_density: 5. # MW/sqkm
+  land_utilization_factor: 0.5
 
 #TODO: fix pv_residential filters
 pv_residential:
@@ -103,3 +114,6 @@ pv_residential:
   terrain_slope_threshold: 1.
   forestry_ratio_threshold: 1.
   latitude_threshold: 65.
+  legacy_min: 0.1
+  power_density: 5. # MW/sqkm
+  land_utilization_factor: 0.5

@@ -19,7 +19,11 @@ from windpowerlib import power_curves, wind_speed
 
 from helpers import filter_onshore_offshore_locations, union_regions, return_coordinates_from_shapefiles, \
     concatenate_dict_keys, return_dict_keys, chunk_split, collapse_dict_region_level, read_inputs, \
-    retrieve_load_data_partitions, get_partition_index, return_region_divisions, get_deployment_vector
+    smooth_load_data, get_partition_index, return_region_divisions, norm_load_by_deployments, norm_load_by_load
+
+import logging
+logging.basicConfig(level=logging.INFO, format=f"%(levelname)s %(asctime)s - %(message)s", datefmt='%Y-%m-%d %H:%M:%S')
+logger = logging.getLogger(__name__)
 
 
 def read_database(data_path, spatial_resolution):
@@ -331,9 +335,6 @@ def return_filtered_coordinates(dataset, model_params, tech_params):
     """
     technologies = model_params['technologies']
     regions = model_params['regions']
-    deployment_dict = get_deployment_vector(model_params['regions'],
-                                            model_params['technologies'],
-                                            model_params['deployments'])
 
     output_dict = {region: {tech: None for tech in technologies} for region in regions}
     coordinates_dict = {key: None for key in technologies}
@@ -372,19 +373,9 @@ def return_filtered_coordinates(dataset, model_params, tech_params):
             shape_region = union_regions([region], model_params['data_path'], which=tech_dict['where'])
             points_in_region = return_coordinates_from_shapefiles(dataset, shape_region)
 
-            legacy_in_region = list(set(legacy_dict[tech]).intersection(set(points_in_region)))
-            assert len(legacy_in_region) <= deployment_dict[region][tech], \
-                f"More legacy sites ({len(legacy_in_region)}) than desired deployments " \
-                    f"({deployment_dict[region][tech]}) in {region}. Revise assumptions."
-
             points_to_keep = list(set(coordinates_dict[tech]).intersection(set(points_in_region)))
             output_dict[region][tech] = [p for p in points_to_keep if p not in unique_list_of_points]
             unique_list_of_points.extend(points_to_keep)
-
-            assert deployment_dict[region][tech] <= len(output_dict[region][tech]), \
-                f"Not enough candidate {tech} sites ({len(output_dict[region][tech])}) " \
-                    f"for the desired deployments ({deployment_dict[region][tech]}) in {region}. Revise assumptions."
-            # print(f"{len(output_dict[region][tech])} {tech} sites in {region}.")
 
     for key, value in output_dict.items():
         output_dict[key] = {k: v for k, v in output_dict[key].items() if len(v) > 0}
@@ -580,7 +571,7 @@ def return_output(input_dict, data_path, smooth_wind_power_curve=True):
 def resource_quality_mapping(input_dict, siting_params):
 
     delta = siting_params['delta']
-    measure = siting_params['smooth_measure']
+    measure = siting_params['alpha']['smoothing']
 
     assert measure in ['mean', 'median'], f"Measure {measure} not available."
 
@@ -610,40 +601,68 @@ def resource_quality_mapping(input_dict, siting_params):
     return output_dict
 
 
-def critical_window_mapping(input_dict, model_params):
+def critical_window_mapping(time_windows_dict, potentials_dict, deployments_dict, model_params):
 
     regions = model_params['regions']
     date_slice = model_params['time_slice']
     alpha = model_params['siting_params']['alpha']
     delta = model_params['siting_params']['delta']
-    norm_type = model_params['siting_params']['norm_type']
     data_path = model_params['data_path']
 
-    key_list = return_dict_keys(input_dict)
-    output_dict = deepcopy(input_dict)
+    key_list = return_dict_keys(time_windows_dict)
+    output_dict = deepcopy(time_windows_dict)
 
-    assert alpha in ['load_central', 'load_partition'], f"Criticality definition {alpha} not available."
+    assert alpha['method'] in ['load', 'potential'], f"Criticality definition based on {alpha['method']} not available."
+    assert alpha['coverage'] in ['partition', 'system'], f"Criticality coverage {alpha['coverage']} not available."
+    assert alpha['norm'] in ['min', 'max'], f"Norm {alpha['norm']} not available."
 
-    if alpha == 'load_central':
+    load_ds = smooth_load_data(data_path, regions, date_slice, delta)
 
-        l_norm = retrieve_load_data_partitions(data_path, date_slice, alpha, delta, regions, norm_type)
-        # Flip axes
-        alpha_reference = l_norm[:, newaxis]
+    if alpha['coverage'] == 'system':
+
+        load_ds_system = load_ds.sum(axis=1)
+
+        if alpha['method'] == 'potential':
+            deployments = sum(deployments_dict[key][subkey] for key in deployments_dict
+                              for subkey in deployments_dict[key])
+            l_norm = norm_load_by_deployments(load_ds_system, deployments)
+            # Flip axes
+            l_norm = l_norm.values[:, newaxis]
+
+            for region, tech in key_list:
+                measure = time_windows_dict[region][tech] * potentials_dict[region][tech]
+                output_dict[region][tech] = (measure > l_norm).astype(int)
+
+        else:
+            l_norm = norm_load_by_load(load_ds_system, alpha['norm'])
+            # Flip axes
+            l_norm = l_norm.values[:, newaxis]
+
+            for region, tech in key_list:
+                output_dict[region][tech] = (time_windows_dict[region][tech] > l_norm).astype(int)
+
+    elif alpha['coverage'] == 'partition':
 
         for region, tech in key_list:
-            critical_windows = (input_dict[region][tech] > alpha_reference).astype(int)
-            output_dict[region][tech] = critical_windows
 
-    elif alpha == 'load_partition':
+            load_ds_region = load_ds[region]
 
-        for region, tech in key_list:
-            l_norm = retrieve_load_data_partitions(data_path, date_slice, alpha, delta, region, norm_type)
-            # Flip axes.
-            alpha_reference = l_norm[:, newaxis]
+            if alpha['method'] == 'potential':
+                deployments = sum(deployments_dict[key][subkey] for key in deployments_dict
+                                  for subkey in deployments_dict[key] if key == region)
+                l_norm = norm_load_by_deployments(load_ds_region, deployments)
+                # Flipping axes.
+                l_norm = l_norm.values[:, newaxis]
 
-            # Select region of interest within the dict value with 'tech' key.
-            critical_windows = (input_dict[region][tech] > alpha_reference).astype(int)
-            output_dict[region][tech] = critical_windows
+                measure = time_windows_dict[region][tech] * potentials_dict[region][tech]
+                output_dict[region][tech] = (measure > l_norm).astype(int)
+
+            else:
+                l_norm = norm_load_by_load(load_ds_region, alpha['norm'])
+                # Flipping axes.
+                l_norm = l_norm.values[:, newaxis]
+
+                output_dict[region][tech] = (time_windows_dict[region][tech] > l_norm).astype(int)
 
     return output_dict
 
@@ -693,12 +712,9 @@ def retrieve_index_dict(deployment_vector, coordinate_dict):
     return n, dict_deployment, partitions, indices
 
 
-def retrieve_site_data(model_parameters, capacity_factor_data, criticality_data,
+def retrieve_site_data(model_parameters, capacity_factor_data, criticality_data, deployment_dict,
                        location_mapping, comp_site_coordinates, legacy_sites, output_folder, benchmark):
 
-    deployment_dict = get_deployment_vector(model_parameters['regions'],
-                                            model_parameters['technologies'],
-                                            model_parameters['deployments'])
     c = model_parameters['siting_params']['c']
 
     output_by_tech = collapse_dict_region_level(capacity_factor_data)

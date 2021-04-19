@@ -3,7 +3,8 @@ import julia
 from os.path import join
 from numpy import argmax
 
-from helpers import read_inputs, init_folder, xarray_to_ndarray, generate_jl_input, get_deployment_vector
+from helpers import read_inputs, init_folder, xarray_to_ndarray, generate_jl_input, \
+    get_potential_per_site, capacity_to_cardinality
 from tools import read_database, return_filtered_coordinates, selected_data, return_output, resource_quality_mapping, \
     critical_window_mapping, sites_position_mapping, retrieve_location_dict, retrieve_site_data
 
@@ -22,19 +23,20 @@ if __name__ == '__main__':
     data_path = model_parameters['data_path']
     spatial_resolution = model_parameters['spatial_resolution']
     time_horizon = model_parameters['time_slice']
-    deployment_dict = get_deployment_vector(model_parameters['regions'],
-                                            model_parameters['technologies'],
-                                            model_parameters['deployments'])
 
     database = read_database(data_path, spatial_resolution)
     site_coordinates, legacy_coordinates = return_filtered_coordinates(database, model_parameters, tech_parameters)
-
     truncated_data = selected_data(database, site_coordinates, time_horizon)
     capacity_factors_data = return_output(truncated_data, data_path)
     time_windows_data = resource_quality_mapping(capacity_factors_data, siting_parameters)
-
-    criticality_data = xarray_to_ndarray(critical_window_mapping(time_windows_data, model_parameters))
     site_positions = sites_position_mapping(time_windows_data)
+
+    deployment_dict = capacity_to_cardinality(database, model_parameters, tech_parameters,
+                                              site_coordinates, legacy_coordinates)
+    site_potential_data = get_potential_per_site(time_windows_data, tech_parameters, spatial_resolution)
+
+    criticality_data = xarray_to_ndarray(critical_window_mapping(time_windows_data, site_potential_data,
+                                                                 deployment_dict, model_parameters))
 
     jl_dict = generate_jl_input(deployment_dict, site_coordinates, site_positions, legacy_coordinates)
 
@@ -86,7 +88,7 @@ if __name__ == '__main__':
     jl_locations_vector = jl_sel[jl_objective_pick, :]
 
     locations_dict = retrieve_location_dict(jl_locations_vector, model_parameters, site_positions)
-    retrieve_site_data(model_parameters, capacity_factors_data, criticality_data,
+    retrieve_site_data(model_parameters, capacity_factors_data, criticality_data, deployment_dict,
                        site_positions, locations_dict, legacy_coordinates, output_folder, benchmark='PROD')
 
     logger.info(f"Results written to {output_folder}")

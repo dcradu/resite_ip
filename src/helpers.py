@@ -6,12 +6,17 @@ import pycountry as pyc
 import xarray as xr
 import yaml
 from geopandas import read_file, GeoSeries
-from numpy import hstack, arange, dtype, array, timedelta64, nan, sum
-from pandas import read_csv, to_datetime, Series, notnull
+from numpy import hstack, arange, dtype, array, timedelta64, nan, sum, deg2rad, sin, cos, arccos, ceil
+from pandas import read_csv, to_datetime, Series, notnull, MultiIndex
 from shapely import prepared
 from shapely.geometry import Point
 from shapely.ops import unary_union
 from xarray import concat
+import geopy
+
+import logging
+logging.basicConfig(level=logging.INFO, format=f"%(levelname)s %(asctime)s - %(message)s", datefmt='%Y-%m-%d %H:%M:%S')
+logger = logging.getLogger(__name__)
 
 
 def chunk_split(l, n):
@@ -343,9 +348,83 @@ def return_coordinates_from_shapefiles(resource_dataset, shapefiles_region):
     return coordinates_in_region
 
 
-def retrieve_load_data_partitions(data_path, date_slice, alpha, delta, regions, norm_type):
+def capacity_to_cardinality(dataset, model_config, tech_config, site_coordinates_dict, legacy_coordinates_dict,
+                            reference_lat=55, reference_lon=10, lat_dist_per_deg=111):
 
-    assert alpha in ['load_central', 'load_partition'], f"Criticality definition {alpha} not available."
+    spatial_resolution = model_config['spatial_resolution']
+    deployment_dict = get_deployment_vector(model_config['regions'],
+                                            model_config['technologies'],
+                                            model_config['deployments'])
+
+    lon1 = deg2rad(reference_lon)
+    lon2 = deg2rad(reference_lon+spatial_resolution)
+    reference_lat = deg2rad(reference_lat)
+
+    dist_lat = lat_dist_per_deg*spatial_resolution
+    dist_lon = arccos(sin(reference_lat)*sin(reference_lat)+cos(reference_lat)*cos(reference_lat)*cos(lon2-lon1))*6371
+    cell_area = dist_lat*dist_lon
+
+    cardinality_dict = deepcopy(deployment_dict)
+    adj_cardinality_dict = deepcopy(deployment_dict)
+    legacy_dict = deepcopy(deployment_dict)
+    key_list = return_dict_keys(deployment_dict)
+
+    for region, tech in key_list:
+
+        tech_potential = tech_config[tech]['power_density'] * tech_config[tech]['land_utilization_factor'] * cell_area
+        cardinality_dict[region][tech] = int(ceil(deployment_dict[region][tech]/tech_potential*1e3))
+
+        shape_region = union_regions([region], model_config['data_path'], which=tech_config[tech]['where'])
+        points_in_region = return_coordinates_from_shapefiles(dataset, shape_region)
+        legacy_dict[region][tech] = list(set(legacy_coordinates_dict[tech]).intersection(set(points_in_region)))
+        adj_cardinality_dict[region][tech] = min(len(site_coordinates_dict[region][tech]),
+                                                 max(len(legacy_dict[region][tech]), cardinality_dict[region][tech]))
+
+        logger.info(f"Picking {adj_cardinality_dict[region][tech]} {tech} sites in {region} out of "
+                    f"{len(site_coordinates_dict[region][tech])} candidate ones.")
+
+    return adj_cardinality_dict
+
+
+def get_potential_per_site(input_dict, tech_parameters, spatial_resolution):
+    """Compute cell potential of candidate siting locations based on reanalysis grids with different resolutions.
+     Parameters
+     ----------
+     input_dict: dict
+     tech_parameters: dict
+     spatial_resolution: float
+     Returns
+     -------
+     output_dict: dict
+     """
+
+    key_list = return_dict_keys(input_dict)
+    output_dict = deepcopy(input_dict)
+
+    for region, tech in key_list:
+        tech_dict = tech_parameters[tech]
+        locations = MultiIndex.from_tuples(input_dict[region][tech].locations.values, names=('longitude', 'latitude'))
+        potentials = Series(0., index=locations)
+
+        for (lon, lat) in potentials.index:
+            lat_south = (lon, lat - spatial_resolution / 2.)
+            lat_north = (lon, lat + spatial_resolution / 2.)
+            lon_west = (lon - spatial_resolution / 2., lat)
+            lon_east = (lon + spatial_resolution / 2., lat)
+
+            dist_lat = geopy.distance.distance(geopy.distance.lonlat(*lat_south), geopy.distance.lonlat(*lat_north)).km
+            dist_lon = geopy.distance.distance(geopy.distance.lonlat(*lon_west), geopy.distance.lonlat(*lon_east)).km
+            # 1e-3 converts from MW to GW
+            potentials[(lon, lat)] = \
+                dist_lat * dist_lon * tech_dict['power_density'] * tech_dict['land_utilization_factor'] * 1e-3
+
+        output_dict[region][tech] = xr.DataArray.from_series(potentials).stack(locations=('longitude', 'latitude'))\
+            .dropna(dim='locations').reindex_like(input_dict[region][tech])
+
+    return output_dict
+
+
+def smooth_load_data(data_path, regions, date_slice, delta):
 
     load_data_fn = join(data_path, 'input/load_data', 'load_entsoe_2006_2020_full.csv')
     load_data = read_csv(load_data_fn, index_col=0)
@@ -353,26 +432,29 @@ def retrieve_load_data_partitions(data_path, date_slice, alpha, delta, regions, 
     load_data_sliced = load_data.loc[date_slice[0]:date_slice[1]]
 
     regions_list = return_region_divisions(regions, data_path)
+    load_vector = load_data_sliced[regions_list]
 
-    if alpha == 'load_central':
-        load_vector = load_data_sliced[regions_list].sum(axis=1)
-    elif alpha == 'load_partition':
-        load_vector = load_data_sliced[regions_list]
+    load_vector_rolling = load_vector.rolling(window=delta, center=True).mean().dropna()
 
-    load_vector_norm = return_filtered_and_normed(load_vector, delta, norm_type)
+    return load_vector_rolling
+
+
+def norm_load_by_load(load_vector_rolling, norm):
+
+    if norm == 'min':
+        load_vector_norm = (load_vector_rolling - load_vector_rolling.min()) / \
+                           (load_vector_rolling.max() - load_vector_rolling.min())
+    else:
+        load_vector_norm = load_vector_rolling.divide(load_vector_rolling.max())
 
     return load_vector_norm
 
 
-def return_filtered_and_normed(signal, delta, norm_type='min'):
+def norm_load_by_deployments(load_vector_rolling, deployments):
 
-    l_smooth = signal.rolling(window=delta, center=True).mean().dropna()
-    if norm_type == 'min':
-        l_norm = (l_smooth - l_smooth.min()) / (l_smooth.max() - l_smooth.min())
-    else:
-        l_norm = l_smooth / l_smooth.max()
+    load_vector_norm = load_vector_rolling.divide(deployments)
 
-    return l_norm.values
+    return load_vector_norm
 
 
 def filter_onshore_offshore_locations(coordinates_in_region, data_path, spatial_resolution, tech_dict, tech):

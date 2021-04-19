@@ -7,18 +7,21 @@ spatial_resolution: 0.25
 # Start time and end time of the analysis.
 time_slice: ['2018-01-01T00:00', '2018-01-31T23:00']
 # Technologies to deploy.
-regions: ['BE', 'LT', 'LV', 'EE', 'HR']
+#regions: ['GB', 'NL', 'FR', 'DE', 'DK', 'NO', 'PL', 'IE', 'IT', 'SE', 'FI', 'ES', 'GR', 'PT', 'BE', 'LT', 'LV', 'EE', 'HR']
+regions: ['BE', 'NL', 'LT', 'LV', 'EE', 'HR']
 technologies: ['wind_offshore']
-deployments: [[3], [4], [3], [2], [1]]
+#deployments: [[80], [60], [57], [36], [35], [30], [28], [22], [20], [20], [15], [13], [10], [9], [6], [4], [3], [1], [1]]
+deployments: [[6], [60], [4], [3], [1], [1]]
 
 siting_params:
-  smooth_measure: 'mean'            # median, percentiles
   # Defines how \alpha is considered in space and time.
-  alpha: 'load_central'             # load_central, load_partition
-  # Normalization procedures (detailed in tools.py). (min, max)
-  norm_type: 'max'                  # max, min
+  alpha:
+    method: 'load' # 'load'
+    coverage: 'system' # 'partition'
+    smoothing: 'mean' # 'median'
+    norm: 'min' # 'max'
   # Time-window length used to compute the criticality indicator. Integer value.
-  delta: 1                          # \in \mathbb{N}
+  delta: 3                          # \in \mathbb{N}
   # Threshold
   c: 1                              # < n, \in \mathbb{N}
   # Solution method: BB or HEU or RAND or GRED.

@@ -26,7 +26,7 @@ using Distributions
 function simulated_annealing_local_search_partition(D::Array{Float64, 2}, c::Float64, n::Vector{Int64}, N::Int64, I::Int64, E::Int64, T_init::Float64, x_init::Array{Float64, 1}, locations_regions_mapping::Dict{Int64, Int64}, legacy_locations::Vector{Int64})
 
   W, L = size(D)
-  P = maximum(values(locations_regions_mapping))
+  R = maximum(values(locations_regions_mapping))
 
   # Pre-allocate lower bound vector
   obj = Vector{Int64}(undef, I)
@@ -38,28 +38,28 @@ function simulated_annealing_local_search_partition(D::Array{Float64, 2}, c::Flo
   ind_ones2zeros_tmp = Vector{Int64}(undef, N)
   ind_zeros2ones_tmp = Vector{Int64}(undef, N)
 
-  regions = [i for i in 1:P]
-  sample_count_per_region = Vector{Int64}(undef, P)
-  init_sample_count_per_region = zeros(Int64, P)
-  ind_samples_per_region_tmp = Vector{Int64}(undef, P+1)
-  ind_samples_per_region_candidate = Vector{Int64}(undef, P+1)
-  locations_count_per_region = zeros(Int64, P)
-  legacy_locations_count_per_region = zeros(Int64, P)
-  index_range_per_region = Vector{Int64}(undef, P+1)
+  regions = [i for i in 1:R]
+  sample_count_per_region = Vector{Int64}(undef, R)
+  init_sample_count_per_region = zeros(Int64, R)
+  ind_samples_per_region_tmp = Vector{Int64}(undef, R+1)
+  ind_samples_per_region_candidate = Vector{Int64}(undef, R+1)
+  locations_count_per_region = zeros(Int64, R)
+  legacy_locations_count_per_region = zeros(Int64, R)
+  index_range_per_region = Vector{Int64}(undef, R+1)
 
-  @inbounds for i = 1:L
-    if i in legacy_locations
-      legacy_locations_count_per_region[locations_regions_mapping[i]] += 1
+  @inbounds for l = 1:L
+    if l in legacy_locations
+      legacy_locations_count_per_region[locations_regions_mapping[l]] += 1
     end
-    locations_count_per_region[locations_regions_mapping[i]] += 1
+    locations_count_per_region[locations_regions_mapping[l]] += 1
   end
 
   ind_ones_incumbent = Dict([(r, Vector{Int64}(undef, n[r]-legacy_locations_count_per_region[r])) for r in regions])
   ind_zeros_incumbent = Dict([(r, Vector{Int64}(undef, locations_count_per_region[r]-n[r])) for r in regions])
 
   index_range_per_region[1] = 1
-  @inbounds for j = 1:P
-    index_range_per_region[j+1] = index_range_per_region[j] + locations_count_per_region[j]
+  @inbounds for r = 1:R
+    index_range_per_region[r+1] = index_range_per_region[r] + locations_count_per_region[r]
   end
 
   # Pre-allocate y-related arrays
@@ -70,21 +70,21 @@ function simulated_annealing_local_search_partition(D::Array{Float64, 2}, c::Flo
   Dx_tmp = Array{Float64}(undef, W, 1)
 
   # Initialise
-  ind_ones, counter_ones = findall(x_init .== 1.), zeros(Int64, P)
+  ind_ones, counter_ones = findall(x_init .== 1.), zeros(Int64, R)
   Dx_incumbent .= sum(view(D, :, ind_ones), dims=2)[:,1]
   filter!(a -> !(a in legacy_locations), ind_ones)
   @inbounds for ind in ind_ones
-    p = locations_regions_mapping[ind]
-    counter_ones[p] += 1
-    ind_ones_incumbent[p][counter_ones[p]] = ind
+    r = locations_regions_mapping[ind]
+    counter_ones[r] += 1
+    ind_ones_incumbent[r][counter_ones[r]] = ind
   end
   y_incumbent .= Dx_incumbent .>= c
 
-  ind_zeros, counter_zeros = findall(x_init .== 0.), zeros(Int64, P)
+  ind_zeros, counter_zeros = findall(x_init .== 0.), zeros(Int64, R)
   for ind in ind_zeros
-    p = locations_regions_mapping[ind]
-    counter_zeros[p] += 1
-    ind_zeros_incumbent[p][counter_zeros[p]] = ind
+    r = locations_regions_mapping[ind]
+    counter_zeros[r] += 1
+    ind_zeros_incumbent[r][counter_zeros[r]] = ind
   end
   ind_samples_per_region_tmp[1] = 1
 
@@ -96,22 +96,24 @@ function simulated_annealing_local_search_partition(D::Array{Float64, 2}, c::Flo
       # Sample from neighbourhood
       sample_count_per_region .= init_sample_count_per_region
       @inbounds while sum(sample_count_per_region) < N
-        p = sample(regions)
-        if (sample_count_per_region[p] < n[p] - legacy_locations_count_per_region[p]) && (sample_count_per_region[p] < locations_count_per_region[p] - n[p] + legacy_locations_count_per_region[p])
-          sample_count_per_region[p] += 1
+        r = sample(regions)
+        if (sample_count_per_region[r] < n[r] - legacy_locations_count_per_region[r]) && (sample_count_per_region[r] < locations_count_per_region[r] - n[r])
+          sample_count_per_region[r] += 1
         end
       end
 
-      @inbounds for i = 1:P
-        ind_samples_per_region_tmp[i+1] = ind_samples_per_region_tmp[i] + sample_count_per_region[i]
-        if sample_count_per_region[i] != 0
-          view(ind_ones2zeros_tmp, ind_samples_per_region_tmp[i]:(ind_samples_per_region_tmp[i+1]-1)) .= sample(ind_ones_incumbent[i], sample_count_per_region[i], replace=false)
-          view(ind_zeros2ones_tmp, ind_samples_per_region_tmp[i]:(ind_samples_per_region_tmp[i+1]-1)) .= sample(ind_zeros_incumbent[i], sample_count_per_region[i], replace=false)
+      @inbounds for r = 1:R
+        ind_samples_per_region_tmp[r+1] = ind_samples_per_region_tmp[r] + sample_count_per_region[r]
+        if sample_count_per_region[r] != 0
+          view(ind_ones2zeros_tmp, ind_samples_per_region_tmp[r]:(ind_samples_per_region_tmp[r+1]-1)) .= sample(ind_ones_incumbent[r], sample_count_per_region[r], replace=false)
+          view(ind_zeros2ones_tmp, ind_samples_per_region_tmp[r]:(ind_samples_per_region_tmp[r+1]-1)) .= sample(ind_zeros_incumbent[r], sample_count_per_region[r], replace=false)
         end
       end
 
       # Compute y and associated objective value
-      Dx_tmp .= Dx_incumbent .+ sum(view(D, :, ind_zeros2ones_tmp), dims = 2) .- sum(view(D, :, ind_ones2zeros_tmp), dims = 2)
+      for j = 1:N
+        Dx_tmp .= Dx_incumbent .+ view(D, :, ind_zeros2ones_tmp[j]) .- view(D, :, ind_ones2zeros_tmp[j])
+      end
       y_tmp .= Dx_tmp .>= c
 
       # Update objective difference
@@ -126,11 +128,13 @@ function simulated_annealing_local_search_partition(D::Array{Float64, 2}, c::Flo
       end
     end
     if delta_candidate > 0
-      @inbounds for i = 1:P
-        ind_ones_incumbent[i] .= union(setdiff(ind_ones_incumbent[i], view(ind_ones2zeros_candidate, ind_samples_per_region_candidate[i]:(ind_samples_per_region_candidate[i+1]-1))), view(ind_zeros2ones_candidate, ind_samples_per_region_candidate[i]:(ind_samples_per_region_candidate[i+1]-1)))
-        ind_zeros_incumbent[i] .= union(setdiff(ind_zeros_incumbent[i], view(ind_zeros2ones_candidate, ind_samples_per_region_candidate[i]:(ind_samples_per_region_candidate[i+1]-1))), view(ind_ones2zeros_candidate, ind_samples_per_region_candidate[i]:(ind_samples_per_region_candidate[i+1]-1)))
+      @inbounds for r = 1:R
+        ind_ones_incumbent[r] .= union(setdiff(ind_ones_incumbent[r], view(ind_ones2zeros_candidate, ind_samples_per_region_candidate[r]:(ind_samples_per_region_candidate[r+1]-1))), view(ind_zeros2ones_candidate, ind_samples_per_region_candidate[r]:(ind_samples_per_region_candidate[r+1]-1)))
+        ind_zeros_incumbent[r] .= union(setdiff(ind_zeros_incumbent[r], view(ind_zeros2ones_candidate, ind_samples_per_region_candidate[r]:(ind_samples_per_region_candidate[r+1]-1))), view(ind_ones2zeros_candidate, ind_samples_per_region_candidate[r]:(ind_samples_per_region_candidate[r+1]-1)))
       end
-      Dx_incumbent .= Dx_incumbent .+ sum(view(D, :, ind_zeros2ones_candidate), dims = 2) .- sum(view(D, :, ind_ones2zeros_candidate), dims = 2)
+      for j = 1:N
+        Dx_tmp .= Dx_incumbent .+ view(D, :, ind_zeros2ones_tmp[j]) .- view(D, :, ind_ones2zeros_tmp[j])
+      end
       y_incumbent .= Dx_incumbent .>= c
     else
       T = T_init * exp(-10*i/I)
@@ -138,18 +142,20 @@ function simulated_annealing_local_search_partition(D::Array{Float64, 2}, c::Flo
       d = Binomial(1, p)
       b = rand(d)
       if b == 1
-        @inbounds for i = 1:P
-          ind_ones_incumbent[i] .= union(setdiff(ind_ones_incumbent[i], view(ind_ones2zeros_candidate, ind_samples_per_region_candidate[i]:(ind_samples_per_region_candidate[i+1]-1))), view(ind_zeros2ones_candidate, ind_samples_per_region_candidate[i]:(ind_samples_per_region_candidate[i+1]-1)))
-          ind_zeros_incumbent[i] .= union(setdiff(ind_zeros_incumbent[i], view(ind_zeros2ones_candidate, ind_samples_per_region_candidate[i]:(ind_samples_per_region_candidate[i+1]-1))), view(ind_ones2zeros_candidate, ind_samples_per_region_candidate[i]:(ind_samples_per_region_candidate[i+1]-1)))
+        @inbounds for r = 1:R
+          ind_ones_incumbent[r] .= union(setdiff(ind_ones_incumbent[r], view(ind_ones2zeros_candidate, ind_samples_per_region_candidate[r]:(ind_samples_per_region_candidate[r+1]-1))), view(ind_zeros2ones_candidate, ind_samples_per_region_candidate[r]:(ind_samples_per_region_candidate[r+1]-1)))
+          ind_zeros_incumbent[r] .= union(setdiff(ind_zeros_incumbent[r], view(ind_zeros2ones_candidate, ind_samples_per_region_candidate[r]:(ind_samples_per_region_candidate[r+1]-1))), view(ind_ones2zeros_candidate, ind_samples_per_region_candidate[r]:(ind_samples_per_region_candidate[r+1]-1)))
         end
-        Dx_incumbent .= Dx_incumbent .+ sum(view(D, :, ind_zeros2ones_candidate), dims = 2) .- sum(view(D, :, ind_ones2zeros_candidate), dims = 2)
+        for j = 1:N
+          Dx_tmp .= Dx_incumbent .+ view(D, :, ind_zeros2ones_tmp[j]) .- view(D, :, ind_ones2zeros_tmp[j])
+        end
         y_incumbent .= Dx_incumbent .>= c
       end
     end
   end
-  @inbounds for i in 1:P
-    x_incumbent[ind_ones_incumbent[i]] .= 1.
-    x_incumbent[ind_zeros_incumbent[i]] .= 0.
+  @inbounds for r in 1:R
+    x_incumbent[ind_ones_incumbent[r]] .= 1.
+    x_incumbent[ind_zeros_incumbent[r]] .= 0.
   end
   LB = sum(y_incumbent)
   return x_incumbent, LB, obj
