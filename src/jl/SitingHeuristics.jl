@@ -48,7 +48,6 @@ function main_MIRSA(index_dict, deployment_dict, D, c, N, I, E, T_init, R, run, 
     x_init = solve_MILP(D, c, n, "Gurobi")
 
     for r = 1:R
-      println(r)
       x_sol[r, :], LB_sol[r], obj_sol[r, :] = simulated_annealing_local_search(D, c, n, N, I, E, x_init, T_init, legacy_index)
     end
 

@@ -372,7 +372,7 @@ function threshold_greedy_algorithm(D::Array{Float64,2}, c::Float64, n::Float64)
     obj_incumbent = obj_candidate
     locations_added += 1
   end
-  return ind_incumbent, obj_incumbent
+  x_incumbent = zeros(Float64, L)                                                                                                                                                                        x_incumbent[ind_ones_incumbent] .= 1.                                                                                                                                                                  return x_incumbent, obj_incumbent 
 end
 
 function time_threshold_greedy_algorithm(D::Array{Float64,2}, c::Float64, n::Float64)

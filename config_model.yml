@@ -41,13 +41,13 @@ siting_params:
       algorithm: 'MIR' # 'SGH', 'RS'
     GRED_DET:
       set: False
-      no_runs: 100
+      no_runs: 10
       p: 0
       algorithm: 'TGH'
     GRED_STO:
       set: False
       p: 27 # 5% of 10150 locations, 55, 110
-      no_runs: 500
+      no_runs: 20
       algorithm: 'STGH'
     RAND:
       # Random Search
