@@ -17,7 +17,7 @@ def parse_args():
     parser = argparse.ArgumentParser(description='Command line arguments.')
 
     parser.add_argument('--c', type=int)
-    parser.add_argument('--p', type=int, default=None)
+    parser.add_argument('--p', type=float, default=None)
     parser.add_argument('--run_BB', type=bool, default=False)
     parser.add_argument('--run_MIR', type=bool, default=False)
     parser.add_argument('--run_LS', type=bool, default=False)
