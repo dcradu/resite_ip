@@ -28,26 +28,32 @@ function simulated_annealing_local_search_partition(D::Array{Float64, 2}, c::Flo
   W, L = size(D)
   R = maximum(values(locations_regions_mapping))
 
+  iterations = [i for i in 1:I]
+  epochs = [e for e in 1:E]
+  component_updates = [j for j in 1:N]
+
   # Pre-allocate lower bound vector
   obj = Vector{Int64}(undef, I)
 
   # Pre-allocate x-related containers
+  locations = [l for l in 1:L]
   x_incumbent = Vector{Float64}(undef, L)
   ind_ones2zeros_candidate = Vector{Int64}(undef, N)
   ind_zeros2ones_candidate = Vector{Int64}(undef, N)
   ind_ones2zeros_tmp = Vector{Int64}(undef, N)
   ind_zeros2ones_tmp = Vector{Int64}(undef, N)
 
-  regions = [i for i in 1:R]
-  sample_count_per_region = Vector{Int64}(undef, R)
+  regions = [r for r in 1:R]
+  sample_count_per_region_tmp = Vector{Int64}(undef, R)
+  sample_count_per_region_candidate = Vector{Int64}(undef, R)
   init_sample_count_per_region = zeros(Int64, R)
   ind_samples_per_region_tmp = Vector{Int64}(undef, R+1)
   ind_samples_per_region_candidate = Vector{Int64}(undef, R+1)
+  index_range_per_region = Vector{Int64}(undef, R+1)
   locations_count_per_region = zeros(Int64, R)
   legacy_locations_count_per_region = zeros(Int64, R)
-  index_range_per_region = Vector{Int64}(undef, R+1)
 
-  @inbounds for l = 1:L
+  @inbounds for l in locations
     if l in legacy_locations
       legacy_locations_count_per_region[locations_regions_mapping[l]] += 1
     end
@@ -55,63 +61,72 @@ function simulated_annealing_local_search_partition(D::Array{Float64, 2}, c::Flo
   end
 
   ind_ones_incumbent = Dict([(r, Vector{Int64}(undef, n[r]-legacy_locations_count_per_region[r])) for r in regions])
+  ind_ones_incumbent_filtered = Dict([(r, Vector{Int64}(undef, n[r]-legacy_locations_count_per_region[r])) for r in regions])
   ind_zeros_incumbent = Dict([(r, Vector{Int64}(undef, locations_count_per_region[r]-n[r])) for r in regions])
+  ind_zeros_incumbent_filtered = Dict([(r, Vector{Int64}(undef, locations_count_per_region[r]-n[r])) for r in regions])
 
   index_range_per_region[1] = 1
-  @inbounds for r = 1:R
+  @inbounds for r in regions
     index_range_per_region[r+1] = index_range_per_region[r] + locations_count_per_region[r]
   end
 
   # Pre-allocate y-related arrays
-  y_incumbent = Array{Bool}(undef, W, 1)
-  y_tmp = Array{Bool}(undef, W, 1)
+  y_incumbent = Vector{Float64}(undef, W)
+  y_tmp = Vector{Float64}(undef, W)
 
-  Dx_incumbent = zeros(Float64, W, 1)
-  Dx_tmp = Array{Float64}(undef, W, 1)
+  Dx_incumbent = zeros(Float64, W)
+  Dx_tmp = Vector{Float64}(undef, W)
 
-  # Initialise
-  ind_ones, counter_ones = findall(x_init .== 1.), zeros(Int64, R)
-  Dx_incumbent .= sum(view(D, :, ind_ones), dims=2)[:,1]
-  filter!(a -> !(a in legacy_locations), ind_ones)
+  # Initialise Dx_incumbent and y_incumbent
+  ind_ones = findall(x_init .== 1.)
   @inbounds for ind in ind_ones
-    r = locations_regions_mapping[ind]
-    counter_ones[r] += 1
-    ind_ones_incumbent[r][counter_ones[r]] = ind
+    Dx_incumbent .= Dx_incumbent .+ view(D, :, ind)
   end
   y_incumbent .= Dx_incumbent .>= c
 
-  ind_zeros, counter_zeros = findall(x_init .== 0.), zeros(Int64, R)
+  filter!(a -> !(a in legacy_locations), ind_ones)
+  ind_ones_incumbent_pointer = zeros(Int64, R)
+  @inbounds for ind in ind_ones
+    r = locations_regions_mapping[ind]
+    ind_ones_incumbent_pointer[r] += 1
+    ind_ones_incumbent[r][ind_ones_incumbent_pointer[r]] = ind
+  end
+
+  ind_zeros = findall(x_init .== 0.)
+  ind_zeros_incumbent_pointer = zeros(Int64, R)
   for ind in ind_zeros
     r = locations_regions_mapping[ind]
-    counter_zeros[r] += 1
-    ind_zeros_incumbent[r][counter_zeros[r]] = ind
+    ind_zeros_incumbent_pointer[r] += 1
+    ind_zeros_incumbent[r][ind_zeros_incumbent_pointer[r]] = ind
   end
-  ind_samples_per_region_tmp[1] = 1
 
   # Iterate
-  @inbounds for i = 1:I
+  @inbounds for i in iterations
     obj[i] = sum(y_incumbent)
     delta_candidate = -1000000
-    @inbounds for e = 1:E
+    @inbounds for e in epochs
       # Sample from neighbourhood
-      sample_count_per_region .= init_sample_count_per_region
-      @inbounds while sum(sample_count_per_region) < N
+      sample_count = 0
+      sample_count_per_region_tmp .= init_sample_count_per_region
+      @inbounds while sample_count < N
         r = sample(regions)
-        if (sample_count_per_region[r] < n[r] - legacy_locations_count_per_region[r]) && (sample_count_per_region[r] < locations_count_per_region[r] - n[r])
-          sample_count_per_region[r] += 1
+        if (sample_count_per_region_tmp[r] < n[r] - legacy_locations_count_per_region[r]) && (sample_count_per_region_tmp[r] < locations_count_per_region[r] - n[r])
+          sample_count_per_region_tmp[r] += 1
         end
+        sample_count = sum(sample_count_per_region_tmp)
       end
 
-      @inbounds for r = 1:R
-        ind_samples_per_region_tmp[r+1] = ind_samples_per_region_tmp[r] + sample_count_per_region[r]
-        if sample_count_per_region[r] != 0
-          view(ind_ones2zeros_tmp, ind_samples_per_region_tmp[r]:(ind_samples_per_region_tmp[r+1]-1)) .= sample(ind_ones_incumbent[r], sample_count_per_region[r], replace=false)
-          view(ind_zeros2ones_tmp, ind_samples_per_region_tmp[r]:(ind_samples_per_region_tmp[r+1]-1)) .= sample(ind_zeros_incumbent[r], sample_count_per_region[r], replace=false)
+      ind_samples_per_region_tmp[1] = 1
+      @inbounds for r in regions
+        ind_samples_per_region_tmp[r+1] = ind_samples_per_region_tmp[r] + sample_count_per_region_tmp[r]
+        if sample_count_per_region_tmp[r] != 0
+          ind_ones2zeros_tmp[ind_samples_per_region_tmp[r]:(ind_samples_per_region_tmp[r+1]-1)] .= sample(ind_ones_incumbent[r], sample_count_per_region_tmp[r], replace=false)
+          ind_zeros2ones_tmp[ind_samples_per_region_tmp[r]:(ind_samples_per_region_tmp[r+1]-1)] .= sample(ind_zeros_incumbent[r], sample_count_per_region_tmp[r], replace=false)
         end
       end
 
       # Compute y and associated objective value
-      for j = 1:N
+      @inbounds for j in component_updates
         Dx_tmp .= Dx_incumbent .+ view(D, :, ind_zeros2ones_tmp[j]) .- view(D, :, ind_ones2zeros_tmp[j])
       end
       y_tmp .= Dx_tmp .>= c
@@ -124,16 +139,23 @@ function simulated_annealing_local_search_partition(D::Array{Float64, 2}, c::Flo
         ind_ones2zeros_candidate .= ind_ones2zeros_tmp
         ind_zeros2ones_candidate .= ind_zeros2ones_tmp
         ind_samples_per_region_candidate .= ind_samples_per_region_tmp
+        sample_count_per_region_candidate .= sample_count_per_region_tmp
         delta_candidate = delta_tmp
       end
     end
     if delta_candidate > 0
-      @inbounds for r = 1:R
-        ind_ones_incumbent[r] .= union(setdiff(ind_ones_incumbent[r], view(ind_ones2zeros_candidate, ind_samples_per_region_candidate[r]:(ind_samples_per_region_candidate[r+1]-1))), view(ind_zeros2ones_candidate, ind_samples_per_region_candidate[r]:(ind_samples_per_region_candidate[r+1]-1)))
-        ind_zeros_incumbent[r] .= union(setdiff(ind_zeros_incumbent[r], view(ind_zeros2ones_candidate, ind_samples_per_region_candidate[r]:(ind_samples_per_region_candidate[r+1]-1))), view(ind_ones2zeros_candidate, ind_samples_per_region_candidate[r]:(ind_samples_per_region_candidate[r+1]-1)))
+      @inbounds for r in regions
+        if sample_count_per_region_candidate[r] != 0
+          view(ind_ones_incumbent_filtered[r], 1:(n[r]-legacy_locations_count_per_region[r]-sample_count_per_region_candidate[r])) .= filter(a -> !(a in view(ind_ones2zeros_candidate, ind_samples_per_region_candidate[r]:(ind_samples_per_region_candidate[r+1]-1))), ind_ones_incumbent[r])
+          view(ind_ones_incumbent[r], 1:(n[r]-legacy_locations_count_per_region[r]-sample_count_per_region_candidate[r])) .= view(ind_ones_incumbent_filtered[r], 1:(n[r]-legacy_locations_count_per_region[r]-sample_count_per_region_candidate[r]))
+          view(ind_ones_incumbent[r], (n[r]-legacy_locations_count_per_region[r]-sample_count_per_region_candidate[r]+1):(n[r]-legacy_locations_count_per_region[r])) .= view(ind_zeros2ones_candidate, ind_samples_per_region_candidate[r]:(ind_samples_per_region_candidate[r+1]-1))
+          view(ind_zeros_incumbent_filtered[r], 1:(locations_count_per_region[r]-n[r]-sample_count_per_region_candidate[r])) .= filter(a -> !(a in view(ind_zeros2ones_candidate, ind_samples_per_region_candidate[r]:(ind_samples_per_region_candidate[r+1]-1))), ind_zeros_incumbent[r])
+          view(ind_zeros_incumbent[r], 1:(locations_count_per_region[r]-n[r]-sample_count_per_region_candidate[r])) .= view(ind_zeros_incumbent_filtered[r], 1:(locations_count_per_region[r]-n[r]-sample_count_per_region_candidate[r]))
+          view(ind_zeros_incumbent[r], (locations_count_per_region[r]-n[r]-sample_count_per_region_candidate[r]+1):(locations_count_per_region[r]-n[r])) .= view(ind_ones2zeros_candidate, ind_samples_per_region_candidate[r]:(ind_samples_per_region_candidate[r+1]-1))
+        end
       end
-      for j = 1:N
-        Dx_tmp .= Dx_incumbent .+ view(D, :, ind_zeros2ones_tmp[j]) .- view(D, :, ind_ones2zeros_tmp[j])
+      @inbounds for j in component_updates
+        Dx_incumbent .= Dx_incumbent .+ view(D, :, ind_zeros2ones_tmp[j]) .- view(D, :, ind_ones2zeros_tmp[j])
       end
       y_incumbent .= Dx_incumbent .>= c
     else
@@ -142,24 +164,29 @@ function simulated_annealing_local_search_partition(D::Array{Float64, 2}, c::Flo
       d = Binomial(1, p)
       b = rand(d)
       if b == 1
-        @inbounds for r = 1:R
-          ind_ones_incumbent[r] .= union(setdiff(ind_ones_incumbent[r], view(ind_ones2zeros_candidate, ind_samples_per_region_candidate[r]:(ind_samples_per_region_candidate[r+1]-1))), view(ind_zeros2ones_candidate, ind_samples_per_region_candidate[r]:(ind_samples_per_region_candidate[r+1]-1)))
-          ind_zeros_incumbent[r] .= union(setdiff(ind_zeros_incumbent[r], view(ind_zeros2ones_candidate, ind_samples_per_region_candidate[r]:(ind_samples_per_region_candidate[r+1]-1))), view(ind_ones2zeros_candidate, ind_samples_per_region_candidate[r]:(ind_samples_per_region_candidate[r+1]-1)))
+        @inbounds for r in regions
+          if sample_count_per_region_candidate[r] != 0
+            view(ind_ones_incumbent_filtered[r], 1:(n[r]-legacy_locations_count_per_region[r]-sample_count_per_region_candidate[r])) .= filter(a -> !(a in view(ind_ones2zeros_candidate, ind_samples_per_region_candidate[r]:(ind_samples_per_region_candidate[r+1]-1))), ind_ones_incumbent[r])
+            view(ind_ones_incumbent[r], 1:(n[r]-legacy_locations_count_per_region[r]-sample_count_per_region_candidate[r])) .= view(ind_ones_incumbent_filtered[r], 1:(n[r]-legacy_locations_count_per_region[r]-sample_count_per_region_candidate[r]))
+            view(ind_ones_incumbent[r], (n[r]-legacy_locations_count_per_region[r]-sample_count_per_region_candidate[r]+1):(n[r]-legacy_locations_count_per_region[r])) .= view(ind_zeros2ones_candidate, ind_samples_per_region_candidate[r]:(ind_samples_per_region_candidate[r+1]-1))
+            view(ind_zeros_incumbent_filtered[r], 1:(locations_count_per_region[r]-n[r]-sample_count_per_region_candidate[r])) .= filter(a -> !(a in view(ind_zeros2ones_candidate, ind_samples_per_region_candidate[r]:(ind_samples_per_region_candidate[r+1]-1))), ind_zeros_incumbent[r])
+            view(ind_zeros_incumbent[r], 1:(locations_count_per_region[r]-n[r]-sample_count_per_region_candidate[r])) .= view(ind_zeros_incumbent_filtered[r], 1:(locations_count_per_region[r]-n[r]-sample_count_per_region_candidate[r]))
+            view(ind_zeros_incumbent[r], (locations_count_per_region[r]-n[r]-sample_count_per_region_candidate[r]+1):(locations_count_per_region[r]-n[r])) .= view(ind_ones2zeros_candidate, ind_samples_per_region_candidate[r]:(ind_samples_per_region_candidate[r+1]-1))
+          end
         end
-        for j = 1:N
-          Dx_tmp .= Dx_incumbent .+ view(D, :, ind_zeros2ones_tmp[j]) .- view(D, :, ind_ones2zeros_tmp[j])
+        @inbounds for j in component_updates
+          Dx_incumbent .= Dx_incumbent .+ view(D, :, ind_zeros2ones_tmp[j]) .- view(D, :, ind_ones2zeros_tmp[j])
         end
         y_incumbent .= Dx_incumbent .>= c
       end
     end
   end
-  @inbounds for r in 1:R
+  @inbounds for r in regions
     x_incumbent[ind_ones_incumbent[r]] .= 1.
     x_incumbent[ind_zeros_incumbent[r]] .= 0.
   end
   LB = sum(y_incumbent)
   return x_incumbent, LB, obj
-
 end
 
 #################### Randomised Threshold Greedy Heuristic with Partitioning Constraints #######################
@@ -181,23 +208,25 @@ end
 #          obj_incumbent - objective value of incumbent solution, provides a lower bound on optimal objective
 #
 
-function randomised_threshold_greedy_heuristic_partition(D::Array{Float64,2}, c::Float64, n::Vector{Int64}, p::Float64,
-                                                         locations_regions_mapping::Dict{Int64, Int64},
-                                                         legacy_locations::Vector{Int64})
+function randomised_greedy_heuristic_partition(D::Array{Float64,2}, c::Float64, n::Vector{Int64}, p::Float64, locations_regions_mapping::Dict{Int64, Int64}, legacy_locations::Vector{Int64})
 
   W, L = size(D)
   s = convert(Int64, round(L*p))
-  Dx_incumbent = sum(D[:, legacy_locations], dims=2)[:,1]
-  y_incumbent = zeros(Int64, W)
+  Dx_incumbent = zeros(Float64, W)
+  @inbounds for ind in legacy_locations
+    Dx_incumbent .= Dx_incumbent .+ view(D, :, ind)
+  end
+  x_incumbent = Vector{Float64}(undef, L)
+  y_incumbent = Vector{Float64}(undef, W)
   obj_incumbent = 0
   Dx_tmp = Vector{Float64}(undef, W)
   y_tmp = Vector{Float64}(undef, W)
 
-  P = length(n)
-  regions = [i for i = 1:P]
-  sample_count_per_region = Vector{Int64}(undef, P)
-  init_sample_count_per_region = zeros(Int64, P)
-  locations_count_per_region, locations_added_per_region = zeros(Int64, P), zeros(Int64, P)
+  R = length(n)
+  regions = [i for i = 1:R]
+  sample_count_per_region = Vector{Int64}(undef, R)
+  init_sample_count_per_region = zeros(Int64, R)
+  locations_count_per_region, locations_added_per_region = zeros(Int64, R), zeros(Int64, R)
   @inbounds for ind = 1:L
     if ind in legacy_locations
       locations_added_per_region[locations_regions_mapping[ind]] += 1
@@ -206,14 +235,127 @@ function randomised_threshold_greedy_heuristic_partition(D::Array{Float64,2}, c:
     end
   end
 
-  ind_incumbent = legacy_locations
+  n_total = sum(n)
+  ind_incumbent = Vector{Int64}(undef, n_total)
+  ind_incumbent[1:length(legacy_locations)] .= legacy_locations
+  ind_candidate_list = Vector{Int64}(undef, s)
   ind_ones = [i for i in 1:L]
   filter!(a -> !(a in legacy_locations), ind_ones)
   ind_compl_incumbent = Dict([(r, Vector{Int64}(undef, locations_count_per_region[r])) for r in regions])
   regions_start_pointer = 1
   @inbounds for r in regions
     regions_end_pointer = regions_start_pointer + locations_count_per_region[r]
-    ind_compl_incumbent[r] = ind_ones[regions_start_pointer:(regions_end_pointer-1)]
+    ind_compl_incumbent[r] .= ind_ones[regions_start_pointer:(regions_end_pointer-1)]
+    regions_start_pointer = regions_end_pointer
+  end
+
+  locations_added = 0
+  @inbounds while locations_added < n_total
+    if sum(locations_added_per_region) < c
+      threshold = locations_added + 1
+      obj_candidate = 0
+    else
+      threshold = c
+      obj_candidate = obj_incumbent
+    end
+
+    iter_count, sample_count = 0, 0
+    sample_count_per_region .= init_sample_count_per_region
+    @inbounds while sample_count < s && iter_count < 10 * s
+      r = sample(regions)
+      if locations_added_per_region[r] < n[r] && sample_count_per_region[r] < length(ind_compl_incumbent[r])
+        sample_count_per_region[r] += 1
+      end
+      sample_count = sum(sample_count_per_region)
+      iter_count += 1
+    end
+
+    random_ind_set = Vector{Int64}(undef, 0)
+    @inbounds for r in regions
+      random_ind_set = union(random_ind_set, sample(ind_compl_incumbent[r], sample_count_per_region[r], replace=false))
+    end
+
+    ind_candidate_pointer = 1
+    @inbounds for ind in random_ind_set
+      Dx_tmp .= Dx_incumbent .+ view(D, :, ind)
+      y_tmp .= Dx_tmp .>= threshold
+      obj_tmp = sum(y_tmp)
+      if obj_tmp > obj_candidate
+        ind_candidate_pointer = 1
+        ind_candidate_list[ind_candidate_pointer] = ind
+        obj_candidate = obj_tmp
+        ind_candidate_pointer += 1
+      elseif obj_tmp == obj_candidate
+        ind_candidate_list[ind_candidate_pointer] = ind
+        ind_candidate_pointer += 1
+      end
+    end
+    ind_candidate = sample(view(ind_candidate_list, 1:ind_candidate_pointer-1))
+    locations_added_per_region[locations_regions_mapping[ind_candidate]] += 1
+    locations_added = sum(locations_added_per_region)
+    ind_incumbent[locations_added] = ind_candidate
+    Dx_incumbent .= Dx_incumbent .+ view(D, :, ind_candidate)
+    y_incumbent .= Dx_incumbent .>= threshold
+    obj_incumbent = sum(y_incumbent)
+    filter!(a -> a != ind_candidate, ind_compl_incumbent[locations_regions_mapping[ind_candidate]])
+  end
+  x_incumbent[ind_incumbent] .= 1.
+
+  return x_incumbent, obj_incumbent
+end
+
+#################### Threshold Greedy Heuristic with Partitioning Constraints #######################
+
+# Description: function implementing a greedy heuristic for geographical regions partitioned into a set of subregions
+#
+# Comments: 1) types of inputs should match those declared in argument list
+#           2) the implementation relies both on dict and array data structures (as opposed to an array-only implementation)
+#
+# Inputs: D - criticality matrix with entries in {0, 1}, where rows represent time windows and columns represent locations
+#         c - global criticality threshold
+#         n - number of sites to deploy
+#         locations_regions_mapping - dictionary associating its subregion (value) to each location (key)
+#         legacy_locations - array storing the indices of existing sites
+#
+#
+# Outputs: ind_incumbent - vector of cardinality storing the indices of the n locations selected by the algorithm
+#          obj_incumbent - objective value of incumbent solution, provides a lower bound on optimal objective
+#
+
+function greedy_heuristic_partition(D::Array{Float64,2}, c::Float64, n::Vector{Int64}, locations_regions_mapping::Dict{Int64, Int64}, legacy_locations::Vector{Int64})
+
+  W, L = size(D)
+  Dx_incumbent = zeros(Float64, W)
+  @inbounds for ind in legacy_locations
+    Dx_incumbent .= Dx_incumbent .+ view(D, :, ind)
+  end
+  x_incumbent = Vector{Float64}(undef, L)
+  y_incumbent = Vector{Int64}(undef, W)
+  obj_incumbent = 0
+  Dx_tmp = Vector{Float64}(undef, W)
+  y_tmp = Vector{Float64}(undef, W)
+
+  R = length(n)
+  regions = [i for i = 1:R]
+  locations_count_per_region, locations_added_per_region = zeros(Int64, R), zeros(Int64, R)
+  @inbounds for ind = 1:L
+    if ind in legacy_locations
+      locations_added_per_region[locations_regions_mapping[ind]] += 1
+    else
+      locations_count_per_region[locations_regions_mapping[ind]] += 1
+    end
+  end
+
+  ind_incumbent = Vector{Int64}(undef, sum(n))
+  ind_incumbent[1:length(legacy_locations)] .= legacy_locations
+  ind_candidate_list = Vector{Int64}(undef, L)
+  ind_ones = [i for i in 1:L]
+  filter!(a -> !(a in legacy_locations), ind_ones)
+  ind_compl_incumbent = Dict([(r, Vector{Int64}(undef, locations_count_per_region[r])) for r in regions])
+  regions_start_pointer = 1
+  @inbounds for r in regions
+    regions_end_pointer = regions_start_pointer + locations_count_per_region[r]
+    ind_compl_incumbent[r] .= ind_ones[regions_start_pointer:(regions_end_pointer-1)]
     regions_start_pointer = regions_end_pointer
   end
 
@@ -225,49 +367,34 @@ function randomised_threshold_greedy_heuristic_partition(D::Array{Float64,2}, c:
       threshold = c
       obj_candidate = obj_incumbent
     end
-
-    iter_count = 0
-    sample_count_per_region .= init_sample_count_per_region
-    @inbounds while sum(sample_count_per_region) < s && iter_count < 10 * s
-      r = sample(regions)
-      if locations_added_per_region[r] < n[r] && sample_count_per_region[r] < length(ind_compl_incumbent[r])
-        sample_count_per_region[r] += 1
-      end
-      iter_count += 1
-    end
-
-    random_ind_set = Vector{Int64}(undef, 0)
+    ind_candidate_pointer = 1
     @inbounds for r in regions
-      random_ind_set = union(random_ind_set, sample(ind_compl_incumbent[r], sample_count_per_region[r], replace=false))
-    end
-
-    ind_candidate_list = Vector{Int64}(undef, 0)
-    @inbounds for ind in random_ind_set
-      Dx_tmp .= Dx_incumbent .+ view(D, :, ind)
-      y_tmp .= Dx_tmp .>= threshold
-      obj_tmp = sum(y_tmp)
-      if obj_tmp >= obj_candidate
-        if obj_tmp > obj_candidate
-          ind_candidate_list = [ind]
-          obj_candidate = obj_tmp
-        else
-          ind_candidate_list = union(ind_candidate_list, ind)
+        if locations_added_per_region[r] < n[r]
+          @inbounds for ind in ind_compl_incumbent[r]
+            Dx_tmp .= Dx_incumbent .+ view(D, :, ind)
+            y_tmp .= Dx_tmp .>= threshold
+            obj_tmp = sum(y_tmp)
+            if obj_tmp > obj_candidate
+              ind_candidate_pointer = 1
+              ind_candidate_list[ind_candidate_pointer] = ind
+              obj_candidate = obj_tmp
+              ind_candidate_pointer += 1
+            elseif obj_tmp == obj_candidate
+              ind_candidate_list[ind_candidate_pointer] = ind
+              ind_candidate_pointer += 1
+            end
+          end
         end
-      end
     end
-    ind_candidate = sample(ind_candidate_list)
-    ind_compl_incumbent[locations_regions_mapping[ind_candidate]] =
-                                   setdiff(ind_compl_incumbent[locations_regions_mapping[ind_candidate]], ind_candidate)
-    ind_incumbent = union(ind_incumbent, ind_candidate)
+    ind_candidate = sample(view(ind_candidate_list, 1:ind_candidate_pointer-1))
+    filter!(a -> a != ind_candidate, ind_compl_incumbent[locations_regions_mapping[ind_candidate]])
+    ind_incumbent[sum(locations_added_per_region)+1] = ind_candidate
     locations_added_per_region[locations_regions_mapping[ind_candidate]] += 1
     Dx_incumbent .= Dx_incumbent .+ view(D, :, ind_candidate)
     y_incumbent .= Dx_incumbent .>= c
     obj_incumbent = sum(y_incumbent)
   end
 
-  x_incumbent = zeros(Float64, L)
   x_incumbent[ind_incumbent] .= 1.
-
   return x_incumbent, obj_incumbent
-
 end

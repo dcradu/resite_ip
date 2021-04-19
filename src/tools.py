@@ -11,7 +11,7 @@ import xarray as xr
 import xarray.ufuncs as xu
 from geopandas import read_file
 from numpy import arange, interp, float32, datetime64, sqrt, asarray, newaxis, sum, max, unique, \
-    radians, cos, sin, arctan2, zeros
+    radians, cos, sin, arctan2, zeros, ceil
 from pandas import read_csv, Series, DataFrame, date_range, concat, MultiIndex, to_datetime
 from shapely.geometry import Point
 from shapely.ops import nearest_points
@@ -715,7 +715,8 @@ def retrieve_index_dict(deployment_vector, coordinate_dict):
 def retrieve_site_data(model_parameters, capacity_factor_data, criticality_data, deployment_dict,
                        location_mapping, comp_site_coordinates, legacy_sites, output_folder, benchmark):
 
-    c = model_parameters['siting_params']['c']
+    c = int(ceil(model_parameters['siting_params']['c'] * sum(deployment_dict[r][t] for r in deployment_dict.keys()
+                                                              for t in deployment_dict[r].keys())))
 
     output_by_tech = collapse_dict_region_level(capacity_factor_data)
     time_dt = date_range(start=model_parameters['time_slice'][0], end=model_parameters['time_slice'][1], freq='H')

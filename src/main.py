@@ -1,7 +1,8 @@
 import yaml
 import julia
 from os.path import join
-from numpy import argmax
+from numpy import argmax, ceil
+import argparse
 
 from helpers import read_inputs, init_folder, xarray_to_ndarray, generate_jl_input, \
     get_potential_per_site, capacity_to_cardinality
@@ -12,13 +13,44 @@ import logging
 logging.basicConfig(level=logging.INFO, format=f"%(levelname)s %(asctime)s - %(message)s", datefmt='%Y-%m-%d %H:%M:%S')
 logger = logging.getLogger(__name__)
 
+def parse_args():
+
+    parser = argparse.ArgumentParser(description='Command line arguments.')
+
+    parser.add_argument('--c', type=float)
+    parser.add_argument('--run_DGH', type=bool, default=False)
+    parser.add_argument('--run_SGH', type=bool, default=False)
+    parser.add_argument('--run_LS', type=bool, default=False)
+    parser.add_argument('--LS_init_algorithm', type=str, default=None)
+
+    parsed_args = vars(parser.parse_args())
+
+    return parsed_args
+
+
+def single_true(iterable):
+    i = iter(iterable)
+    return any(i) and not any(i)
+
+
 if __name__ == '__main__':
+
+    args = parse_args()
+
+    if not single_true([args['run_LS'], args['run_DGH'], args['run_SGH']]):
+        raise ValueError(' More than one run selected in the argparser.')
 
     logger.info('Starting data pre-processing.')
 
     model_parameters = read_inputs('../config_model.yml')
     siting_parameters = model_parameters['siting_params']
     tech_parameters = read_inputs('../config_techs.yml')
+
+    siting_parameters['c'] = args['c']
+    siting_parameters['solution_method']['SA']['set'] = args['run_LS']
+    siting_parameters['solution_method']['SA']['algorithm'] = args['LS_init_algorithm']
+    siting_parameters['solution_method']['DGH']['set'] = args['run_DGH']
+    siting_parameters['solution_method']['SGH']['set'] = args['run_SGH']
 
     data_path = model_parameters['data_path']
     spatial_resolution = model_parameters['spatial_resolution']
@@ -39,6 +71,8 @@ if __name__ == '__main__':
                                                                  deployment_dict, model_parameters))
 
     jl_dict = generate_jl_input(deployment_dict, site_coordinates, site_positions, legacy_coordinates)
+    c = int(ceil(siting_parameters['c'] * sum(deployment_dict[r][t] for r in deployment_dict.keys()
+                                                                    for t in deployment_dict[r].keys())))
 
     logger.info('Data pre-processing finished. Opening Julia instance.')
     j = julia.Julia(compiled_modules=False)
@@ -53,26 +87,39 @@ if __name__ == '__main__':
         jl_sel, jl_obj, _ = Main.main_SA(jl_dict['index_dict'],
                                          jl_dict['deployment_dict'],
                                          jl_dict['legacy_site_list'],
-                                         criticality_data, siting_parameters['c'],
+                                         criticality_data, c,
                                          params['neighborhood'], params['initial_temp'], params['p'],
                                          params['no_iterations'], params['no_epochs'],
                                          params['no_runs'], params['no_runs_init'],
                                          params['algorithm'])
 
-        output_folder = init_folder(model_parameters, siting_parameters['c'], suffix=f"_SA_{params['algorithm']}")
+        output_folder = init_folder(model_parameters, c, suffix=f"_SA_{params['algorithm']}")
 
     elif siting_parameters['solution_method']['SGH']['set']:
 
         params = siting_parameters['solution_method']['SGH']
-        logger.info('SGH chosen to solve the IP.')
+        logger.info('Stochastic greedy heuristic chosen to solve the IP.')
 
         jl_sel, jl_obj = Main.main_SGH(jl_dict['index_dict'],
                                        jl_dict['deployment_dict'],
                                        jl_dict['legacy_site_list'],
-                                       criticality_data, siting_parameters['c'],
+                                       criticality_data, c,
                                        params['p'], params['no_runs'], params['algorithm'])
 
-        output_folder = init_folder(model_parameters, siting_parameters['c'], suffix="_SGH")
+        output_folder = init_folder(model_parameters, c, suffix="_SGH")
+
+    elif siting_parameters['solution_method']['DGH']['set']:
+
+        params = siting_parameters['solution_method']['DGH']
+        logger.info('Deterministic greedy heuristic chosen to solve the IP.')
+
+        jl_sel, jl_obj = Main.main_DGH(jl_dict['index_dict'],
+                                       jl_dict['deployment_dict'],
+                                       jl_dict['legacy_site_list'],
+                                       criticality_data, c,
+                                       params['no_runs'], params['algorithm'])
+
+        output_folder = init_folder(model_parameters, c, suffix="_DGH")
 
     else:
         raise ValueError(' This solution method is not available.')
