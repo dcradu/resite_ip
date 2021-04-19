@@ -41,8 +41,8 @@ function main_SA(index_dict, deployment_dict, legacy_index_list,
       if (div(r, 10) > 0) & (mod(r, 10) == 0)
         @info "$(Dates.format(now(), "HH:MM:SS")) Run $(r)/$(R) of $(init_sol_algorithm)"
       end
-      x_init_alg[r, :], LB_init_alg[r, :] = randomised_threshold_greedy_heuristic_partition(D, c, n_partitions, p,
-                                                                                            index_dict, legacy_index_list)
+      x_init_alg[r, :], LB_init_alg[r] = randomised_threshold_greedy_heuristic_partition(D, c, n_partitions, p,
+                                                                                         index_dict, legacy_index_list)
     end
     LB_init_alg_best = argmax(LB_init_alg)
     x_init = x_init_alg[LB_init_alg_best, :]
