@@ -438,7 +438,9 @@ function stochastic_threshold_greedy_algorithm(D::Array{Float64,2}, c::Float64, 
     obj_incumbent = obj_candidate
     locations_added += 1
   end
-  return ind_incumbent, obj_incumbent
+  x_incumbent = zeros(Float64, L)
+  x_incumbent[ind_ones_incumbent] .= 1.
+  return x_incumbent, obj_incumbent
 end
 
 function stochastic_threshold_greedy_algorithm_trajectory(D::Array{Float64,2}, c::Float64, n::Float64, p::Float64)
@@ -483,7 +485,9 @@ function stochastic_threshold_greedy_algorithm_trajectory(D::Array{Float64,2}, c
     obj_incumbent_vec[locations_added+1] = obj_incumbent
     locations_added += 1
   end
-  return ind_incumbent, obj_incumbent
+  x_incumbent = zeros(Float64, L)
+  x_incumbent[ind_ones_incumbent] .= 1.
+  return x_incumbent, obj_incumbent
 
 end
 
@@ -596,5 +600,7 @@ function simulated_annealing_local_search(D::Array{Float64, 2}, c::Float64, n::F
     end
   end
   obj_incumbent = sum(y_incumbent)
-  return ind_ones_incumbent, obj_incumbent, obj
+  x_incumbent = zeros(Float64, L)
+  x_incumbent[ind_ones_incumbent] .= 1.
+  return x_incumbent, obj_incumbent, obj
 end

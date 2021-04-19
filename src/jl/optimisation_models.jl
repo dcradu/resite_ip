@@ -7,7 +7,7 @@ function solve_MILP(D::Array{Float64, 2}, c::Float64, n::Float64, solver::String
   L = size(D)[2]
 
   if solver == "Gurobi"
-    MILP_model = Model(optimizer_with_attributes(Gurobi.Optimizer, "TimeLimit" => 7200., "MIPGap" => 0.05))
+    MILP_model = Model(optimizer_with_attributes(Gurobi.Optimizer, "TimeLimit" => 7200., "MIPGap" => 0.01, "LogToConsole" => 0))
   else
       println("Please use Cbc or Gurobi")
       throw(ArgumentError)

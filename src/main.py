@@ -154,7 +154,7 @@ if __name__ == '__main__':
         end = time.time()
         print(f"Average CPU time for c={c}: {round((end-start)/params['no_runs'], 1)} s")
 
-        output_folder = init_folder(model_parameters, c, suffix=f"_LS_{args['LS_init_algorithm']}")
+        output_folder = init_folder(model_parameters, c, suffix=f"_LS_{args['LS_init_algorithm']}_bis")
 
         with open(join(output_folder, 'config_model.yaml'), 'w') as outfile:
             yaml.dump(model_parameters, outfile, default_flow_style=False, sort_keys=False)
@@ -204,7 +204,7 @@ if __name__ == '__main__':
         end = time.time()
         print(f"Average CPU time for c={c}: {round((end-start)/params['no_runs'], 1)} s")
 
-        output_folder = init_folder(model_parameters, c, suffix=f"_GRED_{params['algorithm']}")
+        output_folder = init_folder(model_parameters, c, suffix=f"_GRED_{params['algorithm']}_bis")
 
         pickle.dump(jl_selected, open(join(output_folder, 'solution_matrix.p'), 'wb'))
         pickle.dump(jl_objective, open(join(output_folder, 'objective_vector.p'), 'wb'))
@@ -227,7 +227,7 @@ if __name__ == '__main__':
         end = time.time()
         print(f"Average CPU time for c={c}: {round((end-start)/params['no_runs'], 1)} s")
 
-        output_folder = init_folder(model_parameters, c, suffix=f"_GRED_{params['algorithm']}_p{params['p']}")
+        output_folder = init_folder(model_parameters, c, suffix=f"_GRED_{params['algorithm']}_p{params['p']}_bis")
 
         pickle.dump(jl_selected, open(join(output_folder, 'solution_matrix.p'), 'wb'))
         pickle.dump(jl_objective, open(join(output_folder, 'objective_vector.p'), 'wb'))

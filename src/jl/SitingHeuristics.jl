@@ -35,12 +35,12 @@ function main_MIRSA(index_dict, deployment_dict, D, c, N, I, E, T_init, R, run, 
   run = string(run)
   p = string(p)
   data_path = string(data_path)
-  legacy_index = Vector{Float64}(undef, 0)
+  legacy_index = Vector{Int64}(undef, 0)
 
   W, L = size(D)
 
   P = maximum(values(index_dict))
-  n = deployment_dict[1]
+  n = convert(Float64, deployment_dict[1])
 
   if run == "MIR"
 
@@ -48,6 +48,7 @@ function main_MIRSA(index_dict, deployment_dict, D, c, N, I, E, T_init, R, run, 
     x_init = solve_MILP(D, c, n, "Gurobi")
 
     for r = 1:R
+      println(r)
       x_sol[r, :], LB_sol[r], obj_sol[r, :] = simulated_annealing_local_search(D, c, n, N, I, E, x_init, T_init, legacy_index)
     end
 
