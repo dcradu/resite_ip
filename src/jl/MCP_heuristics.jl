@@ -4,28 +4,31 @@ using Distributions
 #################### Random Search Algorithm #######################
 
 function random_search(D::Array{Float64, 2}, c::Float64, n::Float64, R::Int64)
-
   W, L = size(D)
+  n = convert(Int64, n)
   x_incumbent = zeros(Float64, L)
   ind_set = [l for l in 1:L]
-  ind_incumbent = Vector{Int64}(undef, convert(Int64, n))
-  ind_candidate = Vector{Int64}(undef, convert(Int64, n))
+  ind_incumbent = Vector{Int64}(undef, n)
+  ind_candidate = Vector{Int64}(undef, n)
   Dx_candidate = Vector{Float64}(undef, W)
+  Dx_init = zeros(Float64, W)
   y_candidate = Vector{Float64}(undef, W)
-
-  LB_incumbent = 0
-  for r in 1:R
-    ind_candidate .= sample(ind_set, convert(Int64, n), replace=false)
-    Dx_candidate = sum(view(D, :, ind_candidate), dims = 2)
-    y_candidate = Dx_candidate .>= c
-    LB_candidate = sum(y_candidate)
-    if LB_candidate >= LB_incumbent
+  obj_incumbent = 0
+  @inbounds for r in 1:R
+    sample!(ind_set, ind_candidate, replace=false)
+    Dx_candidate .= Dx_init
+    @inbounds for ind in ind_candidate
+      Dx_candidate .= Dx_candidate .+ view(D, :, ind)
+    end
+    y_candidate .= Dx_candidate .>= c
+    obj_candidate = sum(y_candidate)
+    if obj_candidate >= obj_incumbent
       ind_incumbent .= ind_candidate
-      LB_incumbent = LB_candidate
+      obj_incumbent = obj_candidate
     end
   end
   x_incumbent[ind_incumbent] .= 1.
-  return x_incumbent, LB_incumbent
+  return x_incumbent, obj_incumbent
 end
 
 #################### Greedy Local Search w/ Partitioning Constraints (Dict Implementation) #######################

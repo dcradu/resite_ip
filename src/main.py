@@ -181,7 +181,7 @@ if __name__ == '__main__':
                                                    c, params['no_iterations'], params['no_runs'],
                                                    params['algorithm'])
     
-        output_folder = init_folder(model_parameters, c, suffix='_RS')
+        output_folder = init_folder(model_parameters, c, suffix='_RS_bis')
     
         pickle.dump(jl_selected, open(join(output_folder, 'solution_matrix.p'), 'wb'))
         pickle.dump(jl_objective, open(join(output_folder, 'objective_vector.p'), 'wb'))

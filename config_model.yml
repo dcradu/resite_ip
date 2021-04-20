@@ -52,7 +52,6 @@ siting_params:
     RAND:
       # Random Search
       set: False
-      no_iterations: 1000
-      no_epochs: 1000
+      no_iterations: 100000
       no_runs: 100
       algorithm: 'RS'
