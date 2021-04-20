@@ -46,7 +46,7 @@ siting_params:
       algorithm: 'TGH'
     GRED_STO:
       set: False
-      p: 27 # 5% of 10150 locations, 55, 110
+      p: 0.05
       no_runs: 20
       algorithm: 'STGH'
     RAND:
