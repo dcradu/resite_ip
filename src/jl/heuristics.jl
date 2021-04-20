@@ -211,7 +211,9 @@ end
 function randomised_greedy_heuristic_partition(D::Array{Float64,2}, c::Float64, n::Vector{Int64}, p::Float64, locations_regions_mapping::Dict{Int64, Int64}, legacy_locations::Vector{Int64})
 
   W, L = size(D)
+  n_total = sum(n)
   s = convert(Int64, round(L*p))
+  random_ind_set = Vector{Int64}(undef, s)
   Dx_incumbent = zeros(Float64, W)
   @inbounds for ind in legacy_locations
     Dx_incumbent .= Dx_incumbent .+ view(D, :, ind)
@@ -223,35 +225,36 @@ function randomised_greedy_heuristic_partition(D::Array{Float64,2}, c::Float64, 
   y_tmp = Vector{Float64}(undef, W)
 
   R = length(n)
-  regions = [i for i = 1:R]
+  regions = [r for r = 1:R]
+  locations = [l for l = 1:L]
   sample_count_per_region = Vector{Int64}(undef, R)
   init_sample_count_per_region = zeros(Int64, R)
-  locations_count_per_region, locations_added_per_region = zeros(Int64, R), zeros(Int64, R)
-  @inbounds for ind = 1:L
+  candidate_locations_count_per_region, locations_added_per_region = zeros(Int64, R), zeros(Int64, R)
+  @inbounds for ind in locations
     if ind in legacy_locations
       locations_added_per_region[locations_regions_mapping[ind]] += 1
     else
-      locations_count_per_region[locations_regions_mapping[ind]] += 1
+      candidate_locations_count_per_region[locations_regions_mapping[ind]] += 1
     end
   end
 
-  n_total = sum(n)
   ind_incumbent = Vector{Int64}(undef, n_total)
   ind_incumbent[1:length(legacy_locations)] .= legacy_locations
   ind_candidate_list = Vector{Int64}(undef, s)
-  ind_ones = [i for i in 1:L]
+  ind_ones = Vector{Int64}(undef, L)
+  ind_ones .= locations
   filter!(a -> !(a in legacy_locations), ind_ones)
-  ind_compl_incumbent = Dict([(r, Vector{Int64}(undef, locations_count_per_region[r])) for r in regions])
+  ind_compl_incumbent = Dict([(r, Vector{Int64}(undef, candidate_locations_count_per_region[r])) for r in regions])
   regions_start_pointer = 1
   @inbounds for r in regions
-    regions_end_pointer = regions_start_pointer + locations_count_per_region[r]
+    regions_end_pointer = regions_start_pointer + candidate_locations_count_per_region[r]
     ind_compl_incumbent[r] .= ind_ones[regions_start_pointer:(regions_end_pointer-1)]
     regions_start_pointer = regions_end_pointer
   end
 
-  locations_added = 0
+  locations_added = sum(locations_added_per_region)
   @inbounds while locations_added < n_total
-    if sum(locations_added_per_region) < c
+    if locations_added < c
       threshold = locations_added + 1
       obj_candidate = 0
     else
@@ -265,18 +268,22 @@ function randomised_greedy_heuristic_partition(D::Array{Float64,2}, c::Float64, 
       r = sample(regions)
       if locations_added_per_region[r] < n[r] && sample_count_per_region[r] < length(ind_compl_incumbent[r])
         sample_count_per_region[r] += 1
+        sample_count += 1
       end
-      sample_count = sum(sample_count_per_region)
       iter_count += 1
     end
 
-    random_ind_set = Vector{Int64}(undef, 0)
+    sample_start_pointer, sample_end_pointer = 1, 0
     @inbounds for r in regions
-      random_ind_set = union(random_ind_set, sample(ind_compl_incumbent[r], sample_count_per_region[r], replace=false))
+      if sample_count_per_region[r] != 0
+        sample_end_pointer = sample_start_pointer + sample_count_per_region[r]
+        random_ind_set[sample_start_pointer:(sample_end_pointer-1)] .= sample(ind_compl_incumbent[r], sample_count_per_region[r], replace=false)
+        sample_start_pointer = sample_end_pointer
+      end
     end
 
     ind_candidate_pointer = 1
-    @inbounds for ind in random_ind_set
+    @inbounds for ind in view(random_ind_set, 1:(sample_end_pointer-1))
       Dx_tmp .= Dx_incumbent .+ view(D, :, ind)
       y_tmp .= Dx_tmp .>= threshold
       obj_tmp = sum(y_tmp)
@@ -299,8 +306,8 @@ function randomised_greedy_heuristic_partition(D::Array{Float64,2}, c::Float64, 
     obj_incumbent = sum(y_incumbent)
     filter!(a -> a != ind_candidate, ind_compl_incumbent[locations_regions_mapping[ind_candidate]])
   end
-  x_incumbent[ind_incumbent] .= 1.
 
+  x_incumbent[ind_incumbent] .= 1.
   return x_incumbent, obj_incumbent
 end
 
@@ -325,43 +332,47 @@ end
 function greedy_heuristic_partition(D::Array{Float64,2}, c::Float64, n::Vector{Int64}, locations_regions_mapping::Dict{Int64, Int64}, legacy_locations::Vector{Int64})
 
   W, L = size(D)
+  n_total = sum(n)
   Dx_incumbent = zeros(Float64, W)
   @inbounds for ind in legacy_locations
     Dx_incumbent .= Dx_incumbent .+ view(D, :, ind)
   end
   x_incumbent = Vector{Float64}(undef, L)
-  y_incumbent = Vector{Int64}(undef, W)
+  y_incumbent = Vector{Float64}(undef, W)
   obj_incumbent = 0
   Dx_tmp = Vector{Float64}(undef, W)
   y_tmp = Vector{Float64}(undef, W)
 
   R = length(n)
-  regions = [i for i = 1:R]
-  locations_count_per_region, locations_added_per_region = zeros(Int64, R), zeros(Int64, R)
-  @inbounds for ind = 1:L
+  regions = [r for r = 1:R]
+  locations = [l for l = 1:L]
+  candidate_locations_count_per_region, locations_added_per_region = zeros(Int64, R), zeros(Int64, R)
+  @inbounds for ind in locations
     if ind in legacy_locations
       locations_added_per_region[locations_regions_mapping[ind]] += 1
     else
-      locations_count_per_region[locations_regions_mapping[ind]] += 1
+      candidate_locations_count_per_region[locations_regions_mapping[ind]] += 1
     end
   end
 
-  ind_incumbent = Vector{Int64}(undef, sum(n))
+  ind_incumbent = Vector{Int64}(undef, n_total)
   ind_incumbent[1:length(legacy_locations)] .= legacy_locations
   ind_candidate_list = Vector{Int64}(undef, L)
-  ind_ones = [i for i in 1:L]
+  ind_ones = Vector{Int64}(undef, L)
+  ind_ones .= locations
   filter!(a -> !(a in legacy_locations), ind_ones)
-  ind_compl_incumbent = Dict([(r, Vector{Int64}(undef, locations_count_per_region[r])) for r in regions])
+  ind_compl_incumbent = Dict([(r, Vector{Int64}(undef, candidate_locations_count_per_region[r])) for r in regions])
   regions_start_pointer = 1
   @inbounds for r in regions
-    regions_end_pointer = regions_start_pointer + locations_count_per_region[r]
+    regions_end_pointer = regions_start_pointer + candidate_locations_count_per_region[r]
     ind_compl_incumbent[r] .= ind_ones[regions_start_pointer:(regions_end_pointer-1)]
     regions_start_pointer = regions_end_pointer
   end
 
-  @inbounds while sum(locations_added_per_region) < sum(n)
-    if sum(locations_added_per_region) < c
-      threshold = sum(locations_added_per_region) + 1
+  locations_added = sum(locations_added_per_region)
+  @inbounds while locations_added < n_total
+    if locations_added < c
+      threshold = locations_added + 1
       obj_candidate = 0
     else
       threshold = c
@@ -370,6 +381,7 @@ function greedy_heuristic_partition(D::Array{Float64,2}, c::Float64, n::Vector{I
     ind_candidate_pointer = 1
     @inbounds for r in regions
         if locations_added_per_region[r] < n[r]
+          println(r, ind_compl_incumbent[r])
           @inbounds for ind in ind_compl_incumbent[r]
             Dx_tmp .= Dx_incumbent .+ view(D, :, ind)
             y_tmp .= Dx_tmp .>= threshold
@@ -386,13 +398,15 @@ function greedy_heuristic_partition(D::Array{Float64,2}, c::Float64, n::Vector{I
           end
         end
     end
+    println(ind_candidate_list)
     ind_candidate = sample(view(ind_candidate_list, 1:ind_candidate_pointer-1))
     filter!(a -> a != ind_candidate, ind_compl_incumbent[locations_regions_mapping[ind_candidate]])
-    ind_incumbent[sum(locations_added_per_region)+1] = ind_candidate
-    locations_added_per_region[locations_regions_mapping[ind_candidate]] += 1
+    ind_incumbent[locations_added+1] = ind_candidate
     Dx_incumbent .= Dx_incumbent .+ view(D, :, ind_candidate)
     y_incumbent .= Dx_incumbent .>= c
     obj_incumbent = sum(y_incumbent)
+    locations_added_per_region[locations_regions_mapping[ind_candidate]] += 1
+    locations_added += 1
   end
 
   x_incumbent[ind_incumbent] .= 1.

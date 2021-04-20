@@ -16,6 +16,7 @@ import geopy
 
 import logging
 logging.basicConfig(level=logging.INFO, format=f"%(levelname)s %(asctime)s - %(message)s", datefmt='%Y-%m-%d %H:%M:%S')
+logging.disable(logging.CRITICAL)
 logger = logging.getLogger(__name__)
 
 
@@ -536,7 +537,7 @@ def get_partition_index(input_dict):
     return index_dict
 
 
-def init_folder(parameters, c, suffix=None):
+def init_folder(parameters, no_locs, c, suffix=None):
     """Initilize an output folder.
 
     Parameters:
@@ -552,7 +553,7 @@ def init_folder(parameters, c, suffix=None):
     """
     output_data_path = join(parameters['data_path'], 'output')
 
-    no_locs = str(sum(parameters['deployments']))
+    no_locs = str(no_locs)
     no_part = str(len(parameters['regions']))
     no_yrs = str(int(round((to_datetime(parameters['time_slice'][1]) -
                             to_datetime(parameters['time_slice'][0])) / timedelta64(1, 'Y'), 0)))

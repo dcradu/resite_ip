@@ -1,11 +1,11 @@
 # Path to data folder
-data_path: 'D:/ULg_PhD_work/datasets/resite_ip/'
-#data_path: '/data/dcradu/resite_ip/'
+#data_path: 'D:/ULg_PhD_work/datasets/resite_ip/'
+data_path: '/data/dcradu/resite_ip/'
 
 # Spatial resolution (in degrees) of the potential sites.
 spatial_resolution: 0.25
 # Start time and end time of the analysis.
-time_slice: ['2011-01-01T00:00', '2020-12-31T23:00']
+time_slice: ['2018-01-01T00:00', '2020-12-31T23:00']
 # Technologies to deploy.
 regions: ['GB', 'NL', 'FR', 'DE', 'DK', 'NO', 'PL', 'IE', 'IT', 'SE', 'FI', 'ES', 'GR', 'PT', 'BE', 'LT', 'LV', 'EE', 'HR']
 technologies: ['wind_offshore']
@@ -14,7 +14,7 @@ deployments: [[80], [60], [57], [36], [35], [30], [28], [22], [20], [20], [15], 
 siting_params:
   # Defines how \alpha is considered in space and time.
   alpha:
-    method: 'load' # 'load'
+    method: 'load' # 'potentials'
     coverage: 'system' # 'partition'
     smoothing: 'mean' # 'median'
     norm: 'min' # 'max'
@@ -32,14 +32,14 @@ siting_params:
       initial_temp: 100.
       p: 0.1
       no_runs: 100
-      no_runs_init: 100
+      no_runs_init: 50
       algorithm: 'SGH' # 'MIR', 'SGH'
     SGH:
       set: False
       p: 0.1
-      no_runs: 100
+      no_runs: 200
       algorithm: 'SGH'
     DGH:
       set: False
-      no_runs: 6
+      no_runs: 10
       algorithm: 'DGH'
