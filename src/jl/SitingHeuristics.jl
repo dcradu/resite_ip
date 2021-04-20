@@ -45,7 +45,7 @@ function main_SA(index_dict, deployment_dict, legacy_index_list,
                                                                                index_dict, legacy_index_list)
     end
     LB_init_alg_best = argmax(LB_init_alg)
-    x_init = round.(value.(x_init_alg[LB_init_alg_best, :]))
+    x_init = round.(x_init_alg[LB_init_alg_best, :])
 
   else
     println("No such algorithm available.")

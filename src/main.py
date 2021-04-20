@@ -3,6 +3,7 @@ import julia
 from os.path import join
 from numpy import argmax, ceil
 import argparse
+import pickle
 
 from helpers import read_inputs, init_folder, xarray_to_ndarray, generate_jl_input, \
     get_potential_per_site, capacity_to_cardinality
@@ -11,7 +12,9 @@ from tools import read_database, return_filtered_coordinates, selected_data, ret
 
 import logging
 logging.basicConfig(level=logging.INFO, format=f"%(levelname)s %(asctime)s - %(message)s", datefmt='%Y-%m-%d %H:%M:%S')
+logging.disable(logging.CRITICAL)
 logger = logging.getLogger(__name__)
+
 
 def parse_args():
 
@@ -22,6 +25,10 @@ def parse_args():
     parser.add_argument('--run_SGH', type=bool, default=False)
     parser.add_argument('--run_LS', type=bool, default=False)
     parser.add_argument('--LS_init_algorithm', type=str, default=None)
+    parser.add_argument('--alpha_method', type=str, default=None)
+    parser.add_argument('--alpha_coverage', type=str, default=None)
+    parser.add_argument('--alpha_norm', type=str, default=None)
+    parser.add_argument('--delta', type=int, default=None)
 
     parsed_args = vars(parser.parse_args())
 
@@ -46,6 +53,10 @@ if __name__ == '__main__':
     siting_parameters = model_parameters['siting_params']
     tech_parameters = read_inputs('../config_techs.yml')
 
+    siting_parameters['alpha']['method'] = args['alpha_method']
+    siting_parameters['alpha']['coverage'] = args['alpha_coverage']
+    siting_parameters['alpha']['norm'] = args['alpha_norm']
+    siting_parameters['delta'] = int(args['delta'])
     siting_parameters['c'] = args['c']
     siting_parameters['solution_method']['SA']['set'] = args['run_LS']
     siting_parameters['solution_method']['SA']['algorithm'] = args['LS_init_algorithm']
@@ -71,8 +82,8 @@ if __name__ == '__main__':
                                                                  deployment_dict, model_parameters))
 
     jl_dict = generate_jl_input(deployment_dict, site_coordinates, site_positions, legacy_coordinates)
-    c = int(ceil(siting_parameters['c'] * sum(deployment_dict[r][t] for r in deployment_dict.keys()
-                                                                    for t in deployment_dict[r].keys())))
+    total_no_locs = sum(deployment_dict[r][t] for r in deployment_dict.keys() for t in deployment_dict[r].keys())
+    c = int(ceil(siting_parameters['c'] * total_no_locs))
 
     logger.info('Data pre-processing finished. Opening Julia instance.')
     j = julia.Julia(compiled_modules=False)
@@ -84,16 +95,18 @@ if __name__ == '__main__':
         params = siting_parameters['solution_method']['SA']
         logger.info(f"{params['algorithm']}_SA chosen to solve the IP.")
 
-        jl_sel, jl_obj, _ = Main.main_SA(jl_dict['index_dict'],
-                                         jl_dict['deployment_dict'],
-                                         jl_dict['legacy_site_list'],
-                                         criticality_data, c,
-                                         params['neighborhood'], params['initial_temp'], params['p'],
-                                         params['no_iterations'], params['no_epochs'],
-                                         params['no_runs'], params['no_runs_init'],
-                                         params['algorithm'])
+        jl_sel, jl_obj, jl_tra = Main.main_SA(jl_dict['index_dict'],
+                                             jl_dict['deployment_dict'],
+                                             jl_dict['legacy_site_list'],
+                                             criticality_data, c,
+                                             params['neighborhood'], params['initial_temp'], params['p'],
+                                             params['no_iterations'], params['no_epochs'],
+                                             params['no_runs'], params['no_runs_init'],
+                                             params['algorithm'])
 
-        output_folder = init_folder(model_parameters, c, suffix=f"_SA_{params['algorithm']}")
+        output_folder = init_folder(model_parameters, total_no_locs, c,
+                                    suffix=f"_SA_{params['algorithm']}_{args['alpha_method']}_{args['alpha_coverage']}"
+                                    f"_{args['alpha_norm']}_d{args['delta']}")
 
     elif siting_parameters['solution_method']['SGH']['set']:
 
@@ -106,7 +119,9 @@ if __name__ == '__main__':
                                        criticality_data, c,
                                        params['p'], params['no_runs'], params['algorithm'])
 
-        output_folder = init_folder(model_parameters, c, suffix="_SGH")
+        output_folder = init_folder(model_parameters, total_no_locs, c,
+                                    suffix=f"_SGH_{args['alpha_method']}_{args['alpha_coverage']}"
+                                    f"_{args['alpha_norm']}_d{args['delta']}")
 
     elif siting_parameters['solution_method']['DGH']['set']:
 
@@ -119,7 +134,9 @@ if __name__ == '__main__':
                                        criticality_data, c,
                                        params['no_runs'], params['algorithm'])
 
-        output_folder = init_folder(model_parameters, c, suffix="_DGH")
+        output_folder = init_folder(model_parameters, total_no_locs, c,
+                                    suffix=f"_DGH_{args['alpha_method']}_{args['alpha_coverage']}"
+                                    f"_{args['alpha_norm']}_d{args['delta']}")
 
     else:
         raise ValueError(' This solution method is not available.')
@@ -137,5 +154,12 @@ if __name__ == '__main__':
     locations_dict = retrieve_location_dict(jl_locations_vector, model_parameters, site_positions)
     retrieve_site_data(model_parameters, capacity_factors_data, criticality_data, deployment_dict,
                        site_positions, locations_dict, legacy_coordinates, output_folder, benchmark='PROD')
+
+    pickle.dump(jl_obj, open(join(output_folder, 'solution_matrix.p'), 'wb'))
+    pickle.dump(jl_sel, open(join(output_folder, 'objective_vector.p'), 'wb'))
+    try:
+        pickle.dump(jl_tra, open(join(output_folder, 'solution_matrix.p'), 'wb'))
+    except NameError:
+        pass
 
     logger.info(f"Results written to {output_folder}")
