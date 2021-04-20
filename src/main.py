@@ -35,17 +35,9 @@ def parse_args():
     return parsed_args
 
 
-def single_true(iterable):
-    i = iter(iterable)
-    return any(i) and not any(i)
-
-
 if __name__ == '__main__':
 
     args = parse_args()
-
-    if not single_true([args['run_LS'], args['run_DGH'], args['run_SGH']]):
-        raise ValueError(' More than one run selected in the argparser.')
 
     logger.info('Starting data pre-processing.')
 
