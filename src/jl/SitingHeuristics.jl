@@ -39,7 +39,7 @@ function main_SA(index_dict, deployment_dict, legacy_index_list,
     x_init_alg, LB_init_alg = Array{Float64, 2}(undef, R_init, L), Array{Float64, 1}(undef, R_init)
     for r = 1:R_init
       if (div(r, 10) > 0) & (mod(r, 10) == 0)
-        @info "$(Dates.format(now(), "HH:MM:SS")) Run $(r)/$(R) of $(init_sol_algorithm)"
+        @info "$(Dates.format(now(), "HH:MM:SS")) Run $(r)/$(R_init) of $(init_sol_algorithm)"
       end
       x_init_alg[r, :], LB_init_alg[r] = randomised_greedy_heuristic_partition(D, c, n_partitions, p,
                                                                                index_dict, legacy_index_list)

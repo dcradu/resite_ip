@@ -73,11 +73,27 @@ if __name__ == '__main__':
     criticality_data = xarray_to_ndarray(critical_window_mapping(time_windows_data, site_potential_data,
                                                                  deployment_dict, model_parameters))
 
+    # deployment_dict = pickle.load(open(join(data_path, 'input/test/deployment_dict.p'), 'rb'))
+    # criticality_data = pickle.load(open(join(data_path, 'input/test/criticality_matrix.p'), 'rb'))
+    # site_coordinates = pickle.load(open(join(data_path, 'input/test/site_coordinates.p'), 'rb'))
+    # legacy_coordinates = pickle.load(open(join(data_path, 'input/test/legacy_coordinates.p'), 'rb'))
+    # site_positions = pickle.load(open(join(data_path, 'input/test/site_positions.p'), 'rb'))
+
     jl_dict = generate_jl_input(deployment_dict, site_coordinates, site_positions, legacy_coordinates)
     total_no_locs = sum(deployment_dict[r][t] for r in deployment_dict.keys() for t in deployment_dict[r].keys())
     c = int(ceil(siting_parameters['c'] * total_no_locs))
 
+    pickle.dump(deployment_dict, open(join(data_path, 'input/test/deployment_dict.p'), 'wb'), protocol=4)
+    pickle.dump(criticality_data, open(join(data_path, 'input/test/criticality_matrix.p'), 'wb'), protocol=4)
+    pickle.dump(site_coordinates, open(join(data_path, 'input/test/site_coordinates.p'), 'wb'), protocol=4)
+    pickle.dump(legacy_coordinates, open(join(data_path, 'input/test/legacy_coordinates.p'), 'wb'), protocol=4)
+    pickle.dump(site_positions, open(join(data_path, 'input/test/site_positions.p'), 'wb'), protocol=4)
+
+    import sys
+    sys.exit()
+
     logger.info('Data pre-processing finished. Opening Julia instance.')
+
     j = julia.Julia(compiled_modules=False)
     from julia import Main
     Main.include("jl/SitingHeuristics.jl")
@@ -143,9 +159,9 @@ if __name__ == '__main__':
     jl_objective_pick = argmax(jl_obj)
     jl_locations_vector = jl_sel[jl_objective_pick, :]
 
-    locations_dict = retrieve_location_dict(jl_locations_vector, model_parameters, site_positions)
-    retrieve_site_data(model_parameters, capacity_factors_data, criticality_data, deployment_dict,
-                       site_positions, locations_dict, legacy_coordinates, output_folder, benchmark='PROD')
+    # locations_dict = retrieve_location_dict(jl_locations_vector, model_parameters, site_positions)
+    # retrieve_site_data(model_parameters, capacity_factors_data, criticality_data, deployment_dict,
+    #                    site_positions, locations_dict, legacy_coordinates, output_folder, benchmark='PROD')
 
     pickle.dump(jl_sel, open(join(output_folder, 'solution_matrix.p'), 'wb'))
     pickle.dump(jl_obj, open(join(output_folder, 'objective_vector.p'), 'wb'))

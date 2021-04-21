@@ -126,8 +126,10 @@ function simulated_annealing_local_search_partition(D::Array{Float64, 2}, c::Flo
       end
 
       # Compute y and associated objective value
+      Dx_tmp .= Dx_incumbent
       @inbounds for j in component_updates
-        Dx_tmp .= Dx_incumbent .+ view(D, :, ind_zeros2ones_tmp[j]) .- view(D, :, ind_ones2zeros_tmp[j])
+        Dx_tmp .+= view(D, :, ind_zeros2ones_tmp[j])
+        Dx_tmp .-= view(D, :, ind_ones2zeros_tmp[j])
       end
       y_tmp .= Dx_tmp .>= c
 
