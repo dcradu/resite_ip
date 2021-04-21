@@ -147,10 +147,10 @@ if __name__ == '__main__':
     retrieve_site_data(model_parameters, capacity_factors_data, criticality_data, deployment_dict,
                        site_positions, locations_dict, legacy_coordinates, output_folder, benchmark='PROD')
 
-    pickle.dump(jl_obj, open(join(output_folder, 'solution_matrix.p'), 'wb'))
-    pickle.dump(jl_sel, open(join(output_folder, 'objective_vector.p'), 'wb'))
+    pickle.dump(jl_sel, open(join(output_folder, 'solution_matrix.p'), 'wb'))
+    pickle.dump(jl_obj, open(join(output_folder, 'objective_vector.p'), 'wb'))
     try:
-        pickle.dump(jl_tra, open(join(output_folder, 'solution_matrix.p'), 'wb'))
+        pickle.dump(jl_tra, open(join(output_folder, 'trajectory_matrix.p'), 'wb'))
     except NameError:
         pass
 

@@ -381,7 +381,6 @@ function greedy_heuristic_partition(D::Array{Float64,2}, c::Float64, n::Vector{I
     ind_candidate_pointer = 1
     @inbounds for r in regions
         if locations_added_per_region[r] < n[r]
-          println(r, ind_compl_incumbent[r])
           @inbounds for ind in ind_compl_incumbent[r]
             Dx_tmp .= Dx_incumbent .+ view(D, :, ind)
             y_tmp .= Dx_tmp .>= threshold
@@ -398,7 +397,6 @@ function greedy_heuristic_partition(D::Array{Float64,2}, c::Float64, n::Vector{I
           end
         end
     end
-    println(ind_candidate_list)
     ind_candidate = sample(view(ind_candidate_list, 1:ind_candidate_pointer-1))
     filter!(a -> a != ind_candidate, ind_compl_incumbent[locations_regions_mapping[ind_candidate]])
     ind_incumbent[locations_added+1] = ind_candidate

@@ -38,7 +38,7 @@ function main_SA(index_dict, deployment_dict, legacy_index_list,
   elseif init_sol_algorithm == "SGH"
     x_init_alg, LB_init_alg = Array{Float64, 2}(undef, R_init, L), Array{Float64, 1}(undef, R_init)
     for r = 1:R_init
-      if (div(r, 5) > 0) & (mod(r, 5) == 0)
+      if (div(r, 10) > 0) & (mod(r, 10) == 0)
         @info "$(Dates.format(now(), "HH:MM:SS")) Run $(r)/$(R) of $(init_sol_algorithm)"
       end
       x_init_alg[r, :], LB_init_alg[r] = randomised_greedy_heuristic_partition(D, c, n_partitions, p,
@@ -54,7 +54,7 @@ function main_SA(index_dict, deployment_dict, legacy_index_list,
 
   println("Initial solution retrieved. Starting local search.")
   for r = 1:R
-    if (div(r, 5) > 0) & (mod(r, 5) == 0)
+    if (div(r, 10) > 0) & (mod(r, 10) == 0)
       @info "$(Dates.format(now(), "HH:MM:SS")) Run $(r)/$(R) of LS"
     end
     x_sol[r, :], LB_sol[r], obj_sol[r, :] = simulated_annealing_local_search_partition(D, c, n_partitions,
@@ -88,7 +88,7 @@ function main_SGH(index_dict, deployment_dict, legacy_index_list,
   if algorithm == "SGH"
     x_sol, LB_sol = Array{Float64, 2}(undef, R, L), Array{Float64, 1}(undef, R)
     for r = 1:R
-      if (div(r, 5) > 0) & (mod(r, 5) == 0)
+      if (div(r, 10) > 0) & (mod(r, 10) == 0)
         @info "$(Dates.format(now(), "HH:MM:SS")) Run $(r)/$(R)"
       end
       x_sol[r, :], LB_sol[r] = randomised_greedy_heuristic_partition(D, c, n_partitions, p,
