@@ -112,8 +112,8 @@ function simulated_annealing_local_search_partition(D::Array{Float64, 2}, c::Flo
         r = sample(regions)
         if (sample_count_per_region_tmp[r] < n[r] - legacy_locations_count_per_region[r]) && (sample_count_per_region_tmp[r] < locations_count_per_region[r] - n[r])
           sample_count_per_region_tmp[r] += 1
+          sample_count += 1
         end
-        sample_count = sum(sample_count_per_region_tmp)
       end
 
       ind_samples_per_region_tmp[1] = 1
@@ -157,7 +157,8 @@ function simulated_annealing_local_search_partition(D::Array{Float64, 2}, c::Flo
         end
       end
       @inbounds for j in component_updates
-        Dx_incumbent .= Dx_incumbent .+ view(D, :, ind_zeros2ones_tmp[j]) .- view(D, :, ind_ones2zeros_tmp[j])
+        Dx_incumbent .+= view(D, :, ind_zeros2ones_candidate[j])
+        Dx_incumbent .-= view(D, :, ind_ones2zeros_candidate[j])
       end
       y_incumbent .= Dx_incumbent .>= c
     else
@@ -177,11 +178,12 @@ function simulated_annealing_local_search_partition(D::Array{Float64, 2}, c::Flo
           end
         end
         @inbounds for j in component_updates
-          Dx_incumbent .= Dx_incumbent .+ view(D, :, ind_zeros2ones_tmp[j]) .- view(D, :, ind_ones2zeros_tmp[j])
+          Dx_incumbent .+= view(D, :, ind_zeros2ones_candidate[j])
+          Dx_incumbent .-= view(D, :, ind_ones2zeros_candidate[j])
         end
         y_incumbent .= Dx_incumbent .>= c
       end
-    end
+     end
   end
   @inbounds for r in regions
     x_incumbent[ind_ones_incumbent[r]] .= 1.
@@ -220,7 +222,7 @@ function randomised_greedy_heuristic_partition(D::Array{Float64,2}, c::Float64, 
   @inbounds for ind in legacy_locations
     Dx_incumbent .= Dx_incumbent .+ view(D, :, ind)
   end
-  x_incumbent = Vector{Float64}(undef, L)
+  x_incumbent = zeros(Float64, L)
   y_incumbent = Vector{Float64}(undef, W)
   obj_incumbent = 0
   Dx_tmp = Vector{Float64}(undef, W)
@@ -339,7 +341,7 @@ function greedy_heuristic_partition(D::Array{Float64,2}, c::Float64, n::Vector{I
   @inbounds for ind in legacy_locations
     Dx_incumbent .= Dx_incumbent .+ view(D, :, ind)
   end
-  x_incumbent = Vector{Float64}(undef, L)
+  x_incumbent = zeros(Float64, L)
   y_incumbent = Vector{Float64}(undef, W)
   obj_incumbent = 0
   Dx_tmp = Vector{Float64}(undef, W)

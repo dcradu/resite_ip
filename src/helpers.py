@@ -6,7 +6,7 @@ import pycountry as pyc
 import xarray as xr
 import yaml
 from geopandas import read_file, GeoSeries
-from numpy import hstack, arange, dtype, array, timedelta64, nan, sum, deg2rad, sin, cos, arccos, ceil
+from numpy import hstack, arange, dtype, array, timedelta64, nan, sum, deg2rad, sin, cos, arccos, ceil, int64
 from pandas import read_csv, to_datetime, Series, notnull, MultiIndex
 from shapely import prepared
 from shapely.geometry import Point
@@ -596,9 +596,9 @@ def generate_jl_input(deployment_dict, filtered_coordinates, site_positions, leg
     for key, value in index_dict_swap.items():
         index_dict_swap[key] = int_to_region_map[value]
 
-    output_dict = {'deployment_dict': deployment_dict_int,
-                   'index_dict': index_dict_swap,
-                   'legacy_site_list': array(sorted(legacy_sites_index))}
+    output_dict = {'deployment_dict': {int64(k): int64(v) for k, v in deployment_dict_int.items()},
+                   'index_dict': {int64(k): int64(v) for k, v in index_dict_swap.items()},
+                   'legacy_site_list': array(sorted(legacy_sites_index)).astype('int64')}
 
     return output_dict
 

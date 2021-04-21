@@ -1,6 +1,6 @@
 # Path to data folder
-#data_path: 'D:/ULg_PhD_work/datasets/resite_ip/'
-data_path: '/data/dcradu/resite_ip/'
+data_path: 'D:/ULg_PhD_work/datasets/resite_ip/'
+#data_path: '/data/dcradu/resite_ip/'
 
 # Spatial resolution (in degrees) of the potential sites.
 spatial_resolution: 0.25
@@ -27,12 +27,12 @@ siting_params:
     SA:
       set: True
       neighborhood: 1
-      no_iterations: 500
+      no_iterations: 20
       no_epochs: 500
       initial_temp: 100.
       p: 0.1
       no_runs: 10
-      no_runs_init: 100
+      no_runs_init: 10
       algorithm: 'SGH' # 'MIR', 'SGH'
     SGH:
       set: False

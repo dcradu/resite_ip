@@ -1,7 +1,7 @@
 import yaml
 import julia
 from os.path import join
-from numpy import argmax, ceil
+from numpy import argmax, ceil, float64
 import argparse
 import pickle
 
@@ -73,24 +73,9 @@ if __name__ == '__main__':
     criticality_data = xarray_to_ndarray(critical_window_mapping(time_windows_data, site_potential_data,
                                                                  deployment_dict, model_parameters))
 
-    # deployment_dict = pickle.load(open(join(data_path, 'input/test/deployment_dict.p'), 'rb'))
-    # criticality_data = pickle.load(open(join(data_path, 'input/test/criticality_matrix.p'), 'rb'))
-    # site_coordinates = pickle.load(open(join(data_path, 'input/test/site_coordinates.p'), 'rb'))
-    # legacy_coordinates = pickle.load(open(join(data_path, 'input/test/legacy_coordinates.p'), 'rb'))
-    # site_positions = pickle.load(open(join(data_path, 'input/test/site_positions.p'), 'rb'))
-
     jl_dict = generate_jl_input(deployment_dict, site_coordinates, site_positions, legacy_coordinates)
     total_no_locs = sum(deployment_dict[r][t] for r in deployment_dict.keys() for t in deployment_dict[r].keys())
     c = int(ceil(siting_parameters['c'] * total_no_locs))
-
-    pickle.dump(deployment_dict, open(join(data_path, 'input/test/deployment_dict.p'), 'wb'), protocol=4)
-    pickle.dump(criticality_data, open(join(data_path, 'input/test/criticality_matrix.p'), 'wb'), protocol=4)
-    pickle.dump(site_coordinates, open(join(data_path, 'input/test/site_coordinates.p'), 'wb'), protocol=4)
-    pickle.dump(legacy_coordinates, open(join(data_path, 'input/test/legacy_coordinates.p'), 'wb'), protocol=4)
-    pickle.dump(site_positions, open(join(data_path, 'input/test/site_positions.p'), 'wb'), protocol=4)
-
-    import sys
-    sys.exit()
 
     logger.info('Data pre-processing finished. Opening Julia instance.')
 
@@ -106,7 +91,7 @@ if __name__ == '__main__':
         jl_sel, jl_obj, jl_tra = Main.main_SA(jl_dict['index_dict'],
                                              jl_dict['deployment_dict'],
                                              jl_dict['legacy_site_list'],
-                                             criticality_data, c,
+                                             criticality_data.astype('float64'), float64(c),
                                              params['neighborhood'], params['initial_temp'], params['p'],
                                              params['no_iterations'], params['no_epochs'],
                                              params['no_runs'], params['no_runs_init'],
@@ -124,7 +109,7 @@ if __name__ == '__main__':
         jl_sel, jl_obj = Main.main_SGH(jl_dict['index_dict'],
                                        jl_dict['deployment_dict'],
                                        jl_dict['legacy_site_list'],
-                                       criticality_data, c,
+                                       criticality_data.astype('float64'), float64(c),
                                        params['p'], params['no_runs'], params['algorithm'])
 
         output_folder = init_folder(model_parameters, total_no_locs, c,
@@ -139,7 +124,7 @@ if __name__ == '__main__':
         jl_sel, jl_obj = Main.main_DGH(jl_dict['index_dict'],
                                        jl_dict['deployment_dict'],
                                        jl_dict['legacy_site_list'],
-                                       criticality_data, c,
+                                       criticality_data.astype('float64'), float64(c),
                                        params['no_runs'], params['algorithm'])
 
         output_folder = init_folder(model_parameters, total_no_locs, c,
@@ -159,9 +144,9 @@ if __name__ == '__main__':
     jl_objective_pick = argmax(jl_obj)
     jl_locations_vector = jl_sel[jl_objective_pick, :]
 
-    # locations_dict = retrieve_location_dict(jl_locations_vector, model_parameters, site_positions)
-    # retrieve_site_data(model_parameters, capacity_factors_data, criticality_data, deployment_dict,
-    #                    site_positions, locations_dict, legacy_coordinates, output_folder, benchmark='PROD')
+    locations_dict = retrieve_location_dict(jl_locations_vector, model_parameters, site_positions)
+    retrieve_site_data(model_parameters, capacity_factors_data, criticality_data, deployment_dict,
+                       site_positions, locations_dict, legacy_coordinates, output_folder, benchmark='PROD')
 
     pickle.dump(jl_sel, open(join(output_folder, 'solution_matrix.p'), 'wb'))
     pickle.dump(jl_obj, open(join(output_folder, 'objective_vector.p'), 'wb'))
