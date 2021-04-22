@@ -24,6 +24,7 @@ def parse_args():
     parser.add_argument('--run_GRED_DET', type=bool, default=False)
     parser.add_argument('--run_GRED_STO', type=bool, default=False)
     parser.add_argument('--run_RAND', type=bool, default=False)
+    parser.add_argument('--run_CROSS', type=bool, default=False)
     parser.add_argument('--LS_init_algorithm', type=str, default=None)
     parser.add_argument('--init_sol_folder', type=str, default=None)
 
@@ -90,6 +91,7 @@ if __name__ == '__main__':
     siting_parameters['solution_method']['BB']['set'] = args['run_BB']
     siting_parameters['solution_method']['BB']['mir'] = args['run_MIR']
     siting_parameters['solution_method']['LS']['set'] = args['run_LS']
+    siting_parameters['solution_method']['CROSS']['set'] = args['run_CROSS']
     siting_parameters['solution_method']['GRED_DET']['set'] = args['run_GRED_DET']
     siting_parameters['solution_method']['GRED_STO']['set'] = args['run_GRED_STO']
     siting_parameters['solution_method']['GRED_STO']['p'] = args['p']
@@ -97,7 +99,8 @@ if __name__ == '__main__':
 
     c = args['c']
 
-    if not single_true([args['run_BB'], args['run_LS'], args['run_GRED_DET'], args['run_GRED_STO'], args['run_RAND']]):
+    if not single_true([args['run_BB'], args['run_LS'], args['run_GRED_DET'], args['run_GRED_STO'],
+                        args['run_RAND'], args['run_CROSS']]):
         raise ValueError(' More than one run selected in the argparser.')
 
     if siting_parameters['solution_method']['BB']['set']:
@@ -231,6 +234,29 @@ if __name__ == '__main__':
 
         pickle.dump(jl_selected, open(join(output_folder, 'solution_matrix.p'), 'wb'))
         pickle.dump(jl_objective, open(join(output_folder, 'objective_vector.p'), 'wb'))
+
+    elif siting_parameters['solution_method']['CROSS']['set']:
+
+        params = siting_parameters['solution_method']['CROSS']
+        custom_log(f" Cross-validation starting. Opening a Julia instance.")
+
+        import julia
+        j = julia.Julia(compiled_modules=False)
+        from julia import Main
+        Main.include("jl/SitingHeuristics.jl")
+
+        obj_train, obj_test, ind_train, ind_test = Main.main_CROSS(criticality_data, c,
+                                                sum(model_parameters['deployments']), params['k'],
+                                                params['no_years'], params['no_years_train'], params['no_years_test'],
+                                                params['no_runs_per_experiment'], params['no_experiments'],
+                                                params['criterion'], params['algorithm'])
+
+        output_folder = init_folder(model_parameters, c, suffix=f"_CROSS_{params['algorithm']}")
+
+        pickle.dump(obj_train, open(join(output_folder, 'obj_train.p'), 'wb'))
+        pickle.dump(obj_test, open(join(output_folder, 'obj_test.p'), 'wb'))
+        pickle.dump(ind_train, open(join(output_folder, 'ind_train.p'), 'wb'))
+        pickle.dump(ind_test, open(join(output_folder, 'ind_test.p'), 'wb'))
 
     else:
         raise ValueError(' This solution method is not available. ')

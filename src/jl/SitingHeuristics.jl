@@ -4,6 +4,7 @@ using Random
 
 include("optimisation_models.jl")
 include("MCP_heuristics.jl")
+include("cross_validation_tools.jl")
 
 pickle = pyimport("pickle")
 
@@ -151,5 +152,29 @@ function main_RAND(deployment_dict, D, c, I, R, run)
   end
 
   return x_sol, LB_sol
+
+end
+
+function main_CROSS(D, c, n, k, number_years, number_years_training, number_years_testing, number_experiments, number_runs_per_experiment, criterion, cross_validation_method)
+
+  D = convert.(Float64, D)
+  c = convert(Float64, c)
+  n = convert(Int64, n)
+  k = convert(Int64, k)
+  number_years = convert(Int64, number_years)
+  number_years_training = convert(Int64, number_years_training)
+  number_years_testing = convert(Int64, number_years_testing)
+  number_experiments = convert(Int64, number_experiments)
+  number_runs_per_experiment = convert(Int64, number_runs_per_experiment)
+  criterion = convert(String, criterion)
+  cross_validation_method = convert(String, cross_validation_method)
+
+  if cross_validation_method == "custom"
+      obj_training, obj_testing, ind_training, ind_testing = custom_cross_validation(D, c, n, number_years, number_years_training, number_years_testing, number_experiments, number_runs_per_experiment, criterion);
+  elseif cross_validation_method == "k_fold"
+      obj_training, obj_testing, ind_training, ind_testing = k_fold_cross_validation(D, c, n, k, number_years, number_runs_per_experiment, criterion);
+  end
+
+  return obj_training, obj_testing, ind_training, ind_testing
 
 end
