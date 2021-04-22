@@ -83,56 +83,21 @@ if __name__ == '__main__':
     from julia import Main
     Main.include("jl/SitingHeuristics.jl")
 
-    if siting_parameters['solution_method']['SA']['set']:
+    params = siting_parameters['solution_method']['SA']
+    logger.info(f"{params['algorithm']}_SA chosen to solve the IP.")
 
-        params = siting_parameters['solution_method']['SA']
-        logger.info(f"{params['algorithm']}_SA chosen to solve the IP.")
+    jl_sel, jl_obj, jl_tra = Main.main_SA(jl_dict['index_dict'],
+                                         jl_dict['deployment_dict'],
+                                         jl_dict['legacy_site_list'],
+                                         criticality_data.astype('float64'), float64(c),
+                                         params['neighborhood'], params['initial_temp'], params['p'],
+                                         params['no_iterations'], params['no_epochs'],
+                                         params['no_runs'], params['no_runs_init'],
+                                         params['algorithm'])
 
-        jl_sel, jl_obj, jl_tra = Main.main_SA(jl_dict['index_dict'],
-                                             jl_dict['deployment_dict'],
-                                             jl_dict['legacy_site_list'],
-                                             criticality_data.astype('float64'), float64(c),
-                                             params['neighborhood'], params['initial_temp'], params['p'],
-                                             params['no_iterations'], params['no_epochs'],
-                                             params['no_runs'], params['no_runs_init'],
-                                             params['algorithm'])
-
-        output_folder = init_folder(model_parameters, total_no_locs, c,
-                                    suffix=f"_SA_{params['algorithm']}_{args['alpha_method']}_{args['alpha_coverage']}"
-                                    f"_{args['alpha_norm']}_d{args['delta']}")
-
-    elif siting_parameters['solution_method']['SGH']['set']:
-
-        params = siting_parameters['solution_method']['SGH']
-        logger.info('Stochastic greedy heuristic chosen to solve the IP.')
-
-        jl_sel, jl_obj = Main.main_SGH(jl_dict['index_dict'],
-                                       jl_dict['deployment_dict'],
-                                       jl_dict['legacy_site_list'],
-                                       criticality_data.astype('float64'), float64(c),
-                                       params['p'], params['no_runs'], params['algorithm'])
-
-        output_folder = init_folder(model_parameters, total_no_locs, c,
-                                    suffix=f"_SGH_{args['alpha_method']}_{args['alpha_coverage']}"
-                                    f"_{args['alpha_norm']}_d{args['delta']}")
-
-    elif siting_parameters['solution_method']['DGH']['set']:
-
-        params = siting_parameters['solution_method']['DGH']
-        logger.info('Deterministic greedy heuristic chosen to solve the IP.')
-
-        jl_sel, jl_obj = Main.main_DGH(jl_dict['index_dict'],
-                                       jl_dict['deployment_dict'],
-                                       jl_dict['legacy_site_list'],
-                                       criticality_data.astype('float64'), float64(c),
-                                       params['no_runs'], params['algorithm'])
-
-        output_folder = init_folder(model_parameters, total_no_locs, c,
-                                    suffix=f"_DGH_{args['alpha_method']}_{args['alpha_coverage']}"
-                                    f"_{args['alpha_norm']}_d{args['delta']}")
-
-    else:
-        raise ValueError(' This solution method is not available.')
+    output_folder = init_folder(model_parameters, total_no_locs, c,
+                                suffix=f"_SA_{params['algorithm']}_{args['alpha_method']}_{args['alpha_coverage']}"
+                                f"_{args['alpha_norm']}_d{args['delta']}")
 
     with open(join(output_folder, 'config_model.yaml'), 'w') as outfile:
         yaml.dump(model_parameters, outfile, default_flow_style=False, sort_keys=False)

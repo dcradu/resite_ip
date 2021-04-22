@@ -34,12 +34,3 @@ siting_params:
       no_runs: 100
       no_runs_init: 100
       algorithm: 'SGH' # 'MIR', 'SGH'
-    SGH:
-      set: False
-      p: 0.1
-      no_runs: 100
-      algorithm: 'SGH'
-    DGH:
-      set: False
-      no_runs: 10
-      algorithm: 'DGH'
