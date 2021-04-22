@@ -25,7 +25,6 @@ siting_params:
   # Solution method: BB or HEU or RAND or GRED.
   solution_method:
     SA:
-      set: True
       neighborhood: 1
       no_iterations: 2000
       no_epochs: 500

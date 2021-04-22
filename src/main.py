@@ -21,9 +21,6 @@ def parse_args():
     parser = argparse.ArgumentParser(description='Command line arguments.')
 
     parser.add_argument('--c', type=float)
-    parser.add_argument('--run_DGH', type=bool, default=False)
-    parser.add_argument('--run_SGH', type=bool, default=False)
-    parser.add_argument('--run_LS', type=bool, default=False)
     parser.add_argument('--LS_init_algorithm', type=str, default=None)
     parser.add_argument('--alpha_method', type=str, default=None)
     parser.add_argument('--alpha_coverage', type=str, default=None)
@@ -50,10 +47,7 @@ if __name__ == '__main__':
     siting_parameters['alpha']['norm'] = args['alpha_norm']
     siting_parameters['delta'] = int(args['delta'])
     siting_parameters['c'] = args['c']
-    siting_parameters['solution_method']['SA']['set'] = args['run_LS']
     siting_parameters['solution_method']['SA']['algorithm'] = args['LS_init_algorithm']
-    siting_parameters['solution_method']['DGH']['set'] = args['run_DGH']
-    siting_parameters['solution_method']['SGH']['set'] = args['run_SGH']
 
     data_path = model_parameters['data_path']
     spatial_resolution = model_parameters['spatial_resolution']
