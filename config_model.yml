@@ -27,12 +27,12 @@ siting_params:
     SA:
       set: True
       neighborhood: 1
-      no_iterations: 20
+      no_iterations: 2000
       no_epochs: 500
       initial_temp: 100.
       p: 0.1
-      no_runs: 10
-      no_runs_init: 10
+      no_runs: 100
+      no_runs_init: 100
       algorithm: 'SGH' # 'MIR', 'SGH'
     SGH:
       set: False
