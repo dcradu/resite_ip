@@ -1,6 +1,6 @@
 import yaml
 import julia
-from os.path import join
+from os.path import join, isfile
 from numpy import argmax, ceil, float64
 import argparse
 import pickle
@@ -54,16 +54,29 @@ if __name__ == '__main__':
     time_horizon = model_parameters['time_slice']
 
     database = read_database(data_path, spatial_resolution)
-    site_coordinates, legacy_coordinates = return_filtered_coordinates(database, model_parameters, tech_parameters)
-    truncated_data = selected_data(database, site_coordinates, time_horizon)
-    capacity_factors_data = return_output(truncated_data, data_path)
+
+    if isfile(join(data_path, 'input/capacity_factors_data.p')):
+
+        capacity_factors_data = pickle.load(open(join(data_path, 'input/capacity_factors_data_partitioned.p'), 'rb'))
+        site_coordinates = pickle.load(open(join(data_path, 'input/site_coordinates_partitioned.p'), 'rb'))
+        legacy_coordinates = pickle.load(open(join(data_path, 'input/legacy_coordinates_partitioned.p'), 'rb'))
+        logger.info('Input files written to disk.')
+
+    else:
+
+        site_coordinates, legacy_coordinates = return_filtered_coordinates(database, model_parameters, tech_parameters)
+        truncated_data = selected_data(database, site_coordinates, time_horizon)
+        capacity_factors_data = return_output(truncated_data, data_path)
+
+        pickle.dump(capacity_factors_data, open(join(data_path, 'input/capacity_factors_data_partitioned.p'), 'wb'), protocol=4)
+        pickle.dump(site_coordinates, open(join(data_path, 'input/site_coordinates_partitioned.p'), 'wb'), protocol=4)
+        pickle.dump(legacy_coordinates, open(join(data_path, 'input/legacy_coordinates_partitioned.p'), 'wb'), protocol=4)
+
     time_windows_data = resource_quality_mapping(capacity_factors_data, siting_parameters)
     site_positions = sites_position_mapping(time_windows_data)
-
-    deployment_dict = capacity_to_cardinality(database, model_parameters, tech_parameters,
-                                              site_coordinates, legacy_coordinates)
+    deployment_dict = capacity_to_cardinality(database, model_parameters, tech_parameters, site_coordinates,
+                                              legacy_coordinates)
     site_potential_data = get_potential_per_site(time_windows_data, tech_parameters, spatial_resolution)
-
     criticality_data = xarray_to_ndarray(critical_window_mapping(time_windows_data, site_potential_data,
                                                                  deployment_dict, model_parameters))
 
