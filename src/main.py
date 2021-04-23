@@ -21,7 +21,6 @@ def parse_args():
     parser = argparse.ArgumentParser(description='Command line arguments.')
 
     parser.add_argument('--c', type=float)
-    parser.add_argument('--LS_init_algorithm', type=str, default=None)
     parser.add_argument('--alpha_method', type=str, default=None)
     parser.add_argument('--alpha_coverage', type=str, default=None)
     parser.add_argument('--alpha_norm', type=str, default=None)
@@ -47,7 +46,6 @@ if __name__ == '__main__':
     siting_parameters['alpha']['norm'] = args['alpha_norm']
     siting_parameters['delta'] = int(args['delta'])
     siting_parameters['c'] = args['c']
-    siting_parameters['solution_method']['SA']['algorithm'] = args['LS_init_algorithm']
 
     data_path = model_parameters['data_path']
     spatial_resolution = model_parameters['spatial_resolution']
@@ -55,12 +53,12 @@ if __name__ == '__main__':
 
     database = read_database(data_path, spatial_resolution)
 
-    if isfile(join(data_path, 'input/capacity_factors_data.p')):
+    if isfile(join(data_path, 'input/capacity_factors_data_partitioned.p')):
 
         capacity_factors_data = pickle.load(open(join(data_path, 'input/capacity_factors_data_partitioned.p'), 'rb'))
         site_coordinates = pickle.load(open(join(data_path, 'input/site_coordinates_partitioned.p'), 'rb'))
         legacy_coordinates = pickle.load(open(join(data_path, 'input/legacy_coordinates_partitioned.p'), 'rb'))
-        logger.info('Input files written to disk.')
+        logger.info('Input files read from disk.')
 
     else:
 
@@ -68,9 +66,13 @@ if __name__ == '__main__':
         truncated_data = selected_data(database, site_coordinates, time_horizon)
         capacity_factors_data = return_output(truncated_data, data_path)
 
-        pickle.dump(capacity_factors_data, open(join(data_path, 'input/capacity_factors_data_partitioned.p'), 'wb'), protocol=4)
-        pickle.dump(site_coordinates, open(join(data_path, 'input/site_coordinates_partitioned.p'), 'wb'), protocol=4)
-        pickle.dump(legacy_coordinates, open(join(data_path, 'input/legacy_coordinates_partitioned.p'), 'wb'), protocol=4)
+        pickle.dump(capacity_factors_data,
+                    open(join(data_path, 'input/capacity_factors_data_partitioned.p'), 'wb'), protocol=4)
+        pickle.dump(site_coordinates,
+                    open(join(data_path, 'input/site_coordinates_partitioned.p'), 'wb'), protocol=4)
+        pickle.dump(legacy_coordinates,
+                    open(join(data_path, 'input/legacy_coordinates_partitioned.p'), 'wb'), protocol=4)
+        logger.info('Input files written to disk.')
 
     time_windows_data = resource_quality_mapping(capacity_factors_data, siting_parameters)
     site_positions = sites_position_mapping(time_windows_data)
@@ -90,41 +92,43 @@ if __name__ == '__main__':
     from julia import Main
     Main.include("jl/SitingHeuristics.jl")
 
-    params = siting_parameters['solution_method']['SA']
-    logger.info(f"{params['algorithm']}_SA chosen to solve the IP.")
+    params = siting_parameters['solution_method']
 
     jl_sel, jl_obj, jl_tra = Main.main_SA(jl_dict['index_dict'],
-                                         jl_dict['deployment_dict'],
-                                         jl_dict['legacy_site_list'],
-                                         criticality_data.astype('float64'), float64(c),
-                                         params['neighborhood'], params['initial_temp'], params['p'],
-                                         params['no_iterations'], params['no_epochs'],
-                                         params['no_runs'], params['no_runs_init'],
-                                         params['algorithm'])
+                                          jl_dict['deployment_dict'],
+                                          jl_dict['legacy_site_list'],
+                                          criticality_data.astype('float64'), float64(c),
+                                          params['neighborhood'], params['initial_temp'],
+                                          params['no_iterations'], params['no_epochs'], params['no_runs'])
+
+    for r in range(jl_sel.shape[0]):
+        x = jl_sel[r, :]
+        assert sum(x) == total_no_locs, f"Total cardinality in run {r} is {sum(x)} instead of {total_no_locs}."
+        for partition in jl_dict['deployment_dict'].keys():
+            ids = [k-1 for k, v in jl_dict['index_dict'].items() if v == partition]
+            assert sum(x[ids]) == jl_dict['deployment_dict'][partition], \
+                f"Cardinality in {partition} is {sum(x[ids])} instead of {jl_dict['deployment_dict'][partition]}."
 
     output_folder = init_folder(model_parameters, total_no_locs, c,
-                                suffix=f"_SA_{params['algorithm']}_{args['alpha_method']}_{args['alpha_coverage']}"
-                                f"_{args['alpha_norm']}_d{args['delta']}")
+                                suffix=f"_MIRSA_{args['alpha_method']}_{args['alpha_coverage']}"
+                                       f"_{args['alpha_norm']}_d{args['delta']}")
 
     with open(join(output_folder, 'config_model.yaml'), 'w') as outfile:
         yaml.dump(model_parameters, outfile, default_flow_style=False, sort_keys=False)
     with open(join(output_folder, 'config_techs.yaml'), 'w') as outfile:
         yaml.dump(tech_parameters, outfile, default_flow_style=False, sort_keys=False)
 
-    logger.info('Siting heuristics done. Writing results.')
+    logger.info('Siting heuristics done. Writing results to disk.')
 
     jl_objective_pick = argmax(jl_obj)
     jl_locations_vector = jl_sel[jl_objective_pick, :]
 
     locations_dict = retrieve_location_dict(jl_locations_vector, model_parameters, site_positions)
     retrieve_site_data(model_parameters, capacity_factors_data, criticality_data, deployment_dict,
-                       site_positions, locations_dict, legacy_coordinates, output_folder, benchmark='PROD')
+                       site_positions, locations_dict, legacy_coordinates, output_folder, benchmark=None)
 
     pickle.dump(jl_sel, open(join(output_folder, 'solution_matrix.p'), 'wb'))
     pickle.dump(jl_obj, open(join(output_folder, 'objective_vector.p'), 'wb'))
-    try:
-        pickle.dump(jl_tra, open(join(output_folder, 'trajectory_matrix.p'), 'wb'))
-    except NameError:
-        pass
+    pickle.dump(jl_tra, open(join(output_folder, 'trajectory_matrix.p'), 'wb'))
 
     logger.info(f"Results written to {output_folder}")

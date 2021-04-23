@@ -1,11 +1,11 @@
 # Path to data folder
-data_path: 'D:/ULg_PhD_work/datasets/resite_ip/'
-#data_path: '/data/dcradu/resite_ip/'
+#data_path: 'D:/ULg_PhD_work/datasets/resite_ip/'
+data_path: '/data/dcradu/resite_ip/'
 
 # Spatial resolution (in degrees) of the potential sites.
 spatial_resolution: 0.25
 # Start time and end time of the analysis.
-time_slice: ['2018-01-01T00:00', '2020-12-31T23:00']
+time_slice: ['2011-01-01T00:00', '2020-12-31T23:00']
 # Technologies to deploy.
 regions: ['GB', 'NL', 'FR', 'DE', 'DK', 'NO', 'PL', 'IE', 'IT', 'SE', 'FI', 'ES', 'GR', 'PT', 'BE', 'LT', 'LV', 'EE', 'HR']
 technologies: ['wind_offshore']
@@ -24,12 +24,8 @@ siting_params:
   c: 0.1                            # \in [0, 1]
   # Solution method: BB or HEU or RAND or GRED.
   solution_method:
-    SA:
-      neighborhood: 1
-      no_iterations: 2000
-      no_epochs: 500
-      initial_temp: 100.
-      p: 0.1
-      no_runs: 100
-      no_runs_init: 100
-      algorithm: 'SGH' # 'MIR', 'SGH'
+    neighborhood: 1
+    no_iterations: 2000
+    no_epochs: 500
+    initial_temp: 100.
+    no_runs: 50

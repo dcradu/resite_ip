@@ -28,7 +28,7 @@ function solve_MILP_partitioning(D::Array{Float64, 2},
   # Selects solver
   if solver == "Gurobi"
     MILP_model = Model(optimizer_with_attributes(Gurobi.Optimizer,
-                 "TimeLimit" => 7200., "MIPGap" => 0.01, "LogToConsole" => 0))
+                 "TimeLimit" => 7200., "MIPGap" => 0.01, "LogToConsole" => 0, "Threads" => 1))
   else
       println("Please use Gurobi. No other solver currently supported.")
       throw(ArgumentError)

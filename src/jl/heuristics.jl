@@ -37,7 +37,7 @@ function simulated_annealing_local_search_partition(D::Array{Float64, 2}, c::Flo
 
   # Pre-allocate x-related containers
   locations = [l for l in 1:L]
-  x_incumbent = Vector{Float64}(undef, L)
+  x_incumbent = zeros(Float64, L)
   ind_ones2zeros_candidate = Vector{Int64}(undef, N)
   ind_zeros2ones_candidate = Vector{Int64}(undef, N)
   ind_ones2zeros_tmp = Vector{Int64}(undef, N)
@@ -185,6 +185,7 @@ function simulated_annealing_local_search_partition(D::Array{Float64, 2}, c::Flo
       end
      end
   end
+  x_incumbent[legacy_locations] .= 1.
   @inbounds for r in regions
     x_incumbent[ind_ones_incumbent[r]] .= 1.
     x_incumbent[ind_zeros_incumbent[r]] .= 0.
