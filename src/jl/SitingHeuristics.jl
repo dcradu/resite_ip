@@ -21,7 +21,7 @@ function myunpickle(filename)
 
 end
 
-function main_MIRSA(index_dict, deployment_dict, D, c, N, I, E, T_init, R, run, p, data_path)
+function main_MIRSA(index_dict, deployment_dict, D, c, N, I, E, T_init, R, run, p)
 
   index_dict = Dict([(convert(Int64, k), convert(Int64, index_dict[k])) for k in keys(index_dict)])
   deployment_dict = Dict([(convert(Int64, k), convert(Int64, deployment_dict[k])) for k in keys(deployment_dict)])
@@ -34,8 +34,7 @@ function main_MIRSA(index_dict, deployment_dict, D, c, N, I, E, T_init, R, run, 
   T_init = convert(Float64, T_init)
   R = convert(Int64, R)
   run = string(run)
-  p = string(p)
-  data_path = string(data_path)
+  p = convert(Float64, p)
   legacy_index = Vector{Int64}(undef, 0)
 
   W, L = size(D)
@@ -74,16 +73,17 @@ function main_MIRSA(index_dict, deployment_dict, D, c, N, I, E, T_init, R, run, 
 
   elseif run == "SGH"
 
-    x_sol, LB_sol, obj_sol = Array{Float64, 2}(undef, R, L), Array{Float64, 1}(undef, R), Array{Float64, 2}(undef, R, I)
-
-    # Read LB_init from file
-    LB_init = myunpickle(joinpath(data_path, "objective_vector.p"))
-    # Read x_init from file
-    x_init = myunpickle(joinpath(data_path, "solution_matrix.p"))
+    R_init = 10
+    x_init, LB_init = Array{Float64, 2}(undef, R_init, L), Array{Float64, 1}(undef, R_init)
+    for r = 1:R_init
+      x_init[r, :], LB_init[r] = stochastic_threshold_greedy_algorithm(D, c, n, p)
+    end
 
     LB_init_best = argmax(LB_init)
     x_init_best = x_init[LB_init_best, :]
+    println("Initial solution computed. Starting LS.")
 
+    x_sol, LB_sol, obj_sol = Array{Float64, 2}(undef, R, L), Array{Float64, 1}(undef, R), Array{Float64, 2}(undef, R, I)
     for r = 1:R
       x_sol[r, :], LB_sol[r], obj_sol[r, :] = simulated_annealing_local_search(D, c, n, N, I, E, x_init_best, T_init, legacy_index)
     end

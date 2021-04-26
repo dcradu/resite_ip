@@ -37,8 +37,8 @@ siting_params:
       no_iterations: 2000
       no_epochs: 500
       initial_temp: 100.
-      no_runs: 20
-      algorithm: 'MIR' # 'SGH', 'RS'
+      no_runs: 100
+      algorithm: 'SGH' # 'SGH', 'RS'
     GRED_DET:
       set: False
       no_runs: 10
@@ -62,7 +62,7 @@ siting_params:
       no_years: 10
       no_years_train: 5
       no_years_test: 5
-      no_experiments: 10
+      no_experiments: 50
       no_runs_per_experiment: 10
       criterion: 'max'
       algorithm: 'custom' # 'k_fold'

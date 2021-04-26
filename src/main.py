@@ -26,17 +26,10 @@ def parse_args():
     parser.add_argument('--run_RAND', type=bool, default=False)
     parser.add_argument('--run_CROSS', type=bool, default=False)
     parser.add_argument('--LS_init_algorithm', type=str, default=None)
-    parser.add_argument('--init_sol_folder', type=str, default=None)
 
     parsed_args = vars(parser.parse_args())
 
     return parsed_args
-
-
-def single_true(iterable):
-    i = iter(iterable)
-    return any(i) and not any(i)
-
 
 if __name__ == '__main__':
 
@@ -99,10 +92,6 @@ if __name__ == '__main__':
 
     c = args['c']
 
-    if not single_true([args['run_BB'], args['run_LS'], args['run_GRED_DET'], args['run_GRED_STO'],
-                        args['run_RAND'], args['run_CROSS']]):
-        raise ValueError(' More than one run selected in the argparser.')
-
     if siting_parameters['solution_method']['BB']['set']:
 
         custom_log(' BB chosen to solve the IP.')
@@ -139,8 +128,6 @@ if __name__ == '__main__':
         params = siting_parameters['solution_method']['LS']
 
         jl_dict = generate_jl_input(deployment_dict, site_coordinates)
-        path_to_sol = args['init_sol_folder'] + str(args['c']) + '_GRED_STGH_p' + str(args['p'])
-        path_to_init_sol_folder = join(data_path, 'output', path_to_sol)
 
         import julia
         j = julia.Julia(compiled_modules=False)
@@ -152,12 +139,11 @@ if __name__ == '__main__':
                                                              criticality_data, c, params['neighborhood'],
                                                              params['no_iterations'], params['no_epochs'],
                                                              params['initial_temp'], params['no_runs'],
-                                                             args['LS_init_algorithm'],
-                                                             args['p'], path_to_init_sol_folder)
+                                                             args['LS_init_algorithm'], args['p'])
         end = time.time()
         print(f"Average CPU time for c={c}: {round((end-start)/params['no_runs'], 1)} s")
 
-        output_folder = init_folder(model_parameters, c, suffix=f"_LS_{args['LS_init_algorithm']}_bis")
+        output_folder = init_folder(model_parameters, c, suffix=f"_LS_{args['LS_init_algorithm']}")
 
         with open(join(output_folder, 'config_model.yaml'), 'w') as outfile:
             yaml.dump(model_parameters, outfile, default_flow_style=False, sort_keys=False)
