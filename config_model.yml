@@ -5,7 +5,7 @@ data_path: '/data/dcradu/resite_ip/'
 # Spatial resolution (in degrees) of the potential sites.
 spatial_resolution: 0.25
 # Start time and end time of the analysis.
-time_slice: ['2011-01-01T00:00', '2020-12-31T23:00']
+time_slice: ['2010-01-01T00:00', '2019-12-31T23:00']
 # Technologies to deploy.
 regions: ['GB', 'NL', 'FR', 'DE', 'DK', 'NO', 'PL', 'IE', 'IT', 'SE', 'FI', 'ES', 'GR', 'PT', 'BE', 'LT', 'LV', 'EE', 'HR']
 technologies: ['wind_offshore']
