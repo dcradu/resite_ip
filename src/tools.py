@@ -754,19 +754,21 @@ def retrieve_site_data(model_parameters, capacity_factor_data, criticality_data,
             output_data_sum = capacity_factor_data[region][tech].sum(dim='time')
 
             if n > 0:
-                locs_legacy = set(legacy_sites[tech]).intersection(set(output_data_sum.locations.values.flatten()))
+                locs_legacy = list(set(legacy_sites[tech]).intersection(set(output_data_sum.locations.values.flatten())))
                 if len(locs_legacy) > 0:
                     locs_new = set(output_data_sum.locations.values.flatten()).difference(locs_legacy)
                     output_data_sum_no_legacy = output_data_sum.sel(locations=list(locs_new))
                     n_new = n - len(locs_legacy)
                     if n_new > 0:
-                        locs_new_best = set(output_data_sum_no_legacy.argsort()[-n_new:].locations.values.flatten())
-                        locs = sorted(list(locs_legacy.union(locs_new_best)))
+                        locs_new_best_idx = output_data_sum_no_legacy.argsort()[-n_new:].values.flatten()
+                        locs_new_best = output_data_sum_no_legacy.isel(locations=locs_new_best_idx).locations.values.flatten()
+                        locs = sorted(list(set(locs_legacy).union(set(locs_new_best))))
                     else:
-                        locs = sorted(list(locs_legacy))
+                        locs = sorted(locs_legacy)
                 else:
-                    locs = sorted(list(set(output_data_sum.argsort()[-n:].locations.values.flatten())))
-                output_location[region][tech] = sorted(output_data_sum.sel(locations=locs).locations.values.flatten())
+                    locs_idx = output_data_sum.argsort()[-n:].values.flatten()
+                    locs = output_data_sum.isel(locations=locs_idx).locations.values.flatten()
+                output_location[region][tech] = locs
             else:
                 output_location[region][tech] = None
 
@@ -824,13 +826,15 @@ def retrieve_site_data(model_parameters, capacity_factor_data, criticality_data,
                         country_data_no_legacy = country_data_avg_at_load_max.sel(locations=list(locs_new))
                         n_new = n - len(locs_legacy)
                         if n_new > 0:
-                            locs_new_best = set(country_data_no_legacy.argsort()[-n_new:].locations.values.flatten())
+                            locs_new_best_idx = set(country_data_no_legacy.argsort()[-n_new:].values.flatten())
+                            locs_new_best = country_data_no_legacy.isel(locations=locs_new_best_idx).locations.values.flatten()
                             locs = list(locs_legacy.union(locs_new_best))
                         else:
                             locs = sorted(list(locs_legacy))
                     else:
-                        locs = sorted(list(set(country_data_avg_at_load_max.argsort()[-n:].locations.values.flatten())))
-                    country_sites = sorted(country_data_avg_at_load_max.sel(locations=locs).locations.values.flatten())
+                        locs_idx = sorted(list(set(country_data_avg_at_load_max.argsort()[-n:].values.flatten())))
+                        locs = country_data_avg_at_load_max.isel(locations=locs_idx).locations.values.flatten()  
+                    country_sites = locs
                 else:
                     country_sites = None
 
