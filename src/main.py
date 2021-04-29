@@ -128,6 +128,8 @@ if __name__ == '__main__':
         params = siting_parameters['solution_method']['LS']
 
         jl_dict = generate_jl_input(deployment_dict, site_coordinates)
+        path_to_sol = '10y_n560_k1_c' + str(args['c']) + '_GRED_STGH_p27'
+        path_to_init_sol_folder = join(data_path, 'output', path_to_sol)
 
         import julia
         j = julia.Julia(compiled_modules=False)
@@ -139,11 +141,11 @@ if __name__ == '__main__':
                                                              criticality_data, c, params['neighborhood'],
                                                              params['no_iterations'], params['no_epochs'],
                                                              params['initial_temp'], params['no_runs'],
-                                                             args['LS_init_algorithm'], args['p'])
+                                                             args['LS_init_algorithm'], args['p'], path_to_init_sol_folder)
         end = time.time()
         print(f"Average CPU time for c={c}: {round((end-start)/params['no_runs'], 1)} s")
 
-        output_folder = init_folder(model_parameters, c, suffix=f"_LS_{args['LS_init_algorithm']}")
+        output_folder = init_folder(model_parameters, c, suffix=f"_LS_{args['LS_init_algorithm']}_quattro")
 
         with open(join(output_folder, 'config_model.yaml'), 'w') as outfile:
             yaml.dump(model_parameters, outfile, default_flow_style=False, sort_keys=False)
