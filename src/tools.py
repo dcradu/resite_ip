@@ -74,7 +74,11 @@ def read_database(data_path, spatial_resolution, resampling_rate):
     # Remove attributes from datasets. No particular use, looks cleaner.
     dataset.attrs = {}
 
-    return dataset.resample(time=f"{resampling_rate}H").mean('time')
+    dataset_resampled = dataset.resample(time=f"{resampling_rate}H").mean('time')
+    for var in ['u100', 'v100', 't2m', 'ssrd', 'fsr']:
+        dataset_resampled[var].data = dataset_resampled[var].data.rechunk('auto')
+
+    return dataset_resampled
 
 
 def filter_locations_by_layer(dataset, regions, start_coordinates, model_params, tech_params, which=None):
@@ -160,8 +164,8 @@ def filter_locations_by_layer(dataset, regions, start_coordinates, model_params,
             array_resource = dataset.ssrd / 3600.
 
         array_resource_mean = array_resource.mean(dim='time')
-        mask_resource = array_resource_mean.where(array_resource_mean.data < tech_params['resource_threshold'])
-        coords_mask_resource = mask_resource[mask_resource.notnull()].locations.values
+        mask_resource = array_resource_mean.where(array_resource_mean.data < tech_params['resource_threshold'], 0)
+        coords_mask_resource = mask_resource[da.nonzero(mask_resource)].locations.values
         coords_to_remove = sorted(list(set(start_coordinates).intersection(set(coords_mask_resource))))
 
     elif which == 'latitude':
@@ -472,17 +476,16 @@ def return_output(input_dict, data_path, smooth_wind_power_curve=True):
 
             for cls in wind_classes:
 
-                filtered_wind_data = wind_mean.where((wind_mean.data >= wind_classes[cls][0]) &
-                                                     (wind_mean.data < wind_classes[cls][1]), 0)
-                coords_classes = filtered_wind_data[da.nonzero(filtered_wind_data)].locations.values
+                coords_classes = wind_mean.where((wind_mean >= wind_classes[cls][0]) &
+                                                 (wind_mean < wind_classes[cls][1]), drop=True).locations.values
 
                 if len(coords_classes) > 0:
 
                     wind_filtered = wind.sel(locations=coords_classes)
                     roughness_filtered = roughness.sel(locations=coords_classes)
-                    ti = wind_filtered.std(dim='time') / wind_filtered.mean(dim='time')
 
                     converter = tech_dict[tech]['converter_' + str(cls)]
+                    hub_height = float(data_converter_wind.loc['Hub height [m]', converter])
                     power_curve_array = literal_eval(data_converter_wind.loc['Power curve', converter])
 
                     wind_speed_references = asarray([i[0] for i in power_curve_array])
@@ -491,8 +494,7 @@ def return_output(input_dict, data_path, smooth_wind_power_curve=True):
 
                     wind_log = wind_speed.logarithmic_profile(wind_filtered.values,
                                                               wind_speed_reference_height,
-                                                              float(
-                                                                  data_converter_wind.loc['Hub height [m]', converter]),
+                                                              hub_height,
                                                               roughness_filtered.values)
                     wind_data = da.from_array(wind_log, chunks='auto', asarray=True)
 
@@ -500,6 +502,9 @@ def return_output(input_dict, data_path, smooth_wind_power_curve=True):
                     dimensions = wind_filtered.dims
 
                     if smooth_wind_power_curve:
+
+                        ti = wind_filtered.std(dim='time') / wind_filtered.mean(dim='time')
+
                         # Windpowerlib function here:
                         # windpowerlib.readthedocs.io/en/latest/temp/windpowerlib.power_curves.smooth_power_curve.html
                         capacity_factor_farm = \
