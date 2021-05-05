@@ -6,10 +6,12 @@ data_path: '/data/dcradu/resite_ip/'
 spatial_resolution: 0.25
 # Start time and end time of the analysis.
 time_slice: ['2010-01-01T00:00', '2019-12-31T23:00']
+resampling_rate: 3
 # Technologies to deploy.
 regions: ['EU']
 technologies: ['wind_offshore']
 deployments: [[468]]
+load_coverage: 0.3
 
 siting_params:
   # Defines how \alpha is considered in space and time.

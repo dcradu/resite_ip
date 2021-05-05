@@ -48,9 +48,10 @@ if __name__ == '__main__':
 
     data_path = model_parameters['data_path']
     spatial_resolution = model_parameters['spatial_resolution']
+    resampling_rate = model_parameters['resampling_rate']
     time_horizon = model_parameters['time_slice']
 
-    database = read_database(data_path, spatial_resolution)
+    database = read_database(data_path, spatial_resolution, resampling_rate)
 
     if isfile(join(data_path, f"input/capacity_factors_data_{args['k']}.p")):
 

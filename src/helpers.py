@@ -425,14 +425,14 @@ def get_potential_per_site(input_dict, tech_parameters, spatial_resolution):
     return output_dict
 
 
-def smooth_load_data(data_path, regions, date_slice, delta):
+def smooth_load_data(data_path, regions, date_slice, delta, resampling_rate):
 
     load_data_fn = join(data_path, 'input/load_data', 'load_entsoe_2006_2020_full.csv')
     load_data = read_csv(load_data_fn, index_col=0)
     # From MW to GW
     load_data = load_data.divide(1e3)
     load_data.index = to_datetime(load_data.index)
-    load_data_sliced = load_data.loc[date_slice[0]:date_slice[1]]
+    load_data_sliced = load_data.loc[date_slice[0]:date_slice[1]].resample(f"{resampling_rate}H").mean()
 
     regions_list = return_region_divisions(regions, data_path)
     load_vector = load_data_sliced[regions_list]

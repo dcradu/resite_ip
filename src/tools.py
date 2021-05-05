@@ -29,7 +29,7 @@ logging.disable(logging.CRITICAL)
 logger = logging.getLogger(__name__)
 
 
-def read_database(data_path, spatial_resolution):
+def read_database(data_path, spatial_resolution, resampling_rate):
     """
     Reads resource database from .nc files.
 
@@ -74,7 +74,7 @@ def read_database(data_path, spatial_resolution):
     # Remove attributes from datasets. No particular use, looks cleaner.
     dataset.attrs = {}
 
-    return dataset
+    return dataset.resample(time=f"{resampling_rate}H").mean()
 
 
 def filter_locations_by_layer(regions, start_coordinates, model_params, tech_params, which=None):
@@ -151,7 +151,7 @@ def filter_locations_by_layer(regions, start_coordinates, model_params, tech_par
 
     elif which == 'resource_quality':
 
-        database = read_database(data_path, model_params['spatial_resolution'])
+        database = read_database(data_path, model_params['spatial_resolution'], model_params['resampling_rate'])
 
         assert tech_params['resource'] in ['wind', 'solar'], f"Resource {tech_params['resource']} not available."
 
@@ -608,6 +608,8 @@ def critical_window_mapping(time_windows_dict, potentials_dict, deployments_dict
 
     regions = model_params['regions']
     date_slice = model_params['time_slice']
+    resampling_rate = model_params['resampling_rate']
+    load_coverage = model_params['load_coverage']
     alpha = model_params['siting_params']['alpha']
     delta = model_params['siting_params']['delta']
     data_path = model_params['data_path']
@@ -619,7 +621,7 @@ def critical_window_mapping(time_windows_dict, potentials_dict, deployments_dict
     assert alpha['coverage'] in ['partition', 'system'], f"Criticality coverage {alpha['coverage']} not available."
     assert alpha['norm'] in ['min', 'max'], f"Norm {alpha['norm']} not available."
 
-    load_ds = smooth_load_data(data_path, regions, date_slice, delta)
+    load_ds = smooth_load_data(data_path, regions, date_slice, delta, resampling_rate)
 
     if alpha['coverage'] == 'system':
 
@@ -628,7 +630,7 @@ def critical_window_mapping(time_windows_dict, potentials_dict, deployments_dict
         if alpha['method'] == 'potential':
 
             # Covering only a fraction of 30% of demand, as per EC expectations
-            load_ds_system = load_ds_system.multiply(0.3)
+            load_ds_system = load_ds_system.multiply(load_coverage)
 
             deployments = sum(deployments_dict[key][subkey] for key in deployments_dict
                               for subkey in deployments_dict[key])
@@ -656,8 +658,9 @@ def critical_window_mapping(time_windows_dict, potentials_dict, deployments_dict
 
             if alpha['method'] == 'potential':
  
-                # Covering only a fraction of the demand via offshore wind. EC suggests 30% EU-wide, no data per country currently available
-                load_ds_region = load_ds_region.multiply(0.3)
+                # Covering only a fraction of the demand via offshore wind.
+                # EC suggests 30% EU-wide, no data per country currently available
+                load_ds_region = load_ds_region.multiply(load_coverage)
  
                 deployments = sum(deployments_dict[key][subkey] for key in deployments_dict
                                   for subkey in deployments_dict[key] if key == region)
@@ -804,12 +807,15 @@ def retrieve_site_data(model_parameters, capacity_factor_data, criticality_data,
 
     elif benchmark == 'CAPV':
 
+        resampling_rate = model_parameters['resampling_rate']
+
         # Capacity credit sites.
         load_data_fn = join(model_parameters['data_path'], 'input/load_data', 'load_entsoe_2006_2020_full.csv')
         load_data = read_csv(load_data_fn, index_col=0)
         load_data.index = to_datetime(load_data.index)
         load_data = load_data[(load_data.index > model_parameters['time_slice'][0]) &
                               (load_data.index < model_parameters['time_slice'][1])]
+        load_data = load_data.resample(f"{resampling_rate}H").mean()
 
         df_list = []
         no_index = 0.05 * len(load_data.index)
