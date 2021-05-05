@@ -13,8 +13,8 @@ import xarray as xr
 import xarray.ufuncs as xu
 from geopandas import read_file
 from numpy import arange, interp, float32, datetime64, sqrt, asarray, newaxis, sum, max, unique, \
-    radians, cos, sin, arctan2, zeros, ceil
-from pandas import read_csv, Series, DataFrame, date_range, concat, MultiIndex, to_datetime
+    radians, cos, sin, arctan2, zeros, ceil, argwhere
+from pandas import read_csv, Series, DataFrame, date_range, concat, MultiIndex, to_datetime, Grouper
 from shapely.geometry import Point
 from shapely.ops import nearest_points
 from windpowerlib import power_curves, wind_speed
@@ -25,7 +25,7 @@ from helpers import filter_onshore_offshore_locations, union_regions, return_coo
 
 import logging
 logging.basicConfig(level=logging.INFO, format=f"%(levelname)s %(asctime)s - %(message)s", datefmt='%Y-%m-%d %H:%M:%S')
-logging.disable(logging.CRITICAL)
+# logging.disable(logging.CRITICAL)
 logger = logging.getLogger(__name__)
 
 
@@ -74,10 +74,10 @@ def read_database(data_path, spatial_resolution, resampling_rate):
     # Remove attributes from datasets. No particular use, looks cleaner.
     dataset.attrs = {}
 
-    return dataset.resample(time=f"{resampling_rate}H").mean()
+    return dataset.resample(time=f"{resampling_rate}H").mean('time')
 
 
-def filter_locations_by_layer(regions, start_coordinates, model_params, tech_params, which=None):
+def filter_locations_by_layer(dataset, regions, start_coordinates, model_params, tech_params, which=None):
     """
     Filters (removes) locations from the initial set following various
     land-, resource-, population-based criteria.
@@ -151,28 +151,24 @@ def filter_locations_by_layer(regions, start_coordinates, model_params, tech_par
 
     elif which == 'resource_quality':
 
-        database = read_database(data_path, model_params['spatial_resolution'], model_params['resampling_rate'])
-
         assert tech_params['resource'] in ['wind', 'solar'], f"Resource {tech_params['resource']} not available."
 
         if tech_params['resource'] == 'wind':
-            array_resource = xu.sqrt(database.u100 ** 2 +
-                                     database.v100 ** 2)
+            array_resource = xu.sqrt(dataset.u100 ** 2 +
+                                     dataset.v100 ** 2)
         elif tech_params['resource'] == 'solar':
-            array_resource = database.ssrd / 3600.
+            array_resource = dataset.ssrd / 3600.
 
         array_resource_mean = array_resource.mean(dim='time')
         mask_resource = array_resource_mean.where(array_resource_mean.data < tech_params['resource_threshold'])
-        coords_mask_resource = mask_resource[mask_resource.notnull()].locations.values.tolist()
-        coords_mask = [(round(lon, 2), round(lat, 2)) for (lon, lat) in coords_mask_resource]
-        coords_to_remove = sorted(list(set(start_coordinates).intersection(set(coords_mask))))
+        coords_mask_resource = mask_resource[mask_resource.notnull()].locations.values
+        coords_to_remove = sorted(list(set(start_coordinates).intersection(set(coords_mask_resource))))
 
     elif which == 'latitude':
 
         latitude_threshold = tech_params['latitude_threshold']
         coords_mask_latitude = [(lon, lat) for (lon, lat) in start_coordinates if lat > latitude_threshold]
-        coords_mask = [(round(lon, 2), round(lat, 2)) for (lon, lat) in coords_mask_latitude]
-        coords_to_remove = sorted(list(set(start_coordinates).intersection(set(coords_mask))))
+        coords_to_remove = sorted(list(set(start_coordinates).intersection(set(coords_mask_latitude))))
 
     elif which == 'distance':
 
@@ -196,8 +192,7 @@ def filter_locations_by_layer(regions, start_coordinates, model_params, tech_par
         offshore_locations = {k: v for k, v in offshore_distances.items() if ((v < distance_threshold_min) |
                                                                               (v >= distance_threshold_max))}
         coords_mask_distance = list(offshore_locations.keys())
-        coords_mask = [(round(lon, 2), round(lat, 2)) for (lon, lat) in coords_mask_distance]
-        coords_to_remove = sorted(list(set(start_coordinates).intersection(set(coords_mask))))
+        coords_to_remove = sorted(list(set(start_coordinates).intersection(set(coords_mask_distance))))
 
     elif which == 'orography':
 
@@ -218,12 +213,11 @@ def filter_locations_by_layer(regions, start_coordinates, model_params, tech_par
         mask_altitude = array_altitude.where(array_altitude.data > altitude_threshold)
         mask_slope = array_slope.where(array_slope.data > slope_threshold)
 
-        coords_mask_altitude = mask_altitude[mask_altitude.notnull()].locations.values.tolist()
-        coords_mask_slope = mask_slope[mask_slope.notnull()].locations.values.tolist()
+        coords_mask_altitude = mask_altitude[mask_altitude.notnull()].locations.values
+        coords_mask_slope = mask_slope[mask_slope.notnull()].locations.values
 
         coords_mask_orography = list(set(coords_mask_altitude).union(set(coords_mask_slope)))
-        coords_mask = [(round(lon, 2), round(lat, 2)) for (lon, lat) in coords_mask_orography]
-        coords_to_remove = sorted(list(set(start_coordinates).intersection(set(coords_mask))))
+        coords_to_remove = sorted(list(set(start_coordinates).intersection(set(coords_mask_orography))))
 
     elif which in ['forestry', 'water_mask', 'bathymetry']:
 
@@ -241,9 +235,8 @@ def filter_locations_by_layer(regions, start_coordinates, model_params, tech_par
             array_forestry = dataset['cvh']
 
             mask_forestry = array_forestry.where(array_forestry.data >= forestry_threshold)
-            coords_mask_forestry = mask_forestry[mask_forestry.notnull()].locations.values.tolist()
-            coords_mask = [(round(lon, 2), round(lat, 2)) for (lon, lat) in coords_mask_forestry]
-            coords_to_remove = sorted(list(set(start_coordinates).intersection(set(coords_mask))))
+            coords_mask_forestry = mask_forestry[mask_forestry.notnull()].locations.values
+            coords_to_remove = sorted(list(set(start_coordinates).intersection(set(coords_mask_forestry))))
 
         elif which == 'water_mask':
 
@@ -251,9 +244,8 @@ def filter_locations_by_layer(regions, start_coordinates, model_params, tech_par
             array_watermask = dataset['lsm']
 
             mask_watermask = array_watermask.where(array_watermask.data < watermask_threshold)
-            coords_mask_watermask = mask_watermask[mask_watermask.notnull()].locations.values.tolist()
-            coords_mask = [(round(lon, 2), round(lat, 2)) for (lon, lat) in coords_mask_watermask]
-            coords_to_remove = sorted(list(set(start_coordinates).intersection(set(coords_mask))))
+            coords_mask_watermask = mask_watermask[mask_watermask.notnull()].locations.values
+            coords_to_remove = sorted(list(set(start_coordinates).intersection(set(coords_mask_watermask))))
 
         elif which == 'bathymetry':
 
@@ -267,9 +259,8 @@ def filter_locations_by_layer(regions, start_coordinates, model_params, tech_par
             mask_offshore = array_bathymetry.where(((array_bathymetry.data < depth_threshold_low) |
                                                     (array_bathymetry.data > depth_threshold_high)) |
                                                     (array_watermask.data > 0.1))
-            coords_mask_offshore = mask_offshore[mask_offshore.notnull()].locations.values.tolist()
-            coords_mask = [(round(lon, 2), round(lat, 2)) for (lon, lat) in coords_mask_offshore]
-            coords_to_remove = sorted(list(set(start_coordinates).intersection(set(coords_mask))))
+            coords_mask_offshore = mask_offshore[mask_offshore.notnull()].locations.values
+            coords_to_remove = sorted(list(set(start_coordinates).intersection(set(coords_mask_offshore))))
 
     elif which == 'population_density':
 
@@ -298,9 +289,8 @@ def filter_locations_by_layer(regions, start_coordinates, model_params, tech_par
 
         mask_population = pop_ds.where((pop_ds.data < population_density_threshold_low) |
                                        (pop_ds.data > population_density_threshold_high))
-        coords_mask_population = mask_population[mask_population.notnull()].locations.values.tolist()
-        coords_mask = [(round(lon, 2), round(lat, 2)) for (lon, lat) in coords_mask_population]
-        coords_to_remove = sorted(list(set(start_coordinates).intersection(set(coords_mask))))
+        coords_mask_population = mask_population[mask_population.notnull()].locations.values
+        coords_to_remove = sorted(list(set(start_coordinates).intersection(set(coords_mask_population))))
 
     elif which == 'legacy':
 
@@ -344,10 +334,7 @@ def return_filtered_coordinates(dataset, model_params, tech_params):
     legacy_dict = {key: None for key in technologies}
 
     region_shape = union_regions(regions, model_params['data_path'], which='both')
-    coordinates = return_coordinates_from_shapefiles(dataset, region_shape)
-    start_coordinates = {(lon, lat): None for (lon, lat) in coordinates}
-    for (lon, lat) in start_coordinates:
-        start_coordinates[(lon, lat)] = (round(lon, 2), round(lat, 2))
+    start_coordinates = return_coordinates_from_shapefiles(dataset, region_shape)
 
     for tech in technologies:
         coords_to_remove = []
@@ -355,7 +342,8 @@ def return_filtered_coordinates(dataset, model_params, tech_params):
         tech_dict = tech_params[tech]
 
         for layer in tech_dict['filters']:
-            to_remove_from_filter = filter_locations_by_layer(regions, list(start_coordinates.values()),
+            logger.info(layer)
+            to_remove_from_filter = filter_locations_by_layer(dataset, regions, start_coordinates,
                                                               model_params, tech_dict, which=layer)
             if layer != 'legacy':
                 coords_to_remove.extend(to_remove_from_filter)
@@ -364,11 +352,7 @@ def return_filtered_coordinates(dataset, model_params, tech_params):
         coords_to_remove = list(set(coords_to_remove).difference(set(coords_to_add)))
         legacy_dict[tech] = coords_to_add
 
-        original_coordinates_list = []
-        start_coordinates_reversed = {v: k for k, v in start_coordinates.items()}
-        for item in set(start_coordinates.values()).difference(set(coords_to_remove)):
-            original_coordinates_list.append(start_coordinates_reversed[item])
-        coordinates_dict[tech] = original_coordinates_list
+        coordinates_dict[tech] = list(set(start_coordinates).difference(set(coords_to_remove)))
 
         unique_list_of_points = []
         for region in regions:
@@ -463,6 +447,7 @@ def return_output(input_dict, data_path, smooth_wind_power_curve=True):
     data_converter_solar = read_csv(solar_data_path, sep=';', index_col=0)
 
     for region, tech in key_list:
+        logger.info(region)
 
         resource = tech.split('_')[0]
 
@@ -489,7 +474,7 @@ def return_output(input_dict, data_path, smooth_wind_power_curve=True):
 
                 filtered_wind_data = wind_mean.where((wind_mean.data >= wind_classes[cls][0]) &
                                                      (wind_mean.data < wind_classes[cls][1]), 0)
-                coords_classes = filtered_wind_data[da.nonzero(filtered_wind_data)].locations.values.tolist()
+                coords_classes = filtered_wind_data[da.nonzero(filtered_wind_data)].locations.values
 
                 if len(coords_classes) > 0:
 

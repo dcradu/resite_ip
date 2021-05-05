@@ -12,7 +12,7 @@ from tools import read_database, return_filtered_coordinates, selected_data, ret
 
 import logging
 logging.basicConfig(level=logging.INFO, format=f"%(levelname)s %(asctime)s - %(message)s", datefmt='%Y-%m-%d %H:%M:%S')
-logging.disable(logging.CRITICAL)
+# logging.disable(logging.CRITICAL)
 logger = logging.getLogger(__name__)
 
 
@@ -52,6 +52,7 @@ if __name__ == '__main__':
     time_horizon = model_parameters['time_slice']
 
     database = read_database(data_path, spatial_resolution, resampling_rate)
+    logger.info('Database')
 
     if isfile(join(data_path, f"input/capacity_factors_data_{args['k']}.p")):
 
@@ -63,8 +64,10 @@ if __name__ == '__main__':
     else:
 
         site_coordinates, legacy_coordinates = return_filtered_coordinates(database, model_parameters, tech_parameters)
+        logger.info('Coordinates')
         truncated_data = selected_data(database, site_coordinates, time_horizon)
         capacity_factors_data = return_output(truncated_data, data_path)
+        logger.info('Output')
 
         pickle.dump(capacity_factors_data,
                     open(join(data_path, f"input/capacity_factors_data_{args['k']}.p"), 'wb'), protocol=4)
@@ -85,6 +88,8 @@ if __name__ == '__main__':
     jl_dict = generate_jl_input(deployment_dict, site_coordinates, site_positions, legacy_coordinates)
     total_no_locs = sum(deployment_dict[r][t] for r in deployment_dict.keys() for t in deployment_dict[r].keys())
     c = int(ceil(siting_parameters['c'] * total_no_locs))
+    import sys
+    sys.exit()
     output_folder = init_folder(model_parameters, total_no_locs, c, suffix=f"_{args['alpha_method']}_{args['alpha_coverage']}_d{args['delta']}")
 
     logger.info('Data pre-processing finished. Opening Julia instance.')
