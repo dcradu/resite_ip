@@ -160,7 +160,7 @@ def return_region_divisions(region_list, data_path):
             region_subdivisions = ['AT', 'BE', 'DE', 'DK', 'ES',
                                    'FR', 'GB', 'IE', 'IT', 'LU',
                                    'NL', 'NO', 'PT', 'SE', 'CH', 'CZ',
-                                   'EE', 'LV', 'RO', 'BG', 'HR', 'RS',
+                                   'EE', 'LV', 'HR', 
                                    'FI', 'GR', 'HR', 'HU', 'LT',
                                    'PL', 'SI', 'SK']
         elif region == 'NA':

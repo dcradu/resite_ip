@@ -626,6 +626,10 @@ def critical_window_mapping(time_windows_dict, potentials_dict, deployments_dict
         load_ds_system = load_ds.sum(axis=1)
 
         if alpha['method'] == 'potential':
+
+            # Covering only a fraction of 30% of demand, as per EC expectations
+            load_ds_system = load_ds_system.multiply(0.3)
+
             deployments = sum(deployments_dict[key][subkey] for key in deployments_dict
                               for subkey in deployments_dict[key])
             l_norm = norm_load_by_deployments(load_ds_system, deployments)
@@ -651,6 +655,10 @@ def critical_window_mapping(time_windows_dict, potentials_dict, deployments_dict
             load_ds_region = load_ds[region]
 
             if alpha['method'] == 'potential':
+ 
+                # Covering only a fraction of the demand via offshore wind. EC suggests 30% EU-wide, no data per country currently available
+                load_ds_region = load_ds_region.multiply(0.3)
+ 
                 deployments = sum(deployments_dict[key][subkey] for key in deployments_dict
                                   for subkey in deployments_dict[key] if key == region)
                 l_norm = norm_load_by_deployments(load_ds_region, deployments)

@@ -20,10 +20,10 @@ def parse_args():
 
     parser = argparse.ArgumentParser(description='Command line arguments.')
 
+    parser.add_argument('--k', type=str, default=None)
     parser.add_argument('--c', type=float)
     parser.add_argument('--alpha_method', type=str, default=None)
     parser.add_argument('--alpha_coverage', type=str, default=None)
-    parser.add_argument('--alpha_norm', type=str, default=None)
     parser.add_argument('--delta', type=int, default=None)
 
     parsed_args = vars(parser.parse_args())
@@ -37,13 +37,12 @@ if __name__ == '__main__':
 
     logger.info('Starting data pre-processing.')
 
-    model_parameters = read_inputs('../config_model.yml')
+    model_parameters = read_inputs(f"../config_model_{args['k']}.yml")
     siting_parameters = model_parameters['siting_params']
     tech_parameters = read_inputs('../config_techs.yml')
 
     siting_parameters['alpha']['method'] = args['alpha_method']
     siting_parameters['alpha']['coverage'] = args['alpha_coverage']
-    siting_parameters['alpha']['norm'] = args['alpha_norm']
     siting_parameters['delta'] = int(args['delta'])
     siting_parameters['c'] = args['c']
 
@@ -53,11 +52,11 @@ if __name__ == '__main__':
 
     database = read_database(data_path, spatial_resolution)
 
-    if isfile(join(data_path, 'input/capacity_factors_data_partitioned.p')):
+    if isfile(join(data_path, f"input/capacity_factors_data_{args['k']}.p")):
 
-        capacity_factors_data = pickle.load(open(join(data_path, 'input/capacity_factors_data_partitioned.p'), 'rb'))
-        site_coordinates = pickle.load(open(join(data_path, 'input/site_coordinates_partitioned.p'), 'rb'))
-        legacy_coordinates = pickle.load(open(join(data_path, 'input/legacy_coordinates_partitioned.p'), 'rb'))
+        capacity_factors_data = pickle.load(open(join(data_path, f"input/capacity_factors_data_{args['k']}.p"), 'rb'))
+        site_coordinates = pickle.load(open(join(data_path, f"input/site_coordinates_{args['k']}.p"), 'rb'))
+        legacy_coordinates = pickle.load(open(join(data_path, f"input/legacy_coordinates_{args['k']}.p"), 'rb'))
         logger.info('Input files read from disk.')
 
     else:
@@ -67,11 +66,11 @@ if __name__ == '__main__':
         capacity_factors_data = return_output(truncated_data, data_path)
 
         pickle.dump(capacity_factors_data,
-                    open(join(data_path, 'input/capacity_factors_data_partitioned.p'), 'wb'), protocol=4)
+                    open(join(data_path, f"input/capacity_factors_data_{args['k']}.p"), 'wb'), protocol=4)
         pickle.dump(site_coordinates,
-                    open(join(data_path, 'input/site_coordinates_partitioned.p'), 'wb'), protocol=4)
+                    open(join(data_path, f"input/site_coordinates_{args['k']}.p"), 'wb'), protocol=4)
         pickle.dump(legacy_coordinates,
-                    open(join(data_path, 'input/legacy_coordinates_partitioned.p'), 'wb'), protocol=4)
+                    open(join(data_path, f"input/legacy_coordinates_{args['k']}.p"), 'wb'), protocol=4)
         logger.info('Input files written to disk.')
 
     time_windows_data = resource_quality_mapping(capacity_factors_data, siting_parameters)
@@ -85,6 +84,7 @@ if __name__ == '__main__':
     jl_dict = generate_jl_input(deployment_dict, site_coordinates, site_positions, legacy_coordinates)
     total_no_locs = sum(deployment_dict[r][t] for r in deployment_dict.keys() for t in deployment_dict[r].keys())
     c = int(ceil(siting_parameters['c'] * total_no_locs))
+    output_folder = init_folder(model_parameters, total_no_locs, c, suffix=f"_{args['alpha_method']}_{args['alpha_coverage']}_d{args['delta']}")
 
     logger.info('Data pre-processing finished. Opening Julia instance.')
 
@@ -109,10 +109,6 @@ if __name__ == '__main__':
             assert sum(x[ids]) == jl_dict['deployment_dict'][partition], \
                 f"Cardinality in {partition} is {sum(x[ids])} instead of {jl_dict['deployment_dict'][partition]}."
 
-    output_folder = init_folder(model_parameters, total_no_locs, c,
-                                suffix=f"_MIRSA_{args['alpha_method']}_{args['alpha_coverage']}"
-                                       f"_{args['alpha_norm']}_d{args['delta']}")
-
     with open(join(output_folder, 'config_model.yaml'), 'w') as outfile:
         yaml.dump(model_parameters, outfile, default_flow_style=False, sort_keys=False)
     with open(join(output_folder, 'config_techs.yaml'), 'w') as outfile:
@@ -125,7 +121,7 @@ if __name__ == '__main__':
 
     locations_dict = retrieve_location_dict(jl_locations_vector, model_parameters, site_positions)
     retrieve_site_data(model_parameters, capacity_factors_data, criticality_data, deployment_dict,
-                       site_positions, locations_dict, legacy_coordinates, output_folder, benchmark=None)
+                       site_positions, locations_dict, legacy_coordinates, output_folder, benchmark="PROD")
 
     pickle.dump(jl_sel, open(join(output_folder, 'solution_matrix.p'), 'wb'))
     pickle.dump(jl_obj, open(join(output_folder, 'objective_vector.p'), 'wb'))
