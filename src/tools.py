@@ -25,7 +25,7 @@ from helpers import filter_onshore_offshore_locations, union_regions, return_coo
 
 import logging
 logging.basicConfig(level=logging.INFO, format=f"%(levelname)s %(asctime)s - %(message)s", datefmt='%Y-%m-%d %H:%M:%S')
-logging.disable(logging.CRITICAL)
+# logging.disable(logging.CRITICAL)
 logger = logging.getLogger(__name__)
 
 
@@ -608,9 +608,11 @@ def critical_window_mapping(time_windows_dict, potentials_dict, deployments_dict
 
     regions = model_params['regions']
     date_slice = model_params['time_slice']
+    sampling_rate = model_params['resampling_rate']
     alpha = model_params['siting_params']['alpha']
     delta = model_params['siting_params']['delta']
     data_path = model_params['data_path']
+    load_coverage = model_params['load_coverage']
 
     key_list = return_dict_keys(time_windows_dict)
     output_dict = deepcopy(time_windows_dict)
@@ -619,7 +621,7 @@ def critical_window_mapping(time_windows_dict, potentials_dict, deployments_dict
     assert alpha['coverage'] in ['partition', 'system'], f"Criticality coverage {alpha['coverage']} not available."
     assert alpha['norm'] in ['min', 'max'], f"Norm {alpha['norm']} not available."
 
-    load_ds = smooth_load_data(data_path, regions, date_slice, delta)
+    load_ds = smooth_load_data(data_path, regions, date_slice, delta, sampling_rate)
 
     if alpha['coverage'] == 'system':
 
@@ -628,7 +630,7 @@ def critical_window_mapping(time_windows_dict, potentials_dict, deployments_dict
         if alpha['method'] == 'potential':
 
             # Covering only a fraction of 30% of demand, as per EC expectations
-            load_ds_system = load_ds_system.multiply(0.3)
+            load_ds_system = load_ds_system.multiply(load_coverage)
 
             deployments = sum(deployments_dict[key][subkey] for key in deployments_dict
                               for subkey in deployments_dict[key])
@@ -656,8 +658,9 @@ def critical_window_mapping(time_windows_dict, potentials_dict, deployments_dict
 
             if alpha['method'] == 'potential':
  
-                # Covering only a fraction of the demand via offshore wind. EC suggests 30% EU-wide, no data per country currently available
-                load_ds_region = load_ds_region.multiply(0.3)
+                # Covering only a fraction of the demand via offshore wind. EC suggests 30% EU-wide,
+                # no data per country currently available
+                load_ds_region = load_ds_region.multiply(load_coverage)
  
                 deployments = sum(deployments_dict[key][subkey] for key in deployments_dict
                                   for subkey in deployments_dict[key] if key == region)
@@ -726,11 +729,13 @@ def retrieve_index_dict(deployment_vector, coordinate_dict):
 def retrieve_site_data(model_parameters, capacity_factor_data, criticality_data, deployment_dict,
                        location_mapping, comp_site_coordinates, legacy_sites, output_folder, benchmark):
 
+    sampling_rate = model_parameters['resampling_rate']
     c = int(ceil(model_parameters['siting_params']['c'] * sum(deployment_dict[r][t] for r in deployment_dict.keys()
                                                               for t in deployment_dict[r].keys())))
 
     output_by_tech = collapse_dict_region_level(capacity_factor_data)
-    time_dt = date_range(start=model_parameters['time_slice'][0], end=model_parameters['time_slice'][1], freq='H')
+    time_dt = date_range(start=model_parameters['time_slice'][0], end=model_parameters['time_slice'][1],
+                         freq=f"{sampling_rate}H")
 
     for tech in output_by_tech:
         _, index = unique(output_by_tech[tech].locations, return_index=True)

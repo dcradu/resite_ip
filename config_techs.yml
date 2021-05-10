@@ -25,7 +25,7 @@ wind_onshore:
 
 wind_offshore:
   where: 'offshore'
-  filters: ['resource_quality', 'bathymetry', 'latitude', 'distance', 'legacy']
+  filters: ['bathymetry', 'latitude', 'distance', 'legacy']
   converter_IV: 'V90'
   converter_III: 'V90'
   converter_II: 'V164'
@@ -38,7 +38,7 @@ wind_offshore:
   protected_areas_selection: ['Ia', 'Ib', 'II', 'V']
   protected_areas_distance_threshold: 5.
   depth_threshold_low: 0.
-  depth_threshold_high: 199.
+  depth_threshold_high: 999.
   altitude_threshold: 0.
   terrain_slope_threshold: 1.
   forestry_ratio_threshold: 1.

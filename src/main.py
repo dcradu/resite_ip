@@ -5,6 +5,7 @@ from numpy import argmax, ceil, float64
 import argparse
 import pickle
 
+from copy import deepcopy
 from helpers import read_inputs, init_folder, xarray_to_ndarray, generate_jl_input, \
     get_potential_per_site, capacity_to_cardinality
 from tools import read_database, return_filtered_coordinates, selected_data, return_output, resource_quality_mapping, \
@@ -12,7 +13,7 @@ from tools import read_database, return_filtered_coordinates, selected_data, ret
 
 import logging
 logging.basicConfig(level=logging.INFO, format=f"%(levelname)s %(asctime)s - %(message)s", datefmt='%Y-%m-%d %H:%M:%S')
-logging.disable(logging.CRITICAL)
+# logging.disable(logging.CRITICAL)
 logger = logging.getLogger(__name__)
 
 
@@ -25,6 +26,8 @@ def parse_args():
     parser.add_argument('--alpha_method', type=str, default=None)
     parser.add_argument('--alpha_coverage', type=str, default=None)
     parser.add_argument('--delta', type=int, default=None)
+    parser.add_argument('--resampling_rate', type=str)
+    parser.add_argument('--maxdepth', type=str)
 
     parsed_args = vars(parser.parse_args())
 
@@ -38,6 +41,7 @@ if __name__ == '__main__':
     logger.info('Starting data pre-processing.')
 
     model_parameters = read_inputs(f"../config_model_{args['k']}.yml")
+    model_parameters['resampling_rate'] = args['resampling_rate']
     siting_parameters = model_parameters['siting_params']
     tech_parameters = read_inputs('../config_techs.yml')
 
@@ -52,11 +56,17 @@ if __name__ == '__main__':
 
     database = read_database(data_path, spatial_resolution)
 
-    if isfile(join(data_path, f"input/capacity_factors_data_{args['k']}.p")):
+    if isfile(join(data_path, f"input/capacity_factors_data_{args['k']}"
+                              f"_{args['resampling_rate']}h_{args['maxdepth']}m.p")):
 
-        capacity_factors_data = pickle.load(open(join(data_path, f"input/capacity_factors_data_{args['k']}.p"), 'rb'))
-        site_coordinates = pickle.load(open(join(data_path, f"input/site_coordinates_{args['k']}.p"), 'rb'))
-        legacy_coordinates = pickle.load(open(join(data_path, f"input/legacy_coordinates_{args['k']}.p"), 'rb'))
+        capacity_factors_data = \
+            pickle.load(open(join(data_path,
+                                  f"input/capacity_factors_data_{args['k']}_{args['resampling_rate']}h_"
+                                  f"{args['maxdepth']}m.p"), 'rb'))
+        site_coordinates = \
+            pickle.load(open(join(data_path, f"input/site_coordinates_{args['k']}_{args['maxdepth']}m.p"), 'rb'))
+        legacy_coordinates = \
+            pickle.load(open(join(data_path, f"input/legacy_coordinates_{args['k']}_{args['maxdepth']}m.p"), 'rb'))
         logger.info('Input files read from disk.')
 
     else:
@@ -65,12 +75,22 @@ if __name__ == '__main__':
         truncated_data = selected_data(database, site_coordinates, time_horizon)
         capacity_factors_data = return_output(truncated_data, data_path)
 
-        pickle.dump(capacity_factors_data,
-                    open(join(data_path, f"input/capacity_factors_data_{args['k']}.p"), 'wb'), protocol=4)
+        resampled_data = deepcopy(capacity_factors_data)
+        rate = model_parameters['resampling_rate']
+        for region in capacity_factors_data.keys():
+            for tech in capacity_factors_data[region].keys():
+                resampled_data[region][tech] = \
+                    capacity_factors_data[region][tech].resample(time=f"{rate}H").mean(dim='time')
+
+        pickle.dump(resampled_data,
+                    open(join(data_path, f"input/capacity_factors_data_{args['k']}_{args['resampling_rate']}h_"
+                                         f"{args['maxdepth']}m.p"), 'wb'), protocol=4)
         pickle.dump(site_coordinates,
-                    open(join(data_path, f"input/site_coordinates_{args['k']}.p"), 'wb'), protocol=4)
+                    open(join(data_path, f"input/site_coordinates_{args['k']}_"
+                                         f"{args['maxdepth']}m.p"), 'wb'), protocol=4)
         pickle.dump(legacy_coordinates,
-                    open(join(data_path, f"input/legacy_coordinates_{args['k']}.p"), 'wb'), protocol=4)
+                    open(join(data_path, f"input/legacy_coordinates_{args['k']}_"
+                                         f"{args['maxdepth']}m.p"), 'wb'), protocol=4)
         logger.info('Input files written to disk.')
 
     time_windows_data = resource_quality_mapping(capacity_factors_data, siting_parameters)
@@ -84,7 +104,12 @@ if __name__ == '__main__':
     jl_dict = generate_jl_input(deployment_dict, site_coordinates, site_positions, legacy_coordinates)
     total_no_locs = sum(deployment_dict[r][t] for r in deployment_dict.keys() for t in deployment_dict[r].keys())
     c = int(ceil(siting_parameters['c'] * total_no_locs))
-    output_folder = init_folder(model_parameters, total_no_locs, c, suffix=f"_{args['alpha_method']}_{args['alpha_coverage']}_d{args['delta']}")
+
+    import sys
+    sys.exit()
+
+    output_folder = init_folder(model_parameters, total_no_locs, c,
+                                suffix=f"_{args['alpha_method']}_{args['alpha_coverage']}_d{args['delta']}")
 
     logger.info('Data pre-processing finished. Opening Julia instance.')
 
@@ -100,14 +125,6 @@ if __name__ == '__main__':
                                           criticality_data.astype('float64'), float64(c),
                                           params['neighborhood'], params['initial_temp'],
                                           params['no_iterations'], params['no_epochs'], params['no_runs'])
-
-    for r in range(jl_sel.shape[0]):
-        x = jl_sel[r, :]
-        assert sum(x) == total_no_locs, f"Total cardinality in run {r} is {sum(x)} instead of {total_no_locs}."
-        for partition in jl_dict['deployment_dict'].keys():
-            ids = [k-1 for k, v in jl_dict['index_dict'].items() if v == partition]
-            assert sum(x[ids]) == jl_dict['deployment_dict'][partition], \
-                f"Cardinality in {partition} is {sum(x[ids])} instead of {jl_dict['deployment_dict'][partition]}."
 
     with open(join(output_folder, 'config_model.yaml'), 'w') as outfile:
         yaml.dump(model_parameters, outfile, default_flow_style=False, sort_keys=False)
