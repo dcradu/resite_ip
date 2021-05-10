@@ -13,7 +13,7 @@ from tools import read_database, return_filtered_coordinates, selected_data, ret
 
 import logging
 logging.basicConfig(level=logging.INFO, format=f"%(levelname)s %(asctime)s - %(message)s", datefmt='%Y-%m-%d %H:%M:%S')
-# logging.disable(logging.CRITICAL)
+logging.disable(logging.CRITICAL)
 logger = logging.getLogger(__name__)
 
 
@@ -104,9 +104,6 @@ if __name__ == '__main__':
     jl_dict = generate_jl_input(deployment_dict, site_coordinates, site_positions, legacy_coordinates)
     total_no_locs = sum(deployment_dict[r][t] for r in deployment_dict.keys() for t in deployment_dict[r].keys())
     c = int(ceil(siting_parameters['c'] * total_no_locs))
-
-    import sys
-    sys.exit()
 
     output_folder = init_folder(model_parameters, total_no_locs, c,
                                 suffix=f"_{args['alpha_method']}_{args['alpha_coverage']}_d{args['delta']}")
