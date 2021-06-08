@@ -25,7 +25,7 @@ from helpers import filter_onshore_offshore_locations, union_regions, return_coo
 
 import logging
 logging.basicConfig(level=logging.INFO, format=f"%(levelname)s %(asctime)s - %(message)s", datefmt='%Y-%m-%d %H:%M:%S')
-logging.disable(logging.CRITICAL)
+# logging.disable(logging.CRITICAL)
 logger = logging.getLogger(__name__)
 
 
@@ -382,7 +382,6 @@ def return_filtered_coordinates(dataset, model_params, tech_params):
 
     for key, value in output_dict.items():
         output_dict[key] = {k: v for k, v in output_dict[key].items() if len(v) > 0}
-
     return output_dict, legacy_dict
 
 
@@ -456,6 +455,8 @@ def return_output(input_dict, data_path, smooth_wind_power_curve=True):
 
     output_dict = deepcopy(input_dict)
     tech_dict = read_inputs('../config_techs.yml')
+    model_parameters = read_inputs(f"../config_model.yml")
+    rate = model_parameters['resampling_rate']
 
     wind_data_path = join(data_path, 'input/transfer_functions', 'data_wind_turbines.csv')
     data_converter_wind = read_csv(wind_data_path, sep=';', index_col=0)
@@ -565,7 +566,8 @@ def return_output(input_dict, data_path, smooth_wind_power_curve=True):
             output_array = xr.DataArray(power_output, coords=coordinates, dims=dimensions)
 
         output_array = output_array.where(output_array > 0.01, other=0.0)
-        output_dict[region][tech] = output_array.reindex_like(input_dict[region][tech])
+        output_dict[region][tech] = \
+            output_array.reindex_like(input_dict[region][tech]).resample(time=f"{rate}H").mean(dim='time')
 
     return output_dict
 
@@ -609,10 +611,10 @@ def critical_window_mapping(time_windows_dict, potentials_dict, deployments_dict
     regions = model_params['regions']
     date_slice = model_params['time_slice']
     sampling_rate = model_params['resampling_rate']
-    alpha = model_params['siting_params']['alpha']
-    delta = model_params['siting_params']['delta']
+    alpha = model_params['siting_params']['CRIT']['alpha']
+    delta = model_params['siting_params']['CRIT']['delta']
     data_path = model_params['data_path']
-    load_coverage = model_params['load_coverage']
+    load_coverage = model_params['siting_params']['CRIT']['load_coverage']
 
     key_list = return_dict_keys(time_windows_dict)
     output_dict = deepcopy(time_windows_dict)
@@ -726,7 +728,7 @@ def retrieve_index_dict(deployment_vector, coordinate_dict):
     return n, dict_deployment, partitions, indices
 
 
-def retrieve_site_data(model_parameters, capacity_factor_data, criticality_data, deployment_dict,
+def retrieve_site_data_old(model_parameters, capacity_factor_data, criticality_data, deployment_dict,
                        location_mapping, comp_site_coordinates, legacy_sites, output_folder, benchmark):
 
     sampling_rate = model_parameters['resampling_rate']
@@ -863,6 +865,69 @@ def retrieve_site_data(model_parameters, capacity_factor_data, criticality_data,
         objective_capv = get_objective_from_mapfile(capv_site_data_df, location_mapping, criticality_data, c)
         with open(join(output_folder, 'objective_capv.txt'), "w") as file:
             print(objective_capv, file=file)
+
+
+def retrieve_prod_sites(model_parameters, capacity_factor_data, deployment_dict, legacy_sites):
+
+    # Retrieve max sites
+    key_list = return_dict_keys(capacity_factor_data)
+    output_location = deepcopy(capacity_factor_data)
+
+    for region, tech in key_list:
+        n = deployment_dict[region][tech]
+        output_data_sum = capacity_factor_data[region][tech].sum(dim='time')
+
+        if n > 0:
+            locs_legacy = list(set(legacy_sites[tech]).intersection(set(output_data_sum.locations.values.flatten())))
+            if len(locs_legacy) > 0:
+                locs_new = set(output_data_sum.locations.values.flatten()).difference(locs_legacy)
+                output_data_sum_no_legacy = output_data_sum.sel(locations=list(locs_new))
+                n_new = n - len(locs_legacy)
+                if n_new > 0:
+                    locs_new_best_idx = output_data_sum_no_legacy.argsort()[-n_new:].values.flatten()
+                    locs_new_best = output_data_sum_no_legacy.isel(locations=locs_new_best_idx).locations.values.flatten()
+                    locs = sorted(list(set(locs_legacy).union(set(locs_new_best))))
+                else:
+                    locs = sorted(locs_legacy)
+            else:
+                locs_idx = output_data_sum.argsort()[-n:].values.flatten()
+                locs = output_data_sum.isel(locations=locs_idx).locations.values.flatten()
+            output_location[region][tech] = locs
+        else:
+            output_location[region][tech] = None
+
+    output_location_per_tech = {key: [] for key in model_parameters['technologies']}
+    for region, tech in key_list:
+        if output_location[region][tech] is not None:
+            for site in output_location[region][tech]:
+                output_location_per_tech[tech].append(site)
+
+    return output_location_per_tech
+
+
+def retrieve_site_data(model_parameters, capacity_factor_data, site_coordinates, output_folder):
+
+    sampling_rate = model_parameters['resampling_rate']
+
+    output_by_tech = collapse_dict_region_level(capacity_factor_data)
+    time_dt = date_range(start=model_parameters['time_slice'][0], end=model_parameters['time_slice'][1],
+                         freq=f"{sampling_rate}H")
+
+    for tech in output_by_tech:
+        _, index = unique(output_by_tech[tech].locations, return_index=True)
+        output_by_tech[tech] = output_by_tech[tech].isel(locations=index)
+
+    # Retrieve sites
+    site_data = {k1: {k2: None for k2 in site_coordinates[k1]} for k1 in site_coordinates}
+
+    for tech in site_data:
+        for site in site_data[tech]:
+            site_data[tech][site] = output_by_tech[tech].sel(locations=site).values.flatten()
+
+    reform = {(outerKey, innerKey): values for outerKey, innerDict in site_data.items() for innerKey, values in
+              innerDict.items()}
+    site_data_df = DataFrame(reform, index=time_dt).sort_index(axis='columns', level=1)
+    pickle.dump(site_data_df, open(join(output_folder,  'site_data.p'), 'wb'))
 
 
 def get_objective_from_mapfile(df_sites, mapping_file, criticality_data, c):

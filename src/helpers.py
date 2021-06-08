@@ -7,16 +7,15 @@ import xarray as xr
 import yaml
 from geopandas import read_file, GeoSeries
 from numpy import hstack, arange, dtype, array, timedelta64, nan, sum, deg2rad, sin, cos, arccos, ceil, int64
-from pandas import read_csv, to_datetime, Series, notnull, MultiIndex
+from pandas import read_csv, to_datetime, Series, notnull, MultiIndex, concat
 from shapely import prepared
 from shapely.geometry import Point
 from shapely.ops import unary_union
-from xarray import concat
 import geopy
 
 import logging
 logging.basicConfig(level=logging.INFO, format=f"%(levelname)s %(asctime)s - %(message)s", datefmt='%Y-%m-%d %H:%M:%S')
-logging.disable(logging.CRITICAL)
+# logging.disable(logging.CRITICAL)
 logger = logging.getLogger(__name__)
 
 
@@ -83,7 +82,7 @@ def collapse_dict_region_level(input_dict):
             for tech in input_dict[region]:
                 if tech == item:
                     l.append(input_dict[region][tech])
-        output_dict[item] = concat(l, dim='locations')
+        output_dict[item] = xr.concat(l, dim='locations')
 
     return output_dict
 
@@ -350,7 +349,7 @@ def return_coordinates_from_shapefiles(resource_dataset, shapefiles_region):
 
 
 def capacity_to_cardinality(dataset, model_config, tech_config, site_coordinates_dict, legacy_coordinates_dict,
-                            reference_lat=55, reference_lon=10, lat_dist_per_deg=111):
+                            reference_lat=47.5, reference_lon=10, lat_dist_per_deg=111):
 
     spatial_resolution = model_config['spatial_resolution']
     deployment_dict = get_deployment_vector(model_config['regions'],
@@ -378,13 +377,54 @@ def capacity_to_cardinality(dataset, model_config, tech_config, site_coordinates
         shape_region = union_regions([region], model_config['data_path'], which=tech_config[tech]['where'])
         points_in_region = return_coordinates_from_shapefiles(dataset, shape_region)
         legacy_dict[region][tech] = list(set(legacy_coordinates_dict[tech]).intersection(set(points_in_region)))
-        adj_cardinality_dict[region][tech] = min(len(site_coordinates_dict[region][tech]),
-                                                 max(len(legacy_dict[region][tech]), cardinality_dict[region][tech]))
 
-        logger.info(f"Picking {adj_cardinality_dict[region][tech]} {tech} sites in {region} out of "
-                    f"{len(site_coordinates_dict[region][tech])} candidate ones.")
+        try:
+            adj_cardinality_dict[region][tech] = min(len(site_coordinates_dict[region][tech]),
+                                                     max(len(legacy_dict[region][tech]),
+                                                         cardinality_dict[region][tech]))
+            logger.info(f"Picking {adj_cardinality_dict[region][tech]} {tech} sites in {region} out of "
+                        f"{len(site_coordinates_dict[region][tech])} candidate ones.")
+
+        except KeyError:
+            del adj_cardinality_dict[region][tech]
+            logger.info(f"No {tech} sites in {region}.")
 
     return adj_cardinality_dict
+
+
+def power_output_mapping(cf_data, potential_vector):
+
+    max_power_output = deepcopy(cf_data)
+    for region in cf_data.keys():
+        for tech in cf_data[region].keys():
+            max_power_output[region][tech] = cf_data[region][tech] * potential_vector[region][tech]
+
+    return max_power_output
+
+
+def load_data_mapping(data_path, model_parameters):
+
+    load_df = smooth_load_data(data_path,
+                               model_parameters['regions'],
+                               model_parameters['time_slice'],
+                               delta=1,
+                               resample_rate=model_parameters['resampling_rate'])
+
+    load_data_dict = load_df.sum(axis=1).values
+
+    return load_data_dict
+
+
+def return_correlation_matrix(capacity_factors_data):
+
+    country_list = []
+    for region in capacity_factors_data:
+        for tech in capacity_factors_data[region]:
+            country_list.append(capacity_factors_data[region][tech].to_pandas())
+    df_cf_join = concat(country_list, axis=1)
+    cmatrix = df_cf_join.corr().values
+
+    return cmatrix
 
 
 def get_potential_per_site(input_dict, tech_parameters, spatial_resolution):

@@ -1,7 +1,7 @@
 # Config file for various conversion technologies.
 wind_onshore:
   where: 'onshore'
-  filters: ['resource_quality', 'population_density', 'orography', 'forestry', 'water_mask', 'latitude']
+  filters: ['population_density', 'orography', 'water_mask', 'forestry', 'resource_quality', 'latitude']
   converter_IV: 'V110'
   converter_III: 'E103'
   converter_II: 'V90'
@@ -10,7 +10,7 @@ wind_onshore:
   deployment: 'onshore'
   resource_threshold: 4. #m/s
   population_density_threshold_low: 0.
-  population_density_threshold_high: 100.
+  population_density_threshold_high: 200.
   protected_areas_selection: ['Ia', 'Ib', 'II']
   protected_areas_distance_threshold: 10.
   depth_threshold_low: 0.
@@ -20,8 +20,8 @@ wind_onshore:
   forestry_ratio_threshold: 0.8
   latitude_threshold: 65.
   legacy_min: 0.1
-  power_density: 5. # MW/sqkm
-  land_utilization_factor: 0.5
+  power_density: 8. # MW/sqkm
+  land_utilization_factor: 0.3
 
 wind_offshore:
   where: 'offshore'

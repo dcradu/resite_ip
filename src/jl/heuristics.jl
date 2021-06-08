@@ -415,3 +415,273 @@ function greedy_heuristic_partition(D::Array{Float64,2}, c::Float64, n::Vector{I
   x_incumbent[ind_incumbent] .= 1.
   return x_incumbent, obj_incumbent
 end
+
+function compute_average_residual_demand(d::Vector{Float64}, p::Vector{Float64})
+
+    T, f = length(d), 0
+    @inbounds for t = 1:T
+        if p[t] < d[t]
+            f += (d[t] - p[t])
+        end
+    end
+    return f/T
+end
+
+function compute_average_variability(d::Vector{Float64}, p::Vector{Float64})
+
+    T, f = length(d), 0
+    @inbounds for t = 2:T
+        f_t, f_tm1 = 0, 0
+        if p[t] < d[t]
+            f_t = (d[t] - p[t])
+        elseif p[t-1] < d[t-1]
+            f_tm1 = (d[t-1] - p[t-1])
+        end
+        f += abs(f_t - f_tm1)
+    end
+    return f/(T-2)
+end
+
+function compute_maximum_variability!(d::Vector{Float64}, p::Vector{Float64}, tau::Int64, f::Vector{Float64})
+
+    T = length(d)
+    n = 1
+    @inbounds for i = 1:tau
+        @inbounds for t = 1+i:T
+            f_t, f_tmi = 0, 0
+            if p[t] < d[t]
+                f_t = (d[t] - p[t])
+            elseif p[t-i] < d[t-i]
+                f_tmi = (d[t-i] - p[t-i])
+            end
+            f[n] = f_t - f_tmi
+            n += 1
+        end
+    end
+    return maximum(view(f, 1:n))
+end
+
+function compute_correlation(C::Array{Float64, 2}, l::Int64, locations::Vector{Int64})
+
+    L = size(C)[1]
+    v = 0
+    @inbounds for loc in L
+        v += C[l, loc]
+    end
+    return v
+end
+
+function partitioned_forward_greedy_heuristic(W::Array{Float64, 2}, d::Vector{Float64}, N::Dict{Int64, Int64},
+                                              alpha::Float64, tau::Int64, biobjective::String,
+                                              mapping_loc_reg::Dict{Int64, Int64})
+
+    T, L = size(W)
+    x_incumbent = zeros(Float64, L)
+    R = length(keys(N))
+    locations = [l for l = 1:L]
+    regions = [r for r = 1:R]
+    N_loc = sum([N[r] for r in regions])
+    candidate_locations_count_per_region, locations_added_per_region = zeros(Int64, R), zeros(Int64, R)
+    @inbounds for ind in locations
+        candidate_locations_count_per_region[mapping_loc_reg[ind]] += 1
+    end
+    ind_compl_incumbent, ind_incumbent = Dict([(r, zeros(Int64, candidate_locations_count_per_region[r])) for r in regions]), zeros(Int64, N_loc)
+    regions_start_pointer = 1
+    @inbounds for r in regions
+        regions_end_pointer = regions_start_pointer + candidate_locations_count_per_region[r]
+        ind_compl_incumbent[r] .= locations[regions_start_pointer:(regions_end_pointer-1)]
+        regions_start_pointer = regions_end_pointer
+    end
+    mapping_loc_ard, ard_tmp = Dict(locations .=> zeros(Float64, L)), zeros(Float64, L)
+    prod_incumbent, prod_tmp, f = zeros(Float64, T), zeros(Float64, T), zeros(Float64, T*tau)
+    n = 0
+    @inbounds while n < N_loc
+        m, ind_min, ard_min = 1, 0, 1000
+        @inbounds for r in regions
+            if locations_added_per_region[r] < N[r]
+              @inbounds for ind in ind_compl_incumbent[r]
+                  prod_tmp .= prod_incumbent .+ view(W, :, ind)
+                  mapping_loc_ard[ind] = compute_average_residual_demand(d, prod_tmp)
+                  ard_tmp[m] = mapping_loc_ard[ind]
+                  if ard_tmp[m] < ard_min
+                      ind_min = ind
+                      ard_min = ard_tmp[m]
+                  end
+                  m += 1
+              end
+            end
+        end
+        ind_candidate = ind_min
+        if alpha > 0.
+            sort!(view(ard_tmp, 1:m))
+            L_tmp = 0
+            @inbounds for r in regions
+                if locations_added_per_region[r] < N[r]
+                    L_tmp += (candidate_locations_count_per_region[r] - locations_added_per_region[r])
+                end
+            end
+            j, var, var_min, L_n = 0, 1001, 1000, convert(Int64, ceil(alpha * L_tmp))
+            @inbounds for r in regions
+                if locations_added_per_region[r] < N[r]
+                    @inbounds for ind in ind_compl_incumbent[r]
+                        if mapping_loc_ard[ind] <= ard_tmp[L_n] && j < L_n
+                            prod_tmp .= prod_incumbent .+ view(W, :, ind)
+                            if biobjective == "AverageVariability"
+                                var = compute_average_variability(d, prod_tmp)
+                            else
+                                var = compute_maximum_variability!(d, prod_tmp, tau, f)
+                            end
+                            if var < var_min
+                                ind_candidate = ind
+                                var_min = var
+                            end
+                            j += 1
+                        end
+                    end
+                end
+            end
+        end
+        prod_incumbent .+= view(W, :, ind_candidate)
+        ind_incumbent[n+1] = ind_candidate
+        filter!(a -> a != ind_candidate, ind_compl_incumbent[mapping_loc_reg[ind_candidate]])
+        filter!(a -> a != mapping_loc_ard[ind_candidate], ard_tmp)
+        filter!(d -> d.first != ind_candidate, mapping_loc_ard)
+        locations_added_per_region[mapping_loc_reg[ind_candidate]] += 1
+        n += 1
+    end
+    x_incumbent[ind_incumbent] .= 1.
+    return x_incumbent
+end
+
+function partitioned_backward_greedy_heuristic(W::Array{Float64, 2}, d::Vector{Float64}, N::Dict{Int64, Int64}, alpha::Float64, tau::Int64, biobjective::String, mapping_loc_reg::Dict{Int64, Int64})
+
+    T, L = size(W)
+    x_incumbent = zeros(Float64, L)
+    R = length(keys(N))
+    locations = [l for l = 1:L]
+    regions = [r for r = 1:R]
+    N_loc = sum([N[r] for r in regions])
+    candidate_locations_count_per_region, locations_per_region = zeros(Int64, R), zeros(Int64, R)
+    @inbounds for ind in locations
+        candidate_locations_count_per_region[mapping_loc_reg[ind]] += 1
+    end
+    ind_incumbent = Dict([(r, zeros(Int64, candidate_locations_count_per_region[r])) for r in regions])
+    regions_start_pointer = 1
+    @inbounds for r in regions
+        locations_per_region[r] = candidate_locations_count_per_region[r]
+        regions_end_pointer = regions_start_pointer + candidate_locations_count_per_region[r]
+        ind_incumbent[r] .= locations[regions_start_pointer:(regions_end_pointer-1)]
+        regions_start_pointer = regions_end_pointer
+    end
+    mapping_loc_ard, ard_tmp = Dict(locations .=> zeros(Float64, L)), zeros(Float64, L)
+    prod_incumbent, prod_tmp, f = zeros(Float64, T), zeros(Float64, T), zeros(Float64, T*tau)
+    n = 0
+    @inbounds while L-n > N_loc
+        m, ind_min, ard_min = 1, 0, 1000
+        @inbounds for r in regions
+            if locations_per_region[r] > N[r]
+                @inbounds for ind in ind_incumbent[r]
+                      prod_tmp .= prod_incumbent .- view(W, :, ind)
+                      mapping_loc_ard[ind] = compute_average_residual_demand(d, prod_tmp)
+                      ard_tmp[m] = mapping_loc_ard[ind]
+                      if ard_tmp[m] < ard_min
+                          ind_min = ind
+                          ard_min = ard_tmp[m]
+                      end
+                      m += 1
+                 end
+            end
+        end
+        ind_candidate = ind_min
+        if alpha > 0.
+            sort!(view(ard_tmp, 1:m))
+            L_tmp = 0
+            @inbounds for r in regions
+                if locations_per_region[r] > N[r]
+                    L_tmp += locations_per_region[r]
+                end
+            end
+            j, var, var_min, L_n = 0, 1001, 1000, convert(Int64, ceil(alpha * L_tmp))
+            @inbounds for r in regions
+                if locations_per_region[r] > N[r]
+                    @inbounds for ind in ind_incumbent[r]
+                        if mapping_loc_ard[ind] <= ard_tmp[L_n] && j < L_n
+                            prod_tmp .= prod_incumbent .- view(W, :, ind)
+                            if biobjective == "AverageVariability"
+                                var = compute_average_variability(d, prod_tmp)
+                            else
+                                var = compute_maximum_variability!(d, prod_tmp, tau, f)
+                            end
+                            if var < var_min
+                                ind_candidate = ind
+                                var_min = var
+                            end
+                            j += 1
+                        end
+                    end
+                end
+            end
+        end
+        prod_incumbent .-= view(W, :, ind_candidate)
+        filter!(a -> a != ind_candidate, ind_incumbent[mapping_loc_reg[ind_candidate]])
+        filter!(a -> a != mapping_loc_ard[ind_candidate], ard_tmp)
+        filter!(d -> d.first != ind_candidate, mapping_loc_ard)
+        locations_per_region[mapping_loc_reg[ind_candidate]] -= 1
+        n += 1
+    end
+    indices = reduce(vcat,collect(ind_incumbent[j] for j in keys(ind_incumbent)))
+    x_incumbent[indices] .= 1.
+    return x_incumbent
+end
+
+function partitioned_greedy_correlation_heuristic(C::Array{Float64, 2}, N::Dict{Int64, Int64}, mapping_loc_reg::Dict{Int64, Int64})
+
+    L = size(C)[1]
+    x_incumbent = zeros(Float64, L)
+    R = length(keys(N))
+    locations = [l for l = 1:L]
+    regions = [r for r = 1:R]
+    N_loc = sum([N[r] for r in regions])
+    candidate_locations_count_per_region, locations_added_per_region = zeros(Int64, R), zeros(Int64, R)
+    @inbounds for ind in locations
+        candidate_locations_count_per_region[mapping_loc_reg[ind]] += 1
+    end
+    ind_compl_incumbent, ind_incumbent = Dict([(r, zeros(Int64, candidate_locations_count_per_region[r])) for r in regions]), zeros(Int64, N_loc)
+    regions_start_pointer = 1
+    @inbounds for r in regions
+        regions_end_pointer = regions_start_pointer + candidate_locations_count_per_region[r]
+        ind_compl_incumbent[r] .= locations[regions_start_pointer:(regions_end_pointer-1)]
+        regions_start_pointer = regions_end_pointer
+    end
+    ind_candidate, v, v_min = 0, 0, L
+    @inbounds for ind in locations
+        v = compute_correlation(C, ind, locations)
+        if v < v_min
+            ind_candidate = ind
+            v_min = v
+        end
+    end
+    locations_added_per_region[mapping_loc_reg[ind_candidate]], n = 1, 1
+    ind_incumbent[n] = ind_candidate
+    filter!(a -> a != ind_candidate, ind_compl_incumbent[mapping_loc_reg[ind_candidate]])
+    @inbounds while n < N_loc
+        v_min = L
+        @inbounds for r in regions
+            if locations_added_per_region[r] < N[r]
+                @inbounds for ind in ind_compl_incumbent[r]
+                    v = compute_correlation(C, ind, ind_compl_incumbent[r])
+                    if v < v_min
+                        ind_candidate = ind
+                        v_min = v
+                    end
+                end
+            end
+        end
+        ind_incumbent[n+1] = ind_candidate
+        filter!(a -> a != ind_candidate, ind_compl_incumbent[mapping_loc_reg[ind_candidate]])
+        locations_added_per_region[mapping_loc_reg[ind_candidate]] += 1
+        n += 1
+    end
+    x_incumbent[ind_incumbent] .= 1.
+    return x_incumbent
+end

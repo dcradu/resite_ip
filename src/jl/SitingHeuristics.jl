@@ -88,3 +88,36 @@ function main_DGH(index_dict::Dict{Any, Any}, deployment_dict::Dict{Any, Any}, l
   return x_sol, LB_sol
 
 end
+
+function main_MUSS(prod_matrix::Array{Float64, 2}, demand_vector::Vector{Float64},
+                   index_dict::Dict{Any, Any}, deployment_dict::Dict{Any, Any},
+                   alpha::Float64, biobjective::String, tau::Int64=24, algorithm::String="forward")
+
+  index_dict = Dict([(convert(Int64, k), convert(Int64, index_dict[k])) for k in keys(index_dict)])
+  deployment_dict = Dict([(convert(Int64, k), convert(Int64, deployment_dict[k])) for k in keys(deployment_dict)])
+
+  if algorithm == "forward"
+    x_sol = partitioned_forward_greedy_heuristic(prod_matrix, demand_vector, deployment_dict,
+                                                 alpha, tau, biobjective, index_dict)
+  elseif algorithm == "backward"
+    x_sol = partitioned_backward_greedy_heuristic(prod_matrix, demand_vector, deployment_dict,
+                                                  alpha, tau, biobjective, index_dict)
+  else
+    println("No such algorithm available.")
+    throw(ArgumentError)
+  end
+
+  return x_sol
+
+end
+
+function main_CORR(C::Array{Float64, 2}, deployment_dict::Dict{Any, Any}, index_dict::Dict{Any, Any})
+
+  index_dict = Dict([(convert(Int64, k), convert(Int64, index_dict[k])) for k in keys(index_dict)])
+  deployment_dict = Dict([(convert(Int64, k), convert(Int64, deployment_dict[k])) for k in keys(deployment_dict)])
+
+  x_sol = partitioned_greedy_correlation_heuristic(C, deployment_dict, index_dict)
+
+  return x_sol
+
+end
