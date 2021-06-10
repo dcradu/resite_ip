@@ -462,10 +462,8 @@ function compute_maximum_variability!(d::Vector{Float64}, p::Vector{Float64}, ta
 end
 
 function compute_correlation(C::Array{Float64, 2}, l::Int64, locations::Vector{Int64})
-
-    L = size(C)[1]
     v = 0
-    @inbounds for loc in L
+    @inbounds for loc in locations
         v += C[l, loc]
     end
     return v
@@ -646,7 +644,7 @@ function partitioned_greedy_correlation_heuristic(C::Array{Float64, 2}, N::Dict{
     @inbounds for ind in locations
         candidate_locations_count_per_region[mapping_loc_reg[ind]] += 1
     end
-    ind_compl_incumbent, ind_incumbent = Dict([(r, zeros(Int64, candidate_locations_count_per_region[r])) for r in regions]), zeros(Int64, N_loc)
+    ind_compl_incumbent, ind_incumbent = Dict([(r, zeros(Int64, candidate_locations_count_per_region[r])) for r in regions]), zeros(Int64, 0)
     regions_start_pointer = 1
     @inbounds for r in regions
         regions_end_pointer = regions_start_pointer + candidate_locations_count_per_region[r]
@@ -662,14 +660,14 @@ function partitioned_greedy_correlation_heuristic(C::Array{Float64, 2}, N::Dict{
         end
     end
     locations_added_per_region[mapping_loc_reg[ind_candidate]], n = 1, 1
-    ind_incumbent[n] = ind_candidate
+    push!(ind_incumbent, ind_candidate)
     filter!(a -> a != ind_candidate, ind_compl_incumbent[mapping_loc_reg[ind_candidate]])
     @inbounds while n < N_loc
         v_min = L
         @inbounds for r in regions
             if locations_added_per_region[r] < N[r]
                 @inbounds for ind in ind_compl_incumbent[r]
-                    v = compute_correlation(C, ind, ind_compl_incumbent[r])
+                    v = compute_correlation(C, ind, ind_incumbent)
                     if v < v_min
                         ind_candidate = ind
                         v_min = v
@@ -677,7 +675,7 @@ function partitioned_greedy_correlation_heuristic(C::Array{Float64, 2}, N::Dict{
                 end
             end
         end
-        ind_incumbent[n+1] = ind_candidate
+        push!(ind_incumbent, ind_candidate)
         filter!(a -> a != ind_candidate, ind_compl_incumbent[mapping_loc_reg[ind_candidate]])
         locations_added_per_region[mapping_loc_reg[ind_candidate]] += 1
         n += 1
