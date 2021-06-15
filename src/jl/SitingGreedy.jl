@@ -59,13 +59,13 @@ function compute_criticality_matrix(A::Array{Float64, 2}, demand::Vector{Float64
     A_smth::Array{Float64, 2} = S * A
     d_smth::Vector{Float64} = S * demand
     D::Array{Float64, 2} = zeros(Float64, W, L)
-    alpha_l::Float64 = 0.0
-    w::Int64 = 1
+    alpha_wl::Float64 = 0.0
+    w::Int64, l::Int64 = 1, 1
     @inbounds while w <= W
-        l::Int64 = 1
+        l = 1
         @inbounds while l <= L
-            alpha_lw = (varsigma * d_smth[w]) / (potential[l] * N)
-            if A_smth[w, l] > alpha_lw
+            alpha_wl = (varsigma * d_smth[w]) / (potential[l] * N)
+            if A_smth[w, l] >= alpha_wl
                 D[w, l] = 1.0
             end
             l += 1
@@ -93,31 +93,32 @@ end
 
 function compute_objective(A::Array{Float64}, d::Vector{Float64}, L::Vector{Int64}, obj::MaxVariability)::Float64
 
-    rd::Float64, rd_max::Float64 = 0.0, -1e9
-    p_t::Float64, p_tmi::Float64, rd_t::Float64, rd_tmi::Float64 = 0.0, 0.0, 0.0, 0.0
+    var::Float64, var_max::Float64 = 0.0, -1e9
+    p_tmp::Float64, p_tmpi::Float64, rd_t::Float64, rd_tmi::Float64 = 0.0, 0.0, 0.0, 0.0
     i::Int64, t::Int64 = 1, 1
     @inbounds while i <= obj.tau
         t = i+1
         @inbounds while t <= length(d)
-            p_t, p_tmi, rd_t, rd_tmi = 0.0, 0.0, 0.0, 0.0
+            p_tmp, p_tmpi, rd_t, rd_tmi = 0.0, 0.0, 0.0, 0.0
             @inbounds for l in L
-                p_t += A[t, l]
-                p_tmi += A[t-i, l]
+                p_tmp += A[t, l]
+                p_tmpi += A[t-i, l]
             end
-            if p_t < d[t]
-                rd_t = (d[t] - p_t)
-            elseif p_tmi < d[t-i]
-                rd_tmi = (d[t-i] - p_tmi)
+            if p_tmp < d[t]
+                rd_t = (d[t] - p_tmp)
             end
-            rd = rd_t - rd_tmi
-            if rd > rd_max
-                rd_max = rd
+            if p_tmpi < d[t-i]
+                rd_tmi = (d[t-i] - p_tmpi)
+            end
+            var = rd_t - rd_tmi
+            if var > var_max
+                var_max = var
             end
             t += 1
         end
         i += 1
     end
-    return rd_max
+    return var_max
 
 end
 
@@ -127,27 +128,28 @@ end
 
 function compute_objective(A::Array{Float64}, p::Vector{Float64}, d::Vector{Float64}, l::Int64, obj::MaxVariability)::Float64
 
-    rd::Float64, rd_max::Float64 = 0.0, -1e9
-    p_t::Float64, p_tmi::Float64, rd_t::Float64, rd_tmi::Float64 = 0.0, 0.0, 0.0, 0.0
+    var::Float64, var_max::Float64 = 0.0, -1e9
+    p_tmp::Float64, p_tmpi::Float64, rd_t::Float64, rd_tmi::Float64 = 0.0, 0.0, 0.0, 0.0
     i::Int64, t::Int64 = 1, 1
     @inbounds while i <= obj.tau
         t = i+1
         @inbounds while t <= length(d)
-            p_t, p_tmi, rd_t, rd_tmi = p[t] + A[t, l], p[t-i] + A[t-i, l], 0.0, 0.0
-            if p_t < d[t]
-                rd_t = (d[t] - p_t)
-            elseif p_tmi < d[t-i]
-                rd_tmi = (d[t-i] - p_tmi)
+            p_tmp, p_tmpi, rd_t, rd_tmi = p[t] + A[t, l], p[t-i] + A[t-i, l], 0.0, 0.0
+            if p_tmp < d[t]
+                rd_t = (d[t] - p_tmp)
             end
-            rd = rd_t - rd_tmi
-            if rd > rd_max
-                rd_max = rd
+            if p_tmpi < d[t-i]
+                rd_tmi = (d[t-i] - p_tmpi)
+            end
+            var = rd_t - rd_tmi
+            if var > var_max
+                var_max = var
             end
             t += 1
         end
         i += 1
     end
-    return rd_max
+    return var_max
 
 end
 
@@ -157,27 +159,28 @@ end
 
 function compute_objective(A::Array{Float64}, d::Vector{Float64}, L::Vector{Int64}, obj::AverageVariability)::Float64
 
-    rd::Float64, rd_t::Float64, rd_tm1::Float64 = 0.0, 0.0, 0.0
-    p_t::Float64, p_tm1::Float64 = 0.0, 0.0
+    var::Float64, rd_t::Float64, rd_tm1::Float64 = 0.0, 0.0, 0.0
+    p_tmp::Float64, p_tmp1::Float64 = 0.0, 0.0
     @inbounds for l in L
-        p_tm1 += A[1, l]
+        p_tmp1 += A[1, l]
     end
     t::Int64 = 2
     @inbounds while t <= length(d)
-        p_t, rd_t, rd_tm1 = 0.0, 0.0, 0.0
+        p_tmp, rd_t, rd_tm1 = 0.0, 0.0, 0.0
         @inbounds for l in L
-            p_t += A[t, l]
+            p_tmp += A[t, l]
         end
-        if p_t < d[t]
-            rd_t = (d[t] - p_t)
-        elseif p_tm1 < d[t-1]
-            rd_tm1 = (d[t-1] - p_tm1)
+        if p_tmp < d[t]
+            rd_t = (d[t] - p_tmp)
         end
-        rd += abs(rd_t - rd_tm1)
-        p_tm1 = p_t
+        if p_tmp1 < d[t-1]
+            rd_tm1 = (d[t-1] - p_tmp1)
+        end
+        var += abs(rd_t - rd_tm1)
+        p_tmp1 = p_tmp
         t += 1
     end
-    return rd/(length(d)-2)
+    return var/(length(d)-2)
 
 end
 
@@ -187,21 +190,22 @@ end
 
 function compute_objective(A::Array{Float64}, p::Vector{Float64}, d::Vector{Float64}, l::Int64, obj::AverageVariability)::Float64
 
-    rd::Float64, rd_t::Float64, rd_tm1::Float64 = 0.0, 0.0, 0.0
-    p_t::Float64, p_tm1::Float64 = 0.0, p[1] + A[1, l]
+    var::Float64, rd_t::Float64, rd_tm1::Float64 = 0.0, 0.0, 0.0
+    p_tmp::Float64, p_tmp1::Float64 = 0.0, p[1] + A[1, l]
     t::Int64 = 2
     @inbounds while t <= length(d)
-        p_t, rd_t, rd_tm1 = p[t] + A[t, l], 0.0, 0.0
-        if p_t < d[t]
-            rd_t = (d[t] - p_t)
-        elseif p_tm1 < d[t-1]
-            rd_tm1 = (d[t-1] - p_tm1)
+        p_tmp, rd_t, rd_tm1 = p[t] + A[t, l], 0.0, 0.0
+        if p_tmp < d[t]
+            rd_t = (d[t] - p_tmp)
         end
-        rd += abs(rd_t - rd_tm1)
-        p_tm1 = p_t
+        if p_tmp1 < d[t-1]
+            rd_tm1 = (d[t-1] - p_tmp1)
+        end
+        var += abs(rd_t - rd_tm1)
+        p_tmp1 = p_tmp
         t += 1
     end
-    return rd/(length(d)-2)
+    return var/(length(d)-2)
 
 end
 
@@ -211,15 +215,15 @@ end
 
 function compute_objective(A::Array{Float64}, d::Vector{Float64}, L::Vector{Int64}, obj::MaxResidualDemand)::Float64
 
-    p::Float64, rd::Float64, rd_max::Float64 = 0.0, 0.0, 0.0
+    p_tmp::Float64, rd::Float64, rd_max::Float64 = 0.0, 0.0, 0.0
     t::Int64 = 1
     @inbounds while t <= length(d)
-        p = 0.0
+        p_tmp = 0.0
         @inbounds for l in L
-            p += A[t, l]
+            p_tmp += A[t, l]
         end
-        if p < d[t]
-           rd = (d[t] - p)
+        if p_tmp < d[t]
+           rd = (d[t] - p_tmp)
            if rd > rd_max
                rd_max = rd
            end
@@ -236,12 +240,12 @@ end
 
 function compute_objective(A::Array{Float64}, p::Vector{Float64}, d::Vector{Float64}, l::Int64, obj::MaxResidualDemand)::Float64
 
-    p_t::Float64, rd::Float64, rd_max::Float64 = 0.0, 0.0, -1e+9
+    p_tmp::Float64, rd::Float64, rd_max::Float64 = 0.0, 0.0, -1e+9
     t::Int64 = 1
     @inbounds while t <= length(d)
-        p_t = p[t] + A[t, l]
-        if p_t < d[t]
-            rd = (d[t] - p_t)
+        p_tmp = p[t] + A[t, l]
+        if p_tmp < d[t]
+            rd = (d[t] - p_tmp)
             if rd > rd_max
                 rd_max = rd
             end
@@ -258,15 +262,15 @@ end
 
 function compute_objective(A::Array{Float64}, d::Vector{Float64}, L::Vector{Int64}, obj::AverageResidualDemand)::Float64
 
-    p::Float64, rd::Float64 = 0.0, 0.0
+    p_tmp::Float64, rd::Float64 = 0.0, 0.0
     t::Int64 = 1
     @inbounds while t <= length(d)
-        p = 0.0
+        p_tmp = 0.0
         @inbounds for l in L
-            p += A[t, l]
+            p_tmp += A[t, l]
         end
-        if p < d[t]
-           rd += (d[t] - p)
+        if p_tmp < d[t]
+           rd += (d[t] - p_tmp)
         end
         t += 1
     end
@@ -280,12 +284,12 @@ end
 
 function compute_objective(A::Array{Float64}, p::Vector{Float64}, d::Vector{Float64}, l::Int64, obj::AverageResidualDemand)::Float64
 
-    p_t::Float64, rd::Float64 = 0.0, 0.0
+    p_tmp::Float64, rd::Float64 = 0.0, 0.0
     t::Int64 = 1
     @inbounds while t <= length(d)
-        p_t = p[t] + A[t, l]
-        if p_t < d[t]
-            rd += (d[t] - p_t)
+        p_tmp = p[t] + A[t, l]
+        if p_tmp < d[t]
+            rd += (d[t] - p_tmp)
         end
         t += 1
     end
@@ -299,19 +303,19 @@ end
 
 function compute_objective(A::Array{Float64}, L::Vector{Int64}, obj::Criticality)::Float64
 
-    d_w::Float64, v::Float64 = 0.0, 0.0
+    d_tmp::Float64, crit::Float64 = 0.0, 0.0
     w::Int64 = 1
     @inbounds while w <= size(A)[1]
-        d_w = 0.0
+        d_tmp = 0.0
         @inbounds for l in L
-            d_w += A[w, l]
+            d_tmp += A[w, l]
         end
-        if d_w > obj.c
-            v += 1.0
+        if d_tmp >= obj.c
+            crit += 1.0
         end
         w += 1
     end
-    return v
+    return crit
 
 end
 
@@ -319,18 +323,18 @@ function time_compute_objective(A::Array{Float64}, L::Vector{Int64}, obj::Critic
     @time compute_objective(A, L, obj)
 end
 
-function compute_objective(A::Array{Float64}, d::Vector{Float64}, l::Int64, obj::Criticality)::Float64
+function compute_objective(A::Array{Float64}, d::Vector{Float64}, thres::Float64, l::Int64, obj::Criticality)::Float64
 
-    d_w::Float64, v::Float64 = 0.0, 0.0
+    d_tmp::Float64, crit::Float64 = 0.0, 0.0
     w::Int64 = 1
     @inbounds while w <= length(d)
-        d_w = d[w] + A[w, l]
-        if d_w > obj.c
-            v += 1.0
+        d_tmp = d[w] + A[w, l]
+        if d_tmp >= thres
+            crit += 1.0
         end
         w += 1
     end
-    return v
+    return crit
 
 end
 
@@ -340,16 +344,16 @@ end
 
 function compute_objective(A::Array{Float64}, L::Vector{Int64}, obj::Correlation)
 
-    a_tmp::Float64, v::Float64 = 0.0, 0.0
+    a_tmp::Float64, corr::Float64 = 0.0, 0.0
     @inbounds for l1 in L
         @inbounds for l2 in L
             if l1 != l2
-                v += A[l1, l2]
+                corr += A[l1, l2]
             end
         end
     end
-    v = v / 2.0
-    return v
+    corr = corr / 2.0
+    return corr
 
 end
 
@@ -359,11 +363,11 @@ end
 
 function compute_objective(A::Array{Float64}, l::Int64, L::Vector{Int64}, obj::Correlation)
 
-    v::Float64 = 0.0
+    corr::Float64 = 0.0
     @inbounds for loc in L
-        v += A[l, loc]
+        corr += A[l, loc]
     end
-    return v
+    return corr
 
 end
 
@@ -494,19 +498,28 @@ end
 function greedy_algorithm(A::Array{Float64}, N::Int64, obj::Criticality)
 
     W, L = size(A)
-    ind_compl_incumbent::Vector{Int64}, ind_incumbent::Vector{Int64}, ind_candidate::Int64 = [l for l = 1:L], zeros(Int64, 0), 0
+    ind_compl_incumbent::Vector{Int64}, ind_incumbent::Vector{Int64}, ind_tmp::Vector{Int64}, ind_candidate::Int64 = [l for l = 1:L], zeros(Int64, 0), zeros(Int64, 0), 0
     d_incumbent::Vector{Float64} = zeros(Float64, W)
     v::Float64, v_max::Float64 = 0.0, 0.0
-    n::Int64 = 0
+    n::Int64, threshold::Float64 = 0, 0.0
     @inbounds while n < N
-        ind_candidate, v_max = 0, -1e+9
+        v_max = -1e+9
+        if threshold < obj.c
+            threshold += 1.0
+        else
+            threshold = obj.c
+        end
         @inbounds for ind in ind_compl_incumbent
-            v = compute_objective(A, d_incumbent, ind, obj)
+            v = compute_objective(A, d_incumbent, threshold, ind, obj)
             if v > v_max
-                ind_candidate = ind
+                filter!(a -> !(a in ind_tmp), ind_tmp)
+                push!(ind_tmp, ind)
                 v_max = v
+            elseif v == v_max
+                push!(ind_tmp, ind)
             end
         end
+        ind_candidate = rand(ind_tmp)
         d_incumbent .+= view(A, :, ind_candidate)
         push!(ind_incumbent, ind_candidate)
         filter!(a -> a != ind_candidate, ind_compl_incumbent)
@@ -557,7 +570,7 @@ end
 
 ### FUNCTION TO CALL FROM PYTHON ###
 
-function siting_method(capacity_factor_matrix::Array{Float64,2}, demand::Vector{Float64}, potential::Vector{Float64}, deployment_target::Int64, c::Float64, delta::Int64, varsigma::Float64, tau::Int64, criterion::String)
+function siting_method(capacity_factor_matrix::Array{Float64}, demand::Vector{Float64}, potential::Vector{Float64}, deployment_target::Int64, c::Float64, delta::Int64, varsigma::Float64, tau::Int64, criterion::String)
 
     production_matrix::Array{Float64, 2} = potential' .* capacity_factor_matrix
     criticality_matrix::Array{Float64, 2}, correlation_matrix::Array{Float64, 2} = compute_criticality_matrix(capacity_factor_matrix, demand, potential, delta, deployment_target, varsigma), compute_correlation_matrix(capacity_factor_matrix)
@@ -582,7 +595,7 @@ function siting_method(capacity_factor_matrix::Array{Float64,2}, demand::Vector{
             push!(obj_values, compute_objective(production_matrix, demand, locations, obj_mapping[crit]))
         end
     end
-    x[locations] .= 1.
+    x[locations] .= 1.0
     return x, Dict(criteria .=> obj_values)
 
 end
