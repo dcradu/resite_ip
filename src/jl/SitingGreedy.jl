@@ -60,8 +60,9 @@ function compute_criticality_matrix(A::Array{Float64, 2}, demand::Vector{Float64
     d_smth::Vector{Float64} = S * demand
     D::Array{Float64, 2} = zeros(Float64, W, L)
     alpha_l::Float64 = 0.0
-    w::Int64, l::Int64 = 1, 1
+    w::Int64 = 1
     @inbounds while w <= W
+        l::Int64 = 1
         @inbounds while l <= L
             alpha_lw = (varsigma * d_smth[w]) / (potential[l] * N)
             if A_smth[w, l] > alpha_lw

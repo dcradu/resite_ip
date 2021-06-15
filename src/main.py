@@ -30,11 +30,16 @@ if __name__ == '__main__':
     # Read RES dataset and filter coordinates
     database = read_database(data_path, spatial_resolution)
 
-    if isfile(join(data_path, "input/capacity_factors_data.p")):
+    if isfile(join(data_path, "input/capacity_factors_matrix.p")):
 
         capacity_factors_data = pickle.load(open(join(data_path, "input/capacity_factors_data.p"), 'rb'))
+        capacity_factors_matrix = pickle.load(open(join(data_path, "input/capacity_factors_matrix.p"), 'rb'))
         site_coordinates = pickle.load(open(join(data_path, "input/site_coordinates.p"), 'rb'))
         legacy_coordinates = pickle.load(open(join(data_path, "input/legacy_coordinates.p"), 'rb'))
+        demand_vector = pickle.load(open(join(data_path, "input/demand_vector.p"), 'rb'))
+        potential_vector = pickle.load(open(join(data_path, "input/potential_vector.p"), 'rb'))
+        deployment_dict = pickle.load(open(join(data_path, "input/deployment_dict.p"), 'rb'))
+        site_positions = pickle.load(open(join(data_path, "input/site_positions.p"), 'rb'))
         logger.info('Input files read from disk.')
 
     else:
@@ -45,22 +50,28 @@ if __name__ == '__main__':
         # Convert resource data into capacity factors
         capacity_factors_data = return_output(truncated_data, data_path)
 
+        site_positions = sites_position_mapping(capacity_factors_data)
+        # Convert capacities to cardinality constraints
+        deployment_dict = capacity_to_cardinality(database, model_parameters, tech_parameters,
+                                                  site_coordinates, legacy_coordinates)
+        # Get technical potential for all candidate sites
+        site_potential_data = get_potential_per_site(capacity_factors_data, tech_parameters, spatial_resolution)
+
+        capacity_factors_matrix = xarray_to_ndarray(capacity_factors_data)
+        demand_vector = load_data_mapping(data_path, model_parameters)
+        potential_vector = xarray_to_ndarray(site_potential_data)
+
         pickle.dump(capacity_factors_data, open(join(data_path, f"input/capacity_factors_data.p"), 'wb'), protocol=4)
+        pickle.dump(capacity_factors_matrix, open(join(data_path, f"input/capacity_factors_matrix.p"), 'wb'), protocol=4)
         pickle.dump(site_coordinates, open(join(data_path, f"input/site_coordinates.p"), 'wb'), protocol=4)
         pickle.dump(legacy_coordinates, open(join(data_path, f"input/legacy_coordinates.p"), 'wb'), protocol=4)
+        pickle.dump(site_positions, open(join(data_path, f"input/site_positions.p"), 'wb'), protocol=4)
+        pickle.dump(demand_vector, open(join(data_path, f"input/demand_vector.p"), 'wb'), protocol=4)
+        pickle.dump(potential_vector, open(join(data_path, f"input/potential_vector.p"), 'wb'), protocol=4)
+        pickle.dump(deployment_dict, open(join(data_path, f"input/deployment_dict.p"), 'wb'), protocol=4)
         logger.info('Input files written to disk.')
 
-    site_positions = sites_position_mapping(capacity_factors_data)
-    # Convert capacities to cardinality constraints
-    deployment_dict = capacity_to_cardinality(database, model_parameters, tech_parameters,
-                                              site_coordinates, legacy_coordinates)
-    # Get technical potential for all candidate sites
-    site_potential_data = get_potential_per_site(capacity_factors_data, tech_parameters, spatial_resolution)
-
     # Get matrix form of all input data.
-    capacity_factors_matrix = xarray_to_ndarray(capacity_factors_data)
-    demand_vector = load_data_mapping(data_path, model_parameters)
-    potential_vector = xarray_to_ndarray(site_potential_data)
     deployment_target = sum(deployment_dict[r][t] for r in deployment_dict.keys() for t in deployment_dict[r].keys())
     c = float(ceil(model_parameters['siting_params']['CRIT']['c'] * deployment_target))
     delta = int(model_parameters['siting_params']['CRIT']['delta'])
