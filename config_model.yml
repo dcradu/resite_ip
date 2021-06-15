@@ -15,10 +15,10 @@ technologies: ['wind_onshore']
 #deployments: [[70], [36.4], [35], [15], [13.6], [12], [10.5], [10], [8], [7], [6.7], [6.2], [5.6], [5], [5], [4.5],
 #              [4.4], [1.2], [1.1], [1.9], [0.7], [0.3], [0.1], [0.1], [0.3], [1.5], [0.5], [0.6]]
 deployments: [[263]]
+criterion: 'AverageVariability' # ["AverageVariability", "MaxVariability", "AverageResidualDemand", "MaxResidualDemand", "Criticality", "Correlation", "PROD"]
 
 siting_params:
   CRIT:
-    set: False
     load_coverage: 0.23
     # Defines how \alpha is considered in space and time.
     alpha:
@@ -30,22 +30,8 @@ siting_params:
     delta: 1                          # \in \mathbb{N}
     # Threshold
     c: 0.1                            # \in [0, 1]
-    # Solution method: BB or HEU or RAND or GRED.
-    solution_method:
-      algorithm: "DGH"
-#      neighborhood: 1
-#      no_iterations: 2000
-#      no_epochs: 500
-#      initial_temp: 100.
-      no_runs: 5
-      p: 0.2
   MUSS:
-    set: False
     alpha: 0.5
     tau: 1
     biobj: "MaxVariability"
     algorithm: "forward"
-  CORR:
-    set: True
-  PROD:
-    set: False

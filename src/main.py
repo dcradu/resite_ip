@@ -25,6 +25,7 @@ if __name__ == '__main__':
     data_path = model_parameters['data_path']
     spatial_resolution = model_parameters['spatial_resolution']
     time_horizon = model_parameters['time_slice']
+    siting_criterion = str(model_parameters['criterion'])
 
     # Read RES dataset and filter coordinates
     database = read_database(data_path, spatial_resolution)
@@ -56,75 +57,33 @@ if __name__ == '__main__':
     # Get technical potential for all candidate sites
     site_potential_data = get_potential_per_site(capacity_factors_data, tech_parameters, spatial_resolution)
 
-    jl_dict = generate_jl_input(deployment_dict, site_coordinates, site_positions, legacy_coordinates)
+    # Get matrix form of all input data.
+    capacity_factors_matrix = xarray_to_ndarray(capacity_factors_data)
+    demand_vector = load_data_mapping(data_path, model_parameters)
+    potential_vector = xarray_to_ndarray(site_potential_data)
+    deployment_target = sum(deployment_dict[r][t] for r in deployment_dict.keys() for t in deployment_dict[r].keys())
+    c = float(ceil(model_parameters['siting_params']['CRIT']['c'] * deployment_target))
+    delta = int(model_parameters['siting_params']['CRIT']['delta'])
+    varsigma = float(model_parameters['siting_params']['CRIT']['load_coverage'])
+    tau = int(model_parameters['siting_params']['MUSS']['tau'])
+
     logger.info('Data pre-processing finished. Opening Julia instance.')
+
+    output_dir = f"{data_path}/output/BOOK/{siting_criterion}"
+    if not isdir(output_dir):
+        makedirs(output_dir)
 
     j = julia.Julia(compiled_modules=False)
     from julia import Main
-    Main.include("jl/SitingHeuristics.jl")
+    Main.include("jl/SitingGreedy.jl")
 
-    siting_parameters = model_parameters['siting_params']
-    if siting_parameters['CRIT']['set']:
-        output_dir = f"{data_path}/output/BOOK/CRIT_c{siting_parameters['CRIT']['c']}_ls0.15/"
-        if not isdir(output_dir):
-            makedirs(output_dir)
-
-        # Update the temporal index from time instants to time windows
-        time_windows_data = resource_quality_mapping(capacity_factors_data, siting_parameters['CRIT'])
-        # Compute criticality (binary) matrix
-        criticality_data = xarray_to_ndarray(critical_window_mapping(time_windows_data, site_potential_data,
-                                                                     deployment_dict, model_parameters))
-        c = int(ceil(siting_parameters['CRIT']['c'] *
-                     sum(deployment_dict[r][t] for r in deployment_dict.keys() for t in deployment_dict[r].keys())))
-
-        params = siting_parameters['CRIT']['solution_method']
-        jl_sel, jl_obj = Main.main_DGH(jl_dict['index_dict'],
-                                       jl_dict['deployment_dict'],
-                                       jl_dict['legacy_site_list'],
-                                       criticality_data.astype('float64'), float64(c),
-                                       params['no_runs'], params['algorithm'])
-        jl_objective_pick = argmax(jl_obj)
-        jl_selected = jl_sel[jl_objective_pick, :]
-
-    elif siting_parameters['MUSS']['set']:
-        output_dir = f"{data_path}/output/BOOK/MUSS_{siting_parameters['MUSS']['alpha']}_{siting_parameters['MUSS']['biobj']}/"
-        if not isdir(output_dir):
-            makedirs(output_dir)
-
-        # Compute maximum theoretical potential time series
-        generation_data = xarray_to_ndarray(power_output_mapping(capacity_factors_data, site_potential_data))
-        # Compute load data
-        load_data = load_data_mapping(data_path, model_parameters)
-
-        # Run julia code
-        params = siting_parameters['MUSS']
-        jl_selected = Main.main_MUSS(generation_data, load_data, jl_dict['index_dict'],
-                                     jl_dict['deployment_dict'], params['alpha'], params['biobj'],
-                                     params['tau'], params['algorithm'])
-
-    elif siting_parameters['CORR']['set']:
-        output_dir = f"{data_path}/output/BOOK/CORR/"
-        if not isdir(output_dir):
-            makedirs(output_dir)
-
-        # Compute covariance matrix
-        correlation_data = return_correlation_matrix(capacity_factors_data)
-        # Run julia code
-        jl_selected = Main.main_CORR(correlation_data, jl_dict['deployment_dict'], jl_dict['index_dict'])
-
-    elif siting_parameters['PROD']['set']:
-        output_dir = f"{data_path}/output/BOOK/PROD/"
-        if not isdir(output_dir):
-            makedirs(output_dir)
-
-    if siting_parameters['PROD']['set']:
-        locations_dict = retrieve_prod_sites(model_parameters, capacity_factors_data,
-                                             deployment_dict, legacy_coordinates)
-    else:
-        locations_dict = retrieve_location_dict(jl_selected, model_parameters, site_positions)
-    print(locations_dict)
+    jl_sel, jl_obj = Main.siting_method(capacity_factors_matrix, demand_vector, potential_vector,
+                                        deployment_target, c, delta, varsigma, tau, siting_criterion)
+    locations_dict = retrieve_location_dict(jl_sel, model_parameters, site_positions)
     retrieve_site_data(model_parameters, capacity_factors_data, locations_dict, output_dir)
 
+    with open(join(output_dir, 'objectives.yaml'), 'w') as outfile:
+            yaml.dump(jl_obj, outfile, default_flow_style=False, sort_keys=False)
     with open(join(output_dir, 'config_model.yaml'), 'w') as outfile:
         yaml.dump(model_parameters, outfile, default_flow_style=False, sort_keys=False)
     with open(join(output_dir, 'config_techs.yaml'), 'w') as outfile:
