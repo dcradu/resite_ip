@@ -180,7 +180,7 @@ function compute_objective(A::Array{Float64}, d::Vector{Float64}, L::Vector{Int6
         p_tmp1 = p_tmp
         t += 1
     end
-    return var/(length(d)-2)
+    return var/(length(d)-1)
 
 end
 
@@ -205,7 +205,7 @@ function compute_objective(A::Array{Float64}, p::Vector{Float64}, d::Vector{Floa
         p_tmp1 = p_tmp
         t += 1
     end
-    return var/(length(d)-2)
+    return var/(length(d)-1)
 
 end
 
@@ -303,7 +303,7 @@ end
 
 function compute_objective(A::Array{Float64}, L::Vector{Int64}, obj::Criticality)::Float64
 
-    d_tmp::Float64, crit::Float64 = 0.0, 0.0
+    d_tmp::Float64, ncrit::Float64 = 0.0, 0.0
     w::Int64 = 1
     @inbounds while w <= size(A)[1]
         d_tmp = 0.0
@@ -311,11 +311,11 @@ function compute_objective(A::Array{Float64}, L::Vector{Int64}, obj::Criticality
             d_tmp += A[w, l]
         end
         if d_tmp >= obj.c
-            crit += 1.0
+            ncrit += 1.0
         end
         w += 1
     end
-    return crit
+    return ncrit/size(A)[1]
 
 end
 
@@ -325,16 +325,16 @@ end
 
 function compute_objective(A::Array{Float64}, d::Vector{Float64}, thres::Float64, l::Int64, obj::Criticality)::Float64
 
-    d_tmp::Float64, crit::Float64 = 0.0, 0.0
+    d_tmp::Float64, ncrit::Float64 = 0.0, 0.0
     w::Int64 = 1
     @inbounds while w <= length(d)
         d_tmp = d[w] + A[w, l]
         if d_tmp >= thres
-            crit += 1.0
+            ncrit += 1.0
         end
         w += 1
     end
-    return crit
+    return ncrit/size(A)[1]
 
 end
 
@@ -382,19 +382,23 @@ end
 function greedy_algorithm(A::Array{Float64}, d::Vector{Float64}, N::Int64, obj::MaxResidualDemand)
 
     T, L = size(A)
-    ind_compl_incumbent::Vector{Int64}, ind_incumbent::Vector{Int64}, ind_candidate::Int64 = [l for l = 1:L], zeros(Int64, 0), 0
+    ind_compl_incumbent::Vector{Int64}, ind_incumbent::Vector{Int64}, ind_tmp::Vector{Int64}, ind_candidate::Int64 = [l for l = 1:L], zeros(Int64, 0), zeros(Int64, 0), 0
     p_incumbent::Vector{Float64} = zeros(Float64, T)
     v::Float64, v_min::Float64 = 0.0, 0.0
     n::Int64 = 0
     @inbounds while n < N
-        ind_candidate, v_min = 0, 1e+9
+        v_min = 1e+9
         @inbounds for ind in ind_compl_incumbent
             v = compute_objective(A, p_incumbent, d, ind, obj)
             if v < v_min
-                ind_candidate = ind
+                filter!(a -> !(a in ind_tmp), ind_tmp)
+                push!(ind_tmp, ind)
                 v_min = v
+            elseif v == v_min
+                push!(ind_tmp, ind)
             end
         end
+        ind_candidate = rand(ind_tmp)
         p_incumbent .+= view(A, :, ind_candidate)
         push!(ind_incumbent, ind_candidate)
         filter!(a -> a != ind_candidate, ind_compl_incumbent)
@@ -411,19 +415,23 @@ end
 function greedy_algorithm(A::Array{Float64}, d::Vector{Float64}, N::Int64, obj::AverageResidualDemand)
 
     T, L = size(A)
-    ind_compl_incumbent::Vector{Int64}, ind_incumbent::Vector{Int64}, ind_candidate::Int64 = [l for l = 1:L], zeros(Int64, 0), 0
+    ind_compl_incumbent::Vector{Int64}, ind_incumbent::Vector{Int64}, ind_tmp::Vector{Int64}, ind_candidate::Int64 = [l for l = 1:L], zeros(Int64, 0), zeros(Int64, 0), 0
     p_incumbent::Vector{Float64} = zeros(Float64, T)
     v::Float64, v_min::Float64 = 0.0, 0.0
     n::Int64 = 0
     @inbounds while n < N
-        ind_candidate, v_min = 0, 1e+9
+        v_min = 1e+9
         @inbounds for ind in ind_compl_incumbent
             v = compute_objective(A, p_incumbent, d, ind, obj)
             if v < v_min
-                ind_candidate = ind
+                filter!(a -> !(a in ind_tmp), ind_tmp)
+                push!(ind_tmp, ind)
                 v_min = v
+            elseif v == v_min
+                push!(ind_tmp, ind)
             end
         end
+        ind_candidate = rand(ind_tmp)
         p_incumbent .+= view(A, :, ind_candidate)
         push!(ind_incumbent, ind_candidate)
         filter!(a -> a != ind_candidate, ind_compl_incumbent)
@@ -440,19 +448,23 @@ end
 function greedy_algorithm(A::Array{Float64}, d::Vector{Float64}, N::Int64, obj::MaxVariability)
 
     T, L = size(A)
-    ind_compl_incumbent::Vector{Int64}, ind_incumbent::Vector{Int64}, ind_candidate::Int64 = [l for l = 1:L], zeros(Int64, 0), 0
+    ind_compl_incumbent::Vector{Int64}, ind_incumbent::Vector{Int64}, ind_tmp::Vector{Int64}, ind_candidate::Int64 = [l for l = 1:L], zeros(Int64, 0), zeros(Int64, 0), 0
     p_incumbent::Vector{Float64} = zeros(Float64, T)
     v::Float64, v_min::Float64 = 0.0, 0.0
     n::Int64 = 0
     @inbounds while n < N
-        ind_candidate, v_min = 0, 1e+9
+        v_min = 1e+9
         @inbounds for ind in ind_compl_incumbent
             v = compute_objective(A, p_incumbent, d, ind, obj)
             if v < v_min
-                ind_candidate = ind
+                filter!(a -> !(a in ind_tmp), ind_tmp)
+                push!(ind_tmp, ind)
                 v_min = v
+            elseif v == v_min
+                push!(ind_tmp, ind)
             end
         end
+        ind_candidate = rand(ind_tmp)
         p_incumbent .+= view(A, :, ind_candidate)
         push!(ind_incumbent, ind_candidate)
         filter!(a -> a != ind_candidate, ind_compl_incumbent)
@@ -469,19 +481,23 @@ end
 function greedy_algorithm(A::Array{Float64}, d::Vector{Float64}, N::Int64, obj::AverageVariability)
 
     T, L = size(A)
-    ind_compl_incumbent::Vector{Int64}, ind_incumbent::Vector{Int64}, ind_candidate::Int64 = [l for l = 1:L], zeros(Int64, 0), 0
+    ind_compl_incumbent::Vector{Int64}, ind_incumbent::Vector{Int64}, ind_tmp::Vector{Int64}, ind_candidate::Int64 = [l for l = 1:L], zeros(Int64, 0), zeros(Int64, 0), 0
     p_incumbent::Vector{Float64} = zeros(Float64, T)
     v::Float64, v_min::Float64 = 0.0, 0.0
     n::Int64 = 0
     @inbounds while n < N
-        ind_candidate, v_min = 0, 1e+9
+        v_min = 1e+9
         @inbounds for ind in ind_compl_incumbent
             v = compute_objective(A, p_incumbent, d, ind, obj)
             if v < v_min
-                ind_candidate = ind
+                filter!(a -> !(a in ind_tmp), ind_tmp)
+                push!(ind_tmp, ind)
                 v_min = v
+            elseif v == v_min
+                push!(ind_tmp, ind)
             end
         end
+        ind_candidate = rand(ind_tmp)
         p_incumbent .+= view(A, :, ind_candidate)
         push!(ind_incumbent, ind_candidate)
         filter!(a -> a != ind_candidate, ind_compl_incumbent)
@@ -536,11 +552,11 @@ end
 function greedy_algorithm(A::Array{Float64}, N::Int64, obj::Correlation)
 
     L = size(A)[1]
-    ind_compl_incumbent::Vector{Int64}, ind_incumbent::Vector{Int64}, ind_candidate::Int64 = [l for l = 1:L], zeros(Int64, 0), 0
+    ind_compl_incumbent::Vector{Int64}, ind_incumbent::Vector{Int64}, ind_tmp::Vector{Int64}, ind_candidate::Int64 = [l for l = 1:L], zeros(Int64, 0), zeros(Int64, 0), 0
     v::Float64, v_min::Float64 = 0.0, 0.0
     n::Int64 = 0
     @inbounds while n < N
-        ind_candidate, v_min = 0, 1e+9
+        v_min = 1e+9
         @inbounds for ind in ind_compl_incumbent
             if n > 1
                 v = compute_objective(A, ind, ind_incumbent, obj)
@@ -548,10 +564,14 @@ function greedy_algorithm(A::Array{Float64}, N::Int64, obj::Correlation)
                 v = compute_objective(A, ind, ind_compl_incumbent, obj)
             end
             if v < v_min
-                ind_candidate = ind
+                filter!(a -> !(a in ind_tmp), ind_tmp)
+                push!(ind_tmp, ind)
                 v_min = v
+            elseif v == v_min
+                push!(ind_tmp, ind)
             end
         end
+        ind_candidate = rand(ind_tmp)
         push!(ind_incumbent, ind_candidate)
         filter!(a -> a != ind_candidate, ind_compl_incumbent)
         n += 1
@@ -588,7 +608,7 @@ function siting_method(capacity_factor_matrix::Array{Float64}, demand::Vector{Fl
     x::Vector{Float64}, obj_values::Vector{Float64} = zeros(Float64, length(potential)), zeros(Float64, 0)
     @inbounds for crit in criteria
         if crit == "Criticality"
-            push!(obj_values, compute_objective(criticality_matrix, locations, obj_mapping[crit]))
+            push!(obj_values, 1.0-compute_objective(criticality_matrix, locations, obj_mapping[crit]))
         elseif crit == "Correlation"
             push!(obj_values, compute_objective(correlation_matrix, locations, obj_mapping[crit]))
         else
