@@ -913,10 +913,6 @@ def retrieve_site_data(model_parameters, capacity_factor_data, site_coordinates,
     time_dt = date_range(start=model_parameters['time_slice'][0], end=model_parameters['time_slice'][1],
                          freq=f"{sampling_rate}H")
 
-    for tech in output_by_tech:
-        _, index = unique(output_by_tech[tech].locations, return_index=True)
-        output_by_tech[tech] = output_by_tech[tech].isel(locations=index)
-
     # Retrieve sites
     site_data = {k1: {k2: None for k2 in site_coordinates[k1]} for k1 in site_coordinates}
 
