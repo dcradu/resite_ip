@@ -80,7 +80,7 @@ if __name__ == '__main__':
 
     logger.info('Data pre-processing finished. Opening Julia instance.')
 
-    output_dir = f"{data_path}/output/BOOK/{siting_criterion}"
+    output_dir = f"{data_path}/output/{siting_criterion}"
     if not isdir(output_dir):
         makedirs(output_dir)
 
