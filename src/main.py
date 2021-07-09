@@ -26,6 +26,9 @@ def parse_args():
     parser.add_argument('--run_RAND', type=bool, default=False)
     parser.add_argument('--run_CROSS', type=bool, default=False)
     parser.add_argument('--LS_init_algorithm', type=str, default=None)
+    parser.add_argument('--CROSS_algorithm', type=str, default=None)
+    parser.add_argument('--train', type=int, default=None)
+    parser.add_argument('--test', type=int, default=None)
 
     parsed_args = vars(parser.parse_args())
 
@@ -81,14 +84,17 @@ if __name__ == '__main__':
 
         custom_log(' Data read. Building model.')
 
-    siting_parameters['solution_method']['BB']['set'] = args['run_BB']
     siting_parameters['solution_method']['BB']['mir'] = args['run_MIR']
+    siting_parameters['solution_method']['BB']['set'] = args['run_BB']
     siting_parameters['solution_method']['LS']['set'] = args['run_LS']
     siting_parameters['solution_method']['CROSS']['set'] = args['run_CROSS']
     siting_parameters['solution_method']['GRED_DET']['set'] = args['run_GRED_DET']
     siting_parameters['solution_method']['GRED_STO']['set'] = args['run_GRED_STO']
     siting_parameters['solution_method']['GRED_STO']['p'] = args['p']
     siting_parameters['solution_method']['RAND']['set'] = args['run_RAND']
+    siting_parameters['solution_method']['CROSS']['algorithm'] = args['CROSS_algorithm']
+    siting_parameters['solution_method']['CROSS']['no_years_train'] = args['train']
+    siting_parameters['solution_method']['CROSS']['no_years_test'] = args['test']
 
     c = args['c']
 
@@ -128,7 +134,7 @@ if __name__ == '__main__':
         params = siting_parameters['solution_method']['LS']
 
         jl_dict = generate_jl_input(deployment_dict, site_coordinates)
-        path_to_sol = '10y_n560_k1_c' + str(args['c']) + '_GRED_STGH_p27'
+        path_to_sol = '10y_n560_k1_c' + str(args['c']) + '_GRED_STGH_p0.05'
         path_to_init_sol_folder = join(data_path, 'output', path_to_sol)
 
         import julia
@@ -145,7 +151,7 @@ if __name__ == '__main__':
         end = time.time()
         print(f"Average CPU time for c={c}: {round((end-start)/params['no_runs'], 1)} s")
 
-        output_folder = init_folder(model_parameters, c, suffix=f"_LS_{args['LS_init_algorithm']}_quattro")
+        output_folder = init_folder(model_parameters, c, suffix=f"_LS_{args['LS_init_algorithm']}")
 
         with open(join(output_folder, 'config_model.yaml'), 'w') as outfile:
             yaml.dump(model_parameters, outfile, default_flow_style=False, sort_keys=False)
@@ -172,7 +178,7 @@ if __name__ == '__main__':
                                                    c, params['no_iterations'], params['no_runs'],
                                                    params['algorithm'])
     
-        output_folder = init_folder(model_parameters, c, suffix='_RS_bis')
+        output_folder = init_folder(model_parameters, c, suffix='_RS')
     
         pickle.dump(jl_selected, open(join(output_folder, 'solution_matrix.p'), 'wb'))
         pickle.dump(jl_objective, open(join(output_folder, 'objective_vector.p'), 'wb'))
@@ -195,7 +201,7 @@ if __name__ == '__main__':
         end = time.time()
         print(f"Average CPU time for c={c}: {round((end-start)/params['no_runs'], 1)} s")
 
-        output_folder = init_folder(model_parameters, c, suffix=f"_GRED_{params['algorithm']}_bis")
+        output_folder = init_folder(model_parameters, c, suffix=f"_GRED_{params['algorithm']}")
 
         pickle.dump(jl_selected, open(join(output_folder, 'solution_matrix.p'), 'wb'))
         pickle.dump(jl_objective, open(join(output_folder, 'objective_vector.p'), 'wb'))
@@ -218,7 +224,7 @@ if __name__ == '__main__':
         end = time.time()
         print(f"Average CPU time for c={c}: {round((end-start)/params['no_runs'], 1)} s")
 
-        output_folder = init_folder(model_parameters, c, suffix=f"_GRED_{params['algorithm']}_p{params['p']}_bis")
+        output_folder = init_folder(model_parameters, c, suffix=f"_GRED_{params['algorithm']}_p{params['p']}")
 
         pickle.dump(jl_selected, open(join(output_folder, 'solution_matrix.p'), 'wb'))
         pickle.dump(jl_objective, open(join(output_folder, 'objective_vector.p'), 'wb'))
@@ -236,10 +242,15 @@ if __name__ == '__main__':
         obj_train, obj_test, ind_train, ind_test = Main.main_CROSS(criticality_data, c,
                                                 sum(model_parameters['deployments']), params['k'],
                                                 params['no_years'], params['no_years_train'], params['no_years_test'],
-                                                params['no_runs_per_experiment'], params['no_experiments'],
+                                                params['no_experiments'], params['no_runs_per_experiment'],
                                                 params['criterion'], params['algorithm'])
 
-        output_folder = init_folder(model_parameters, c, suffix=f"_CROSS_{params['algorithm']}")
+        if params['no_years_train'] == params['no_years_test']:
+            bal = 'balanced'
+        else:
+            bal = 'unbalanced'
+
+        output_folder = init_folder(model_parameters, c, suffix=f"_CROSS_{params['algorithm']}_{bal}")
 
         pickle.dump(obj_train, open(join(output_folder, 'obj_train.p'), 'wb'))
         pickle.dump(obj_test, open(join(output_folder, 'obj_test.p'), 'wb'))

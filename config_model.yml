@@ -38,7 +38,7 @@ siting_params:
       no_epochs: 500
       initial_temp: 100.
       no_runs: 100
-      algorithm: 'SGH' # 'SGH', 'RS'
+      algorithm: 'MIR' # 'SGH', 'RS'
     GRED_DET:
       set: False
       no_runs: 10
@@ -47,13 +47,13 @@ siting_params:
     GRED_STO:
       set: False
       p: 0.05
-      no_runs: 20
+      no_runs: 300
       algorithm: 'STGH'
     RAND:
       # Random Search
       set: False
-      no_iterations: 100000
-      no_runs: 100
+      no_iterations: 1000000
+      no_runs: 1
       algorithm: 'RS'
     CROSS:
       # Cross validation
