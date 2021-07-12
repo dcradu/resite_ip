@@ -88,13 +88,24 @@ if __name__ == '__main__':
     from julia import Main
     Main.include("jl/SitingGreedy.jl")
 
-    jl_sel, jl_obj = Main.siting_method(capacity_factors_matrix, demand_vector, potential_vector,
-                                        deployment_target, c, delta, varsigma, tau, siting_criterion)
-    locations_dict = retrieve_location_dict(jl_sel, model_parameters, site_positions)
-    retrieve_site_data(model_parameters, capacity_factors_data, locations_dict, output_dir)
+    if siting_criterion != "ElectricityOutput":
+
+        jl_sel, _ = Main.siting_method(capacity_factors_matrix, demand_vector, potential_vector,
+                                       deployment_target, c, delta, varsigma, tau, siting_criterion)
+        locations_dict = retrieve_location_dict(jl_sel, model_parameters, site_positions)
+
+    else:
+
+        site_potential_data = get_potential_per_site(capacity_factors_data, tech_parameters, spatial_resolution)
+        production_data = power_output_mapping(capacity_factors_data, site_potential_data)
+
+        locations_dict = retrieve_prod_sites(model_parameters, production_data, deployment_dict, legacy_coordinates)
+
+    ind_incumbent = retrieve_site_data(model_parameters, capacity_factors_data, locations_dict, output_dir)
+    jl_obj = Main.compute_objectives(ind_incumbent, capacity_factors_matrix, demand_vector, potential_vector, deployment_target, c, delta, varsigma, tau)
 
     with open(join(output_dir, 'objectives.yaml'), 'w') as outfile:
-            yaml.dump(jl_obj, outfile, default_flow_style=False, sort_keys=False)
+        yaml.dump(jl_obj, outfile, default_flow_style=False, sort_keys=False)
     with open(join(output_dir, 'config_model.yaml'), 'w') as outfile:
         yaml.dump(model_parameters, outfile, default_flow_style=False, sort_keys=False)
     with open(join(output_dir, 'config_techs.yaml'), 'w') as outfile:

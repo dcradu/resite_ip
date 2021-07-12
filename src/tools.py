@@ -913,17 +913,37 @@ def retrieve_site_data(model_parameters, capacity_factor_data, site_coordinates,
     time_dt = date_range(start=model_parameters['time_slice'][0], end=model_parameters['time_slice'][1],
                          freq=f"{sampling_rate}H")
 
+<<<<<<< Updated upstream
+<<<<<<< Updated upstream
+=======
+=======
+>>>>>>> Stashed changes
+    #for tech in output_by_tech:
+    #    _, index = unique(output_by_tech[tech].locations, return_index=True)
+    #    output_by_tech[tech] = output_by_tech[tech].isel(locations=index)
+
+>>>>>>> Stashed changes
     # Retrieve sites
     site_data = {k1: {k2: None for k2 in site_coordinates[k1]} for k1 in site_coordinates}
 
     for tech in site_data:
         for site in site_data[tech]:
             site_data[tech][site] = output_by_tech[tech].sel(locations=site).values.flatten()
+    
+    ind_incumbent = []
+    for tech in site_data:
+        locs_all = list(output_by_tech[tech].locations.values)
+        for site in site_data[tech]:
+            ind_incumbent.append(locs_all.index(site))
+
+    ind_incumbent_jl = [i+1 for i in ind_incumbent]
 
     reform = {(outerKey, innerKey): values for outerKey, innerDict in site_data.items() for innerKey, values in
               innerDict.items()}
     site_data_df = DataFrame(reform, index=time_dt).sort_index(axis='columns', level=1)
     pickle.dump(site_data_df, open(join(output_folder,  'site_data.p'), 'wb'))
+
+    return ind_incumbent_jl
 
 
 def get_objective_from_mapfile(df_sites, mapping_file, criticality_data, c):

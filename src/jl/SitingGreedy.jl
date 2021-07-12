@@ -9,6 +9,10 @@ struct ElectricityOutput <: Objective end
 
 struct MaxVariability <: Objective end
 
+struct ElectricityOutput <: Objective end
+
+struct ElectricityOutput <: Objective end
+
 struct AverageVariability <: Objective end
 
 struct MaxResidualDemand <: Objective end
@@ -73,6 +77,8 @@ function compute_objective(A::Array{Float64}, L::Vector{Int64}, obj::Electricity
 
 end
 
+<<<<<<< Updated upstream
+<<<<<<< Updated upstream
 function time_compute_objective(A::Array{Float64}, L::Vector{Int64}, obj::ElectricityOutput)
     @time compute_objective(A, L, obj)
 end
@@ -93,6 +99,10 @@ function time_compute_objective(A::Array{Float64}, L::Int64, obj::ElectricityOut
     @time compute_objective(A, L, obj)
 end
 
+=======
+>>>>>>> Stashed changes
+=======
+>>>>>>> Stashed changes
 function compute_objective(A::Array{Float64}, d::Vector{Float64}, L::Vector{Int64}, obj::MaxVariability)::Float64
 
     var::Float64, var_max::Float64 = 0.0, -1e9
@@ -662,6 +672,52 @@ function compute_objectives(locations::Vector{Int64}, capacity_factor_matrix::Ar
     criticality_matrix::Array{Float64, 2}, correlation_matrix::Array{Float64, 2} = compute_criticality_matrix(capacity_factor_matrix, demand, potential, deployment_target, varsigma), compute_correlation_matrix(capacity_factor_matrix)
     criteria = ["ElectricityOutput", "AverageVariability", "MaxVariability", "AverageResidualDemand", "MaxResidualDemand", "Criticality", "Correlation"]
     obj_types = [ElectricityOutput(), AverageVariability(), MaxVariability(), AverageResidualDemand(), MaxResidualDemand(), Criticality(c), Correlation()]
+    obj_mapping = Dict(criteria .=> obj_types)
+    obj_values::Vector{Float64} = zeros(Float64, 0)
+    @inbounds for crit in criteria
+        if crit == "Criticality"
+            push!(obj_values, 1.0-compute_objective(criticality_matrix, locations, obj_mapping[crit]))
+        elseif crit == "ElectricityOutput"
+            push!(obj_values, compute_objective(production_matrix, locations, obj_mapping[crit]))
+        elseif crit == "Correlation"
+            push!(obj_values, compute_objective(correlation_matrix, locations, obj_mapping[crit]))
+        else
+            push!(obj_values, compute_objective(production_matrix, demand, locations, obj_mapping[crit]))
+        end
+    end
+    return Dict(criteria .=> obj_values)
+
+end
+
+function compute_objectives(locations::Vector{Int64}, capacity_factor_matrix::Array{Float64}, demand::Vector{Float64}, potential::Vector{Float64}, deployment_target::Int64, c::Float64, delta::Int64, varsigma::Float64, tau::Int64)
+
+    production_matrix::Array{Float64, 2} = potential' .* capacity_factor_matrix
+    criticality_matrix::Array{Float64, 2}, correlation_matrix::Array{Float64, 2} = compute_criticality_matrix(capacity_factor_matrix, demand, potential, delta, deployment_target, varsigma), compute_correlation_matrix(capacity_factor_matrix)
+    criteria = ["ElectricityOutput", "AverageVariability", "MaxVariability", "AverageResidualDemand", "MaxResidualDemand", "Criticality", "Correlation"]
+    obj_types = [ElectricityOutput(), AverageVariability(), MaxVariability(tau), AverageResidualDemand(), MaxResidualDemand(), Criticality(c), Correlation()]
+    obj_mapping = Dict(criteria .=> obj_types)
+    obj_values::Vector{Float64} = zeros(Float64, 0)
+    @inbounds for crit in criteria
+        if crit == "Criticality"
+            push!(obj_values, 1.0-compute_objective(criticality_matrix, locations, obj_mapping[crit]))
+        elseif crit == "ElectricityOutput"
+            push!(obj_values, compute_objective(production_matrix, locations, obj_mapping[crit]))
+        elseif crit == "Correlation"
+            push!(obj_values, compute_objective(correlation_matrix, locations, obj_mapping[crit]))
+        else
+            push!(obj_values, compute_objective(production_matrix, demand, locations, obj_mapping[crit]))
+        end
+    end
+    return Dict(criteria .=> obj_values)
+
+end
+
+function compute_objectives(locations::Vector{Int64}, capacity_factor_matrix::Array{Float64}, demand::Vector{Float64}, potential::Vector{Float64}, deployment_target::Int64, c::Float64, delta::Int64, varsigma::Float64, tau::Int64)
+
+    production_matrix::Array{Float64, 2} = potential' .* capacity_factor_matrix
+    criticality_matrix::Array{Float64, 2}, correlation_matrix::Array{Float64, 2} = compute_criticality_matrix(capacity_factor_matrix, demand, potential, delta, deployment_target, varsigma), compute_correlation_matrix(capacity_factor_matrix)
+    criteria = ["ElectricityOutput", "AverageVariability", "MaxVariability", "AverageResidualDemand", "MaxResidualDemand", "Criticality", "Correlation"]
+    obj_types = [ElectricityOutput(), AverageVariability(), MaxVariability(tau), AverageResidualDemand(), MaxResidualDemand(), Criticality(c), Correlation()]
     obj_mapping = Dict(criteria .=> obj_types)
     obj_values::Vector{Float64} = zeros(Float64, 0)
     @inbounds for crit in criteria
