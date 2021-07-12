@@ -30,16 +30,16 @@ if __name__ == '__main__':
     # Read RES dataset and filter coordinates
     database = read_database(data_path, spatial_resolution)
 
-    if isfile(join(data_path, "input/capacity_factors_matrix.p")):
+    if isfile(join(data_path, "input/input_chapter_10y/capacity_factors_matrix.p")):
 
-        capacity_factors_data = pickle.load(open(join(data_path, "input/capacity_factors_data.p"), 'rb'))
-        capacity_factors_matrix = pickle.load(open(join(data_path, "input/capacity_factors_matrix.p"), 'rb'))
-        site_coordinates = pickle.load(open(join(data_path, "input/site_coordinates.p"), 'rb'))
-        legacy_coordinates = pickle.load(open(join(data_path, "input/legacy_coordinates.p"), 'rb'))
-        demand_vector = pickle.load(open(join(data_path, "input/demand_vector.p"), 'rb'))
-        potential_vector = pickle.load(open(join(data_path, "input/potential_vector.p"), 'rb'))
-        deployment_dict = pickle.load(open(join(data_path, "input/deployment_dict.p"), 'rb'))
-        site_positions = pickle.load(open(join(data_path, "input/site_positions.p"), 'rb'))
+        capacity_factors_data = pickle.load(open(join(data_path, "input/input_chapter_10y/capacity_factors_data.p"), 'rb'))
+        capacity_factors_matrix = pickle.load(open(join(data_path, "input/input_chapter_10y/capacity_factors_matrix.p"), 'rb'))
+        site_coordinates = pickle.load(open(join(data_path, "input/input_chapter_10y/site_coordinates.p"), 'rb'))
+        legacy_coordinates = pickle.load(open(join(data_path, "input/input_chapter_10y/legacy_coordinates.p"), 'rb'))
+        demand_vector = pickle.load(open(join(data_path, "input/input_chapter_10y/demand_vector.p"), 'rb'))
+        potential_vector = pickle.load(open(join(data_path, "input/input_chapter_10y/potential_vector.p"), 'rb'))
+        deployment_dict = pickle.load(open(join(data_path, "input/input_chapter_10y/deployment_dict.p"), 'rb'))
+        site_positions = pickle.load(open(join(data_path, "input/input_chapter_10y/site_positions.p"), 'rb'))
         logger.info('Input files read from disk.')
 
     else:
@@ -61,26 +61,24 @@ if __name__ == '__main__':
         demand_vector = load_data_mapping(data_path, model_parameters)
         potential_vector = xarray_to_ndarray(site_potential_data)
 
-        pickle.dump(capacity_factors_data, open(join(data_path, f"input/capacity_factors_data.p"), 'wb'), protocol=4)
-        pickle.dump(capacity_factors_matrix, open(join(data_path, f"input/capacity_factors_matrix.p"), 'wb'), protocol=4)
-        pickle.dump(site_coordinates, open(join(data_path, f"input/site_coordinates.p"), 'wb'), protocol=4)
-        pickle.dump(legacy_coordinates, open(join(data_path, f"input/legacy_coordinates.p"), 'wb'), protocol=4)
-        pickle.dump(site_positions, open(join(data_path, f"input/site_positions.p"), 'wb'), protocol=4)
-        pickle.dump(demand_vector, open(join(data_path, f"input/demand_vector.p"), 'wb'), protocol=4)
-        pickle.dump(potential_vector, open(join(data_path, f"input/potential_vector.p"), 'wb'), protocol=4)
-        pickle.dump(deployment_dict, open(join(data_path, f"input/deployment_dict.p"), 'wb'), protocol=4)
+        pickle.dump(capacity_factors_data, open(join(data_path, f"input/input_chapter_10y/capacity_factors_data.p"), 'wb'), protocol=4)
+        pickle.dump(capacity_factors_matrix, open(join(data_path, f"input/input_chapter_10y/capacity_factors_matrix.p"), 'wb'), protocol=4)
+        pickle.dump(site_coordinates, open(join(data_path, f"input/input_chapter_10y/site_coordinates.p"), 'wb'), protocol=4)
+        pickle.dump(legacy_coordinates, open(join(data_path, f"input/input_chapter_10y/legacy_coordinates.p"), 'wb'), protocol=4)
+        pickle.dump(site_positions, open(join(data_path, f"input/input_chapter_10y/site_positions.p"), 'wb'), protocol=4)
+        pickle.dump(demand_vector, open(join(data_path, f"input/input_chapter_10y/demand_vector.p"), 'wb'), protocol=4)
+        pickle.dump(potential_vector, open(join(data_path, f"input/input_chapter_10y/potential_vector.p"), 'wb'), protocol=4)
+        pickle.dump(deployment_dict, open(join(data_path, f"input/input_chapter_10y/deployment_dict.p"), 'wb'), protocol=4)
         logger.info('Input files written to disk.')
 
     # Get matrix form of all input data.
     deployment_target = sum(deployment_dict[r][t] for r in deployment_dict.keys() for t in deployment_dict[r].keys())
     c = float(ceil(model_parameters['siting_params']['CRIT']['c'] * deployment_target))
-    delta = int(model_parameters['siting_params']['CRIT']['delta'])
     varsigma = float(model_parameters['siting_params']['CRIT']['load_coverage'])
-    tau = int(model_parameters['siting_params']['MUSS']['tau'])
 
     logger.info('Data pre-processing finished. Opening Julia instance.')
 
-    output_dir = f"{data_path}/output/{siting_criterion}"
+    output_dir = f"{data_path}/output/CHAPTER/{siting_criterion}"
     if not isdir(output_dir):
         makedirs(output_dir)
 
@@ -88,10 +86,10 @@ if __name__ == '__main__':
     from julia import Main
     Main.include("jl/SitingGreedy.jl")
 
-    if siting_criterion != "ElectricityOutput":
+    if siting_criterion != "CapacityValue":
 
         jl_sel, _ = Main.siting_method(capacity_factors_matrix, demand_vector, potential_vector,
-                                       deployment_target, c, delta, varsigma, tau, siting_criterion)
+                                       deployment_target, c, varsigma, siting_criterion)
         locations_dict = retrieve_location_dict(jl_sel, model_parameters, site_positions)
 
     else:
@@ -102,7 +100,7 @@ if __name__ == '__main__':
         locations_dict = retrieve_prod_sites(model_parameters, production_data, deployment_dict, legacy_coordinates)
 
     ind_incumbent = retrieve_site_data(model_parameters, capacity_factors_data, locations_dict, output_dir)
-    jl_obj = Main.compute_objectives(ind_incumbent, capacity_factors_matrix, demand_vector, potential_vector, deployment_target, c, delta, varsigma, tau)
+    jl_obj = Main.compute_objectives(ind_incumbent, capacity_factors_matrix, demand_vector, potential_vector, deployment_target, c, varsigma)
 
     with open(join(output_dir, 'objectives.yaml'), 'w') as outfile:
         yaml.dump(jl_obj, outfile, default_flow_style=False, sort_keys=False)

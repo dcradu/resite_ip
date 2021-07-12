@@ -5,17 +5,17 @@ data_path: '/data/dcradu/resite_ip/'
 # Spatial resolution (in degrees) of the potential sites.
 spatial_resolution: 0.25
 # Start time and end time of the analysis.
-time_slice: ['2017-01-01T00:00', '2019-12-31T23:00']
+time_slice: ['2010-01-01T00:00', '2019-12-31T23:00']
 resampling_rate: 1
 # Technologies to deploy.
 regions: ['EU']
-technologies: ['wind_onshore']
-deployments: [[263]]
-criterion: 'ElectricityOutput' # ["AverageVariability", "MaxVariability", "AverageResidualDemand", "MaxResidualDemand", "Criticality", "Correlation", "PROD"]
+technologies: ['wind_offshore']
+deployments: [[450]]
+criterion: 'ElectricityOutput' # ["AverageVariability", "MaxVariability", "AverageResidualDemand", "MaxResidualDemand", "Criticality", "Correlation", "ElectricityOutput"]
 
 siting_params:
   CRIT:
-    load_coverage: 0.23
+    load_coverage: 0.3
     # Defines how \alpha is considered in space and time.
     alpha:
       method: 'potential' # 'potential'
