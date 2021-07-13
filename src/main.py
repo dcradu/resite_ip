@@ -243,7 +243,7 @@ if __name__ == '__main__':
                                                 sum(model_parameters['deployments']), params['k'],
                                                 params['no_years'], params['no_years_train'], params['no_years_test'],
                                                 params['no_experiments'], params['no_runs_per_experiment'],
-                                                params['criterion'], params['algorithm'])
+                                                params['criterion'], params['method'], params['algorithm'])
 
         if params['no_years_train'] == params['no_years_test']:
             bal = 'balanced'

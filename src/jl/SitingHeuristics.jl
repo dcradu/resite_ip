@@ -156,7 +156,7 @@ function main_RAND(deployment_dict, D, c, I, R, run)
 
 end
 
-function main_CROSS(D, c, n, k, number_years, number_years_training, number_years_testing, number_experiments, number_runs_per_experiment, criterion, cross_validation_method)
+function main_CROSS(D, c, n, k, number_years, number_years_training, number_years_testing, number_experiments, number_runs_per_experiment, criterion, cross_validation_method, algorithm)
 
   D = convert.(Float64, D)
   c = convert(Float64, c)
@@ -169,11 +169,12 @@ function main_CROSS(D, c, n, k, number_years, number_years_training, number_year
   number_runs_per_experiment = convert(Int64, number_runs_per_experiment)
   criterion = convert(String, criterion)
   cross_validation_method = convert(String, cross_validation_method)
+  algorithm = convert(String, algorithm)
 
   if cross_validation_method == "custom"
-      obj_training, obj_testing, ind_training, ind_testing = custom_cross_validation(D, c, n, number_years, number_years_training, number_years_testing, number_experiments, number_runs_per_experiment, criterion);
+      obj_training, obj_testing, ind_training, ind_testing = custom_cross_validation(D, c, n, number_years, number_years_training, number_years_testing, number_experiments, number_runs_per_experiment, criterion, algorithm);
   elseif cross_validation_method == "k_fold"
-      obj_training, obj_testing, ind_training, ind_testing = k_fold_cross_validation(D, c, n, k, number_years, number_runs_per_experiment, criterion);
+      obj_training, obj_testing, ind_training, ind_testing = k_fold_cross_validation(D, c, n, k, number_years, number_runs_per_experiment, criterion, algorithm);
   end
 
   return obj_training, obj_testing, ind_training, ind_testing

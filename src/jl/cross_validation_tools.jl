@@ -80,6 +80,8 @@ function k_fold_cross_validation(D::Array{Float64, 2}, c::Float64, n::Int64, k::
                 ind_tmp .= mirsa(D_training, c, n, N, I, E, T_init)
             elseif algorithm == "rga"
                 ind_tmp .= randomised_greedy_algorithm(D_training, c, n, p)
+            elseif algorithm == "ga"
+                ind_tmp .= greedy_algorithm(D_training, c, n)
             end
             obj_tmp_training[run] = evaluate_obj(D_training, c, ind_tmp, col_tmp_training, col_zeros_training, y_tmp_training)
             ind_tmp_training[run,:] .= ind_tmp
@@ -100,6 +102,8 @@ function k_fold_cross_validation(D::Array{Float64, 2}, c::Float64, n::Int64, k::
                 ind_tmp .= mirsa(D_testing, c, n, N, I, E, T_init)
             elseif algorithm == "rga"
                 ind_tmp .= randomised_greedy_algorithm(D_testing, c, n, p)
+            elseif algorithm == "ga"
+                ind_tmp .= greedy_algorithm(D_testing, c, n)
             end
             obj_tmp_testing[run] = evaluate_obj(D_testing, c, ind_tmp, col_tmp_testing, col_zeros_testing, y_tmp_testing)
             ind_tmp_testing[run,:] .= ind_tmp
@@ -174,6 +178,8 @@ function custom_cross_validation(D::Array{Float64, 2}, c::Float64, n::Int64, num
                 ind_tmp .= mirsa(D_training, c, n, N, I, E, T_init)
             elseif algorithm == "rga"
                 ind_tmp .= randomised_greedy_algorithm(D_training, c, n, p)
+            elseif algorithm == "ga"
+                ind_tmp .= greedy_algorithm(D_training, c, n)
             end
             obj_tmp_training[run] = evaluate_obj(D_training, c, ind_tmp, col_tmp_training, col_zeros_training, y_tmp_training)
             ind_tmp_training[run,:] .= ind_tmp
@@ -194,6 +200,8 @@ function custom_cross_validation(D::Array{Float64, 2}, c::Float64, n::Int64, num
                 ind_tmp .= mirsa(D_testing, c, n, N, I, E, T_init)
             elseif algorithm == "rga"
                 ind_tmp .= randomised_greedy_algorithm(D_testing, c, n, p)
+            elseif algorithm == "ga"
+                ind_tmp .= greedy_algorithm(D_testing, c, n)
             end
             obj_tmp_testing[run] = evaluate_obj(D_testing, c, ind_tmp, col_tmp_testing, col_zeros_testing, y_tmp_testing)
             ind_tmp_testing[run,:] .= ind_tmp
@@ -381,6 +389,51 @@ function randomised_greedy_algorithm(D::Array{Float64,2}, c::Float64, n::Int64, 
     ind_candidate_pointer = 1
     sample!(ind_compl_incumbent, random_ind_set, replace=false)
     @inbounds for ind in random_ind_set
+        Dx_tmp .= Dx_incumbent .+ view(D, :, ind)
+        y_tmp .= Dx_tmp .>= threshold
+        obj_tmp = sum(y_tmp)
+        if obj_tmp > obj_candidate
+          ind_candidate_pointer = 1
+          ind_candidate_list[ind_candidate_pointer] = ind
+          obj_candidate = obj_tmp
+          ind_candidate_pointer += 1
+        elseif obj_tmp == obj_candidate
+          ind_candidate_list[ind_candidate_pointer] = ind
+          ind_candidate_pointer += 1
+        end
+    end
+    ind_candidate = sample(view(ind_candidate_list, 1:ind_candidate_pointer-1))
+    ind_incumbent[locations_added+1] = ind_candidate
+    filter!(a -> a != ind_candidate, ind_compl_incumbent)
+    Dx_incumbent .= Dx_incumbent .+ view(D, :, ind_candidate)
+    obj_incumbent = obj_candidate
+    locations_added += 1
+  end
+  return ind_incumbent
+end
+
+
+function greedy_algorithm(D::Array{Float64,2}, c::Float64, n::Float64)
+
+  W, L = size(D)
+  n = convert(Int64, n)
+  ind_compl_incumbent = [i for i in 1:L]
+  ind_incumbent = Vector{Int64}(undef, n)
+  Dx_incumbent = zeros(Float64, W)
+  obj_incumbent = 0
+  Dx_tmp = Vector{Float64}(undef, W)
+  y_tmp = Vector{Float64}(undef, W)
+  ind_candidate_list = zeros(Int64, L)
+  locations_added, threshold = 0, 0
+  @inbounds while locations_added < n
+    if locations_added < c
+      threshold = locations_added + 1
+      obj_candidate = 0
+    else
+      obj_candidate = obj_incumbent
+    end
+    ind_candidate_pointer = 1
+    @inbounds for ind in ind_compl_incumbent
         Dx_tmp .= Dx_incumbent .+ view(D, :, ind)
         y_tmp .= Dx_tmp .>= threshold
         obj_tmp = sum(y_tmp)

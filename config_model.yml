@@ -65,4 +65,6 @@ siting_params:
       no_experiments: 50
       no_runs_per_experiment: 10
       criterion: 'max'
-      algorithm: 'custom' # 'k_fold'
+      method: 'custom' # 'k_fold'
+      algorithm: 'ga'
+
