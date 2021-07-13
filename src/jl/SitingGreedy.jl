@@ -77,8 +77,6 @@ function compute_objective(A::Array{Float64}, L::Vector{Int64}, obj::Electricity
 
 end
 
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
 function time_compute_objective(A::Array{Float64}, L::Vector{Int64}, obj::ElectricityOutput)
     @time compute_objective(A, L, obj)
 end
@@ -99,10 +97,6 @@ function time_compute_objective(A::Array{Float64}, L::Int64, obj::ElectricityOut
     @time compute_objective(A, L, obj)
 end
 
-=======
->>>>>>> Stashed changes
-=======
->>>>>>> Stashed changes
 function compute_objective(A::Array{Float64}, d::Vector{Float64}, L::Vector{Int64}, obj::MaxVariability)::Float64
 
     var::Float64, var_max::Float64 = 0.0, -1e9
@@ -420,7 +414,7 @@ end
 function greedy_algorithm(A::Array{Float64}, d::Vector{Float64}, N::Int64, obj::MaxResidualDemand)
 
     T, L = size(A)
-    ind_compl_incumbent::Vector{Int64}, ind_incumbent::Vector{Int64}, ind_tmp::Vector{Int64}, ind_candidate::Int64 = [l for l = 1:L], Vector{Int64}(undef, N), zeros(Int64, 0), 0
+    ind_compl_incumbent::Vector{Int64}, ind_incumbent::Vector{Int64}, ind_tmp::Vector{Int64}, ind_candidate::Int64 = [l for l = 1:L], zeros(Int64, 0), zeros(Int64, 0), 0
     p_incumbent::Vector{Float64} = zeros(Float64, T)
     v::Float64, v_min::Float64 = 0.0, 0.0
     n::Int64 = 0
@@ -438,13 +432,14 @@ function greedy_algorithm(A::Array{Float64}, d::Vector{Float64}, N::Int64, obj::
         end
         ind_candidate = rand(ind_tmp)
         p_incumbent .+= view(A, :, ind_candidate)
-        ind_incumbent[n+1] = ind_candidate
+        push!(ind_incumbent, ind_candidate)
         filter!(a -> a != ind_candidate, ind_compl_incumbent)
         n += 1
     end
     return ind_incumbent
 
 end
+
 
 function time_greedy_algorithm(A::Array{Float64}, d::Vector{Float64}, N::Int64, obj::MaxResidualDemand)
     @time greedy_algorithm(A, d, N, obj)
@@ -453,7 +448,7 @@ end
 function greedy_algorithm(A::Array{Float64}, d::Vector{Float64}, N::Int64, obj::AverageResidualDemand)
 
     T, L = size(A)
-    ind_compl_incumbent::Vector{Int64}, ind_incumbent::Vector{Int64}, ind_tmp::Vector{Int64}, ind_candidate::Int64 = [l for l = 1:L], Vector{Int64}(undef, N), zeros(Int64, 0), 0
+    ind_compl_incumbent::Vector{Int64}, ind_incumbent::Vector{Int64}, ind_tmp::Vector{Int64}, ind_candidate::Int64 = [l for l = 1:L], zeros(Int64, 0), zeros(Int64, 0), 0
     p_incumbent::Vector{Float64} = zeros(Float64, T)
     v::Float64, v_min::Float64 = 0.0, 0.0
     n::Int64 = 0
@@ -471,7 +466,7 @@ function greedy_algorithm(A::Array{Float64}, d::Vector{Float64}, N::Int64, obj::
         end
         ind_candidate = rand(ind_tmp)
         p_incumbent .+= view(A, :, ind_candidate)
-        ind_incumbent[n+1] = ind_candidate
+        push!(ind_incumbent, ind_candidate)
         filter!(a -> a != ind_candidate, ind_compl_incumbent)
         n += 1
     end
@@ -486,7 +481,7 @@ end
 function greedy_algorithm(A::Array{Float64}, d::Vector{Float64}, N::Int64, obj::MaxVariability)
 
     T, L = size(A)
-    ind_compl_incumbent::Vector{Int64}, ind_incumbent::Vector{Int64}, ind_tmp::Vector{Int64}, ind_candidate::Int64 = [l for l = 1:L], Vector{Int64}(undef, N), zeros(Int64, 0), 0
+    ind_compl_incumbent::Vector{Int64}, ind_incumbent::Vector{Int64}, ind_tmp::Vector{Int64}, ind_candidate::Int64 = [l for l = 1:L], zeros(Int64, 0), zeros(Int64, 0), 0
     p_incumbent::Vector{Float64} = zeros(Float64, T)
     v::Float64, v_min::Float64 = 0.0, 0.0
     n::Int64 = 0
@@ -504,7 +499,7 @@ function greedy_algorithm(A::Array{Float64}, d::Vector{Float64}, N::Int64, obj::
         end
         ind_candidate = rand(ind_tmp)
         p_incumbent .+= view(A, :, ind_candidate)
-        ind_incumbent[n+1] = ind_candidate
+        push!(ind_incumbent, ind_candidate)
         filter!(a -> a != ind_candidate, ind_compl_incumbent)
         n += 1
     end
@@ -519,7 +514,7 @@ end
 function greedy_algorithm(A::Array{Float64}, d::Vector{Float64}, N::Int64, obj::AverageVariability)
 
     T, L = size(A)
-    ind_compl_incumbent::Vector{Int64}, ind_incumbent::Vector{Int64}, ind_tmp::Vector{Int64}, ind_candidate::Int64 = [l for l = 1:L], Vector{Int64}(undef, N), zeros(Int64, 0), 0
+    ind_compl_incumbent::Vector{Int64}, ind_incumbent::Vector{Int64}, ind_tmp::Vector{Int64}, ind_candidate::Int64 = [l for l = 1:L], zeros(Int64, 0), zeros(Int64, 0), 0
     p_incumbent::Vector{Float64} = zeros(Float64, T)
     v::Float64, v_min::Float64 = 0.0, 0.0
     n::Int64 = 0
@@ -537,7 +532,7 @@ function greedy_algorithm(A::Array{Float64}, d::Vector{Float64}, N::Int64, obj::
         end
         ind_candidate = rand(ind_tmp)
         p_incumbent .+= view(A, :, ind_candidate)
-        ind_incumbent[n+1] = ind_candidate
+        push!(ind_incumbent, ind_candidate)
         filter!(a -> a != ind_candidate, ind_compl_incumbent)
         n += 1
     end
@@ -552,7 +547,7 @@ end
 function greedy_algorithm(A::Array{Float64}, N::Int64, obj::Criticality)
 
     W, L = size(A)
-    ind_compl_incumbent::Vector{Int64}, ind_incumbent::Vector{Int64}, ind_tmp::Vector{Int64}, ind_candidate::Int64 = [l for l = 1:L], Vector{Int64}(undef, N), zeros(Int64, 0), 0
+    ind_compl_incumbent::Vector{Int64}, ind_incumbent::Vector{Int64}, ind_tmp::Vector{Int64}, ind_candidate::Int64 = [l for l = 1:L], zeros(Int64, 0), zeros(Int64, 0), 0
     d_incumbent::Vector{Float64} = zeros(Float64, W)
     v::Float64, v_max::Float64 = 0.0, 0.0
     n::Int64, threshold::Float64 = 0, 0.0
@@ -575,7 +570,7 @@ function greedy_algorithm(A::Array{Float64}, N::Int64, obj::Criticality)
         end
         ind_candidate = rand(ind_tmp)
         d_incumbent .+= view(A, :, ind_candidate)
-        ind_incumbent[n+1] = ind_candidate
+        push!(ind_incumbent, ind_candidate)
         filter!(a -> a != ind_candidate, ind_compl_incumbent)
         n += 1
     end
@@ -590,7 +585,7 @@ end
 function greedy_algorithm(A::Array{Float64}, N::Int64, obj::Correlation)
 
     L = size(A)[1]
-    ind_compl_incumbent::Vector{Int64}, ind_incumbent::Vector{Int64}, ind_tmp::Vector{Int64}, ind_candidate::Int64 = [l for l = 1:L], Vector{Int64}(undef, N), zeros(Int64, 0), 0
+    ind_compl_incumbent::Vector{Int64}, ind_incumbent::Vector{Int64}, ind_tmp::Vector{Int64}, ind_candidate::Int64 = [l for l = 1:L], zeros(Int64, 0), zeros(Int64, 0), 0
     v::Float64, v_min::Float64 = 0.0, 0.0
     n::Int64 = 0
     @inbounds while n < N
@@ -610,7 +605,7 @@ function greedy_algorithm(A::Array{Float64}, N::Int64, obj::Correlation)
             end
         end
         ind_candidate = rand(ind_tmp)
-        ind_incumbent[n+1] = ind_candidate
+        push!(ind_incumbent, ind_candidate)
         filter!(a -> a != ind_candidate, ind_compl_incumbent)
         n += 1
     end

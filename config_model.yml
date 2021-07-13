@@ -11,7 +11,7 @@ resampling_rate: 1
 regions: ['EU']
 technologies: ['wind_offshore']
 deployments: [[450]]
-criterion: 'ElectricityOutput' # ["AverageVariability", "MaxVariability", "AverageResidualDemand", "MaxResidualDemand", "Criticality", "Correlation", "ElectricityOutput"]
+criterion: 'Criticality' # ["AverageVariability", "MaxVariability", "AverageResidualDemand", "MaxResidualDemand", "Criticality", "Correlation", "ElectricityOutput"]
 
 siting_params:
   CRIT:

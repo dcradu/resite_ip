@@ -25,7 +25,7 @@ wind_onshore:
 
 wind_offshore:
   where: 'offshore'
-  filters: ['bathymetry', 'latitude', 'distance', 'legacy']
+  filters: ['bathymetry']
   converter_IV: 'V90'
   converter_III: 'V90'
   converter_II: 'V164'
