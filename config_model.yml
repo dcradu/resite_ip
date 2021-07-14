@@ -63,8 +63,8 @@ siting_params:
       no_years_train: 5
       no_years_test: 5
       no_experiments: 50
-      no_runs_per_experiment: 10
+      no_runs_per_experiment: 1
       criterion: 'max'
       method: 'custom' # 'k_fold'
-      algorithm: 'ga'
+      algorithm: 'mirsa'
 

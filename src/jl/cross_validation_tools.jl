@@ -261,7 +261,7 @@ function mirsa(D::Array{Float64, 2}, c::Float64, n::Int64, N::Int64, I::Int64, E
 
   # Solve Mixed-Integer Relaxation
 
-  MILP_model = Model(optimizer_with_attributes(Gurobi.Optimizer, "TimeLimit" => 3600., "MIPGap" => 0.05))
+  MILP_model = Model(optimizer_with_attributes(Gurobi.Optimizer, "TimeLimit" => 3600., "MIPGap" => 0.05, "LogToConsole" => 0))
 
   @variable(MILP_model, x[1:L], Bin)
   @variable(MILP_model, 0 <= y[1:W] <= 1)
@@ -413,7 +413,7 @@ function randomised_greedy_algorithm(D::Array{Float64,2}, c::Float64, n::Int64, 
 end
 
 
-function greedy_algorithm(D::Array{Float64,2}, c::Float64, n::Float64)
+function greedy_algorithm(D::Array{Float64,2}, c::Float64, n::Int64)
 
   W, L = size(D)
   n = convert(Int64, n)

@@ -26,6 +26,7 @@ def parse_args():
     parser.add_argument('--run_RAND', type=bool, default=False)
     parser.add_argument('--run_CROSS', type=bool, default=False)
     parser.add_argument('--LS_init_algorithm', type=str, default=None)
+    parser.add_argument('--CROSS_method', type=str, default=None)
     parser.add_argument('--CROSS_algorithm', type=str, default=None)
     parser.add_argument('--train', type=int, default=None)
     parser.add_argument('--test', type=int, default=None)
@@ -92,6 +93,7 @@ if __name__ == '__main__':
     siting_parameters['solution_method']['GRED_STO']['set'] = args['run_GRED_STO']
     siting_parameters['solution_method']['GRED_STO']['p'] = args['p']
     siting_parameters['solution_method']['RAND']['set'] = args['run_RAND']
+    siting_parameters['solution_method']['CROSS']['method'] = args['CROSS_method']
     siting_parameters['solution_method']['CROSS']['algorithm'] = args['CROSS_algorithm']
     siting_parameters['solution_method']['CROSS']['no_years_train'] = args['train']
     siting_parameters['solution_method']['CROSS']['no_years_test'] = args['test']
@@ -250,7 +252,7 @@ if __name__ == '__main__':
         else:
             bal = 'unbalanced'
 
-        output_folder = init_folder(model_parameters, c, suffix=f"_CROSS_{params['algorithm']}_{bal}")
+        output_folder = init_folder(model_parameters, c, suffix=f"_CROSS_{params['method']}_{params['algorithm']}_{bal}")
 
         pickle.dump(obj_train, open(join(output_folder, 'obj_train.p'), 'wb'))
         pickle.dump(obj_test, open(join(output_folder, 'obj_test.p'), 'wb'))
