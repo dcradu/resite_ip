@@ -25,7 +25,7 @@ siting_params:
     # Time-window length used to compute the criticality indicator. Integer value.
     delta: 1                          # \in \mathbb{N}
     # Threshold
-    c: 0.1                            # \in [0, 1]
+    c: 0.5                        # \in [0, 1]
   MUSS:
     tau: 1
 
