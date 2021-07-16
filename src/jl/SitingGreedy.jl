@@ -634,7 +634,7 @@ function siting_method(capacity_factor_matrix::Array{Float64}, demand::Vector{Fl
     if criterion == "Criticality"
         locations .= greedy_algorithm(criticality_matrix, deployment_target, obj_mapping[criterion])
     elseif criterion == "ElectricityOutput"
-        locations .= greedy_algorithm(production_matrix, deployment_target, obj_mapping[criterion])
+        locations .= greedy_algorithm(capacity_factor_matrix, deployment_target, obj_mapping[criterion])
     elseif criterion == "Correlation"
         locations .= greedy_algorithm(correlation_matrix, deployment_target, obj_mapping[criterion])
     else
@@ -696,7 +696,7 @@ function compute_objectives(locations::Vector{Int64}, capacity_factor_matrix::Ar
         if crit == "Criticality"
             push!(obj_values, 1.0-compute_objective(criticality_matrix, locations, obj_mapping[crit]))
         elseif crit == "ElectricityOutput"
-            push!(obj_values, compute_objective(production_matrix, locations, obj_mapping[crit]))
+            push!(obj_values, compute_objective(capacity_factor_matrix, locations, obj_mapping[crit]))
         elseif crit == "Correlation"
             push!(obj_values, compute_objective(correlation_matrix, locations, obj_mapping[crit]))
         else
@@ -719,7 +719,7 @@ function compute_objectives(locations::Vector{Int64}, capacity_factor_matrix::Ar
         if crit == "Criticality"
             push!(obj_values, 1.0-compute_objective(criticality_matrix, locations, obj_mapping[crit]))
         elseif crit == "ElectricityOutput"
-            push!(obj_values, compute_objective(production_matrix, locations, obj_mapping[crit]))
+            push!(obj_values, compute_objective(capacity_factor_matrix, locations, obj_mapping[crit]))
         elseif crit == "Correlation"
             push!(obj_values, compute_objective(correlation_matrix, locations, obj_mapping[crit]))
         else
