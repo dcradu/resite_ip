@@ -1,8 +1,7 @@
 import yaml
 import julia
-from os.path import join, isfile
+from os.path import join
 from numpy import argmax, ceil, float64
-import argparse
 import pickle
 
 from copy import deepcopy
@@ -17,38 +16,14 @@ logging.disable(logging.CRITICAL)
 logger = logging.getLogger(__name__)
 
 
-def parse_args():
-
-    parser = argparse.ArgumentParser(description='Command line arguments.')
-
-    parser.add_argument('--k', type=str, default=None)
-    parser.add_argument('--c', type=float)
-    parser.add_argument('--alpha_method', type=str, default=None)
-    parser.add_argument('--alpha_coverage', type=str, default=None)
-    parser.add_argument('--delta', type=int, default=None)
-    parser.add_argument('--resampling_rate', type=str)
-    parser.add_argument('--maxdepth', type=str)
-
-    parsed_args = vars(parser.parse_args())
-
-    return parsed_args
-
-
 if __name__ == '__main__':
-
-    args = parse_args()
 
     logger.info('Starting data pre-processing.')
 
-    model_parameters = read_inputs(f"../config_model_{args['k']}.yml")
-    model_parameters['resampling_rate'] = args['resampling_rate']
+    model_parameters = read_inputs(f"../config_model.yml")
+    model_parameters['resampling_rate'] = 1
     siting_parameters = model_parameters['siting_params']
     tech_parameters = read_inputs('../config_techs.yml')
-
-    siting_parameters['alpha']['method'] = args['alpha_method']
-    siting_parameters['alpha']['coverage'] = args['alpha_coverage']
-    siting_parameters['delta'] = int(args['delta'])
-    siting_parameters['c'] = args['c']
 
     data_path = model_parameters['data_path']
     spatial_resolution = model_parameters['spatial_resolution']
@@ -56,47 +31,22 @@ if __name__ == '__main__':
 
     database = read_database(data_path, spatial_resolution)
 
-    if isfile(join(data_path, f"input/capacity_factors_data_{args['k']}"
-                              f"_{args['resampling_rate']}h_{args['maxdepth']}m.p")):
+    site_coordinates, legacy_coordinates = return_filtered_coordinates(database, model_parameters, tech_parameters)
+    truncated_data = selected_data(database, site_coordinates, time_horizon)
+    capacity_factors_data = return_output(truncated_data, data_path)
 
-        capacity_factors_data = \
-            pickle.load(open(join(data_path,
-                                  f"input/capacity_factors_data_{args['k']}_{args['resampling_rate']}h_"
-                                  f"{args['maxdepth']}m.p"), 'rb'))
-        site_coordinates = \
-            pickle.load(open(join(data_path, f"input/site_coordinates_{args['k']}_{args['maxdepth']}m.p"), 'rb'))
-        legacy_coordinates = \
-            pickle.load(open(join(data_path, f"input/legacy_coordinates_{args['k']}_{args['maxdepth']}m.p"), 'rb'))
-        logger.info('Input files read from disk.')
-
-    else:
-
-        site_coordinates, legacy_coordinates = return_filtered_coordinates(database, model_parameters, tech_parameters)
-        truncated_data = selected_data(database, site_coordinates, time_horizon)
-        capacity_factors_data = return_output(truncated_data, data_path)
-
-        resampled_data = deepcopy(capacity_factors_data)
-        rate = model_parameters['resampling_rate']
-        for region in capacity_factors_data.keys():
-            for tech in capacity_factors_data[region].keys():
-                resampled_data[region][tech] = \
-                    capacity_factors_data[region][tech].resample(time=f"{rate}H").mean(dim='time')
-
-        pickle.dump(resampled_data,
-                    open(join(data_path, f"input/capacity_factors_data_{args['k']}_{args['resampling_rate']}h_"
-                                         f"{args['maxdepth']}m.p"), 'wb'), protocol=4)
-        pickle.dump(site_coordinates,
-                    open(join(data_path, f"input/site_coordinates_{args['k']}_"
-                                         f"{args['maxdepth']}m.p"), 'wb'), protocol=4)
-        pickle.dump(legacy_coordinates,
-                    open(join(data_path, f"input/legacy_coordinates_{args['k']}_"
-                                         f"{args['maxdepth']}m.p"), 'wb'), protocol=4)
-        logger.info('Input files written to disk.')
+    resampled_data = deepcopy(capacity_factors_data)
+    rate = model_parameters['resampling_rate']
+    for region in capacity_factors_data.keys():
+        for tech in capacity_factors_data[region].keys():
+            resampled_data[region][tech] = \
+                capacity_factors_data[region][tech].resample(time=f"{rate}H").mean(dim='time')
 
     time_windows_data = resource_quality_mapping(capacity_factors_data, siting_parameters)
     site_positions = sites_position_mapping(time_windows_data)
     deployment_dict = capacity_to_cardinality(database, model_parameters, tech_parameters, site_coordinates,
                                               legacy_coordinates)
+
     site_potential_data = get_potential_per_site(time_windows_data, tech_parameters, spatial_resolution)
     criticality_data = xarray_to_ndarray(critical_window_mapping(time_windows_data, site_potential_data,
                                                                  deployment_dict, model_parameters))
@@ -105,8 +55,7 @@ if __name__ == '__main__':
     total_no_locs = sum(deployment_dict[r][t] for r in deployment_dict.keys() for t in deployment_dict[r].keys())
     c = int(ceil(siting_parameters['c'] * total_no_locs))
 
-    output_folder = init_folder(model_parameters, total_no_locs, c,
-                                suffix=f"_{args['alpha_method']}_{args['alpha_coverage']}_d{args['delta']}")
+    output_folder = init_folder(model_parameters, total_no_locs, c, suffix='_test')
 
     logger.info('Data pre-processing finished. Opening Julia instance.')
 

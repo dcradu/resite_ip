@@ -1,7 +1,7 @@
 # Config file for various conversion technologies.
 wind_onshore:
   where: 'onshore'
-  filters: ['resource_quality', 'population_density', 'orography', 'forestry', 'water_mask', 'latitude']
+  filters: ['population_density', 'orography', 'forestry', 'water_mask', 'latitude', 'legacy']
   converter_IV: 'V110'
   converter_III: 'E103'
   converter_II: 'V90'
@@ -21,7 +21,7 @@ wind_onshore:
   latitude_threshold: 65.
   legacy_min: 0.1
   power_density: 5. # MW/sqkm
-  land_utilization_factor: 0.5
+  land_utilization_factor: 0.3
 
 wind_offshore:
   where: 'offshore'
