@@ -1,8 +1,8 @@
 import pickle
 import yaml
-from os.path import join, isfile, isdir
+from os.path import join, isdir
 from os import makedirs
-from numpy import sum, float64
+from numpy import float64
 from time import strftime
 import julia
 from julia import Main
@@ -28,37 +28,13 @@ if __name__ == '__main__':
                                             model_parameters['technologies'],
                                             model_parameters['deployments'])
 
-    if isfile(join(data_path, 'input/criticality_matrix.p')):
-
-        custom_log(' WARNING! Instance data read from files.')
-        D = pickle.load(open(join(data_path, 'input/criticality_matrix.p'), 'rb'))
-        site_coordinates = pickle.load(open(join(data_path, 'input/site_coordinates.p'), 'rb'))
-        capacity_factors_data = pickle.load(open(join(data_path, 'input/capacity_factors_data.p'), 'rb'))
-        site_positions = pickle.load(open(join(data_path, 'input/site_positions.p'), 'rb'))
-
-        r = list(site_coordinates.keys())
-        d = sum(model_parameters['deployments'])
-        t = model_parameters['technologies']
-        ts = len(capacity_factors_data[list(site_coordinates.keys())[0]][model_parameters['technologies'][0]].time)
-        custom_log(f" Reading data for a model with a spatial resolution of {float(spatial_resolution)}, "
-                   f"covering {r}, siting {d} {t} sites and {ts} time steps.")
-
-    else:
-
-        custom_log('Files not available. Starting data pre-processing.')
-
-        database = read_database(data_path, spatial_resolution)
-        site_coordinates = return_filtered_coordinates(database, model_parameters, tech_parameters)
-        truncated_data = selected_data(database, site_coordinates, time_horizon)
-        capacity_factors_data = return_output(truncated_data, data_path)
-        time_windows_data = resource_quality_mapping(capacity_factors_data, siting_parameters)
-        D = xarray_to_ndarray(critical_window_mapping(time_windows_data, model_parameters))
-        site_positions = sites_position_mapping(time_windows_data)
-
-        pickle.dump(D, open(join(data_path, 'input/criticality_matrix.p'), 'wb'), protocol=4)
-        pickle.dump(site_coordinates, open(join(data_path, 'input/site_coordinates.p'), 'wb'), protocol=4)
-        pickle.dump(capacity_factors_data, open(join(data_path, 'input/capacity_factors_data.p'), 'wb'), protocol=4)
-        pickle.dump(site_positions, open(join(data_path, 'input/site_positions.p'), 'wb'), protocol=4)
+    database = read_database(data_path, spatial_resolution)
+    site_coordinates = return_filtered_coordinates(database, model_parameters, tech_parameters)
+    truncated_data = selected_data(database, site_coordinates, time_horizon)
+    capacity_factors_data = return_output(truncated_data, data_path)
+    time_windows_data = resource_quality_mapping(capacity_factors_data, siting_parameters)
+    D = xarray_to_ndarray(critical_window_mapping(time_windows_data, model_parameters))
+    site_positions = sites_position_mapping(time_windows_data)
 
     output_dir = join(data_path, f"output/{strftime('%Y%m%d_%H%M%S')}/")
     if not isdir(output_dir):
