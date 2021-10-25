@@ -1,31 +1,33 @@
 # Path to data folder
-#data_path: 'D:/ULg_PhD_work/datasets/resite_ip/'
-data_path: '/data/dcradu/resite_ip/'
+data_path: 'D:/ULg_PhD_work/datasets/resite_ip/'
 
 # Spatial resolution (in degrees) of the potential sites.
 spatial_resolution: 0.25
 # Start time and end time of the analysis.
-time_slice: ['2010-01-01T00:00', '2019-12-31T23:00']
-resampling_rate: 1
-# Technologies to deploy.
+time_slice: ['2018-01-01T00:00', '2018-01-31T23:00']
+# Region (ISO2) to cover within the ERA5 dataset. This key is basically retrieving the shape of the underlying region
+# (e.g., if "DE" is given, the shapefile of the German territory is used to identify which ERA5 points fall within)
 regions: ['EU']
-technologies: ['wind_offshore']
-deployments: [[450]]
-criterion: 'Criticality' # ["AverageVariability", "MaxVariability", "AverageResidualDemand", "MaxResidualDemand", "Criticality", "Correlation", "ElectricityOutput"]
+technologies: ['wind_offshore'] # choose among: 'wind_onshore', 'wind_offshore', 'pv_utility', 'pv_residential'
+deployments: [[450]] # expressed in GW (converted to cardinality in code)
+criterion: 'Criticality' # choose among ["AverageVariability", "MaxVariability", "AverageResidualDemand",
+                         # "MaxResidualDemand", "Criticality", "Correlation", "ElectricityOutput"]
 
 siting_params:
+  # Parameters for criticality models
   CRIT:
-    load_coverage: 0.3
+    # The share of demand to be covered by sited RES assets
+    load_coverage: 0.3                # \in [0, 1]
     # Defines how \alpha is considered in space and time.
     alpha:
-      method: 'potential' # 'potential'
-      coverage: 'system' # 'partition'
-      smoothing: 'mean' # 'median'
-      norm: 'min' # 'max'
+      method: 'potential' # 'potential' vs 'load'
+      coverage: 'system' # 'partition' vs 'system'
+      smoothing: 'mean' # 'median' vs 'mean'
+      norm: 'min' # 'max' vs 'min'
     # Time-window length used to compute the criticality indicator. Integer value.
     delta: 1                          # \in \mathbb{N}
     # Threshold
     c: 0.1                            # \in [0, 1]
+  # Parameters for Musselman et al. models
   MUSS:
-    tau: 1
-
+    tau: 1                            # \in \mathbb{N}

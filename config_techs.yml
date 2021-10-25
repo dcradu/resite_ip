@@ -1,4 +1,26 @@
 # Config file for various conversion technologies.
+# technology:
+#  where: 'onshore'/'offshore' - NOT TO BE ALTERED
+#  filters: filters used to remove candidate locations based on land utilization criteria -
+#            to choose from ['water_mask', 'bathymetry', 'distance', 'resource_quality', 'forestry',
+#            'population_density', 'orography', 'latitude']
+#  converter_IV: converter to be used for class IV winds - set of available converters available at
+#                data/transfer_functions/data_wind_turbines.csv
+#  converter_III: converter to be used for class III winds
+#  converter_II: converter to be used for class II winds
+#  converter_I: converter to be used for class I winds
+#  resource: NOT TO BE ALTERED
+#  deployment: NOT TO BE ALTERED
+#  resource_threshold: average wind speed (m/s) under which candidate sites are discarded
+#  population_density_threshold_low: lower end of population density threshold limit to discard candidate sites
+#  population_density_threshold_high: upper end of population density threshold limit to discard candidate sites
+#  depth_threshold_low: lower end of depth threshold limit to discard candidate sites (for offshore)
+#  depth_threshold_high: upper end of depth threshold limit to discard candidate sites (for offshore)
+#  altitude_threshold: altitude threshold (in m) limit to discard candidate sites
+#  terrain_slope_threshold: terrain slope (in %) threshold limit to discard candidate sites
+#  forestry_ratio_threshold: forestry threshold (in % of cell area) limit to discard candidate sites
+#  latitude_threshold: latitude threshold limit (in degrees) to discard candidate sites
+
 wind_onshore:
   where: 'onshore'
   filters: ['population_density', 'orography', 'water_mask', 'forestry', 'resource_quality', 'latitude']
