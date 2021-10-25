@@ -1,49 +1,26 @@
 import pickle
 import yaml
-from os.path import join, isfile
-from numpy import array, sum
-from pyomo.opt import SolverFactory
-import time
-import argparse
+from os.path import join, isfile, isdir
+from os import makedirs
+from numpy import sum, float64
+from time import strftime
+import julia
+from julia import Main
 
-from helpers import read_inputs, init_folder, custom_log, xarray_to_ndarray, generate_jl_input, get_deployment_vector
-from tools import read_database, return_filtered_coordinates, selected_data, return_output, resource_quality_mapping, \
-    critical_window_mapping, sites_position_mapping
-from models import build_ip_model
-
-
-def parse_args():
-
-    parser = argparse.ArgumentParser(description='Command line arguments.')
-
-    parser.add_argument('--c', type=int)
-    parser.add_argument('--p', type=float, default=None)
-    parser.add_argument('--run_BB', type=bool, default=False)
-    parser.add_argument('--run_MIR', type=bool, default=False)
-    parser.add_argument('--run_LS', type=bool, default=False)
-    parser.add_argument('--run_GRED_DET', type=bool, default=False)
-    parser.add_argument('--run_GRED_STO', type=bool, default=False)
-    parser.add_argument('--run_RAND', type=bool, default=False)
-    parser.add_argument('--run_CROSS', type=bool, default=False)
-    parser.add_argument('--LS_init_algorithm', type=str, default=None)
-    parser.add_argument('--CROSS_method', type=str, default=None)
-    parser.add_argument('--CROSS_algorithm', type=str, default=None)
-    parser.add_argument('--train', type=int, default=None)
-    parser.add_argument('--test', type=int, default=None)
-
-    parsed_args = vars(parser.parse_args())
-
-    return parsed_args
+from helpers import read_inputs, custom_log, xarray_to_ndarray, \
+                    generate_jl_input, get_deployment_vector
+from tools import read_database, return_filtered_coordinates, \
+                  selected_data, return_output, resource_quality_mapping, \
+                  critical_window_mapping, sites_position_mapping
 
 if __name__ == '__main__':
-
-    args = parse_args()
 
     model_parameters = read_inputs('../config_model.yml')
     siting_parameters = model_parameters['siting_params']
     tech_parameters = read_inputs('../config_techs.yml')
 
     data_path = model_parameters['data_path']
+    julia_path = model_parameters['julia_models_path']
     spatial_resolution = model_parameters['spatial_resolution']
     time_horizon = model_parameters['time_slice']
 
@@ -54,7 +31,7 @@ if __name__ == '__main__':
     if isfile(join(data_path, 'input/criticality_matrix.p')):
 
         custom_log(' WARNING! Instance data read from files.')
-        criticality_data = pickle.load(open(join(data_path, 'input/criticality_matrix.p'), 'rb'))
+        D = pickle.load(open(join(data_path, 'input/criticality_matrix.p'), 'rb'))
         site_coordinates = pickle.load(open(join(data_path, 'input/site_coordinates.p'), 'rb'))
         capacity_factors_data = pickle.load(open(join(data_path, 'input/capacity_factors_data.p'), 'rb'))
         site_positions = pickle.load(open(join(data_path, 'input/site_positions.p'), 'rb'))
@@ -75,189 +52,87 @@ if __name__ == '__main__':
         truncated_data = selected_data(database, site_coordinates, time_horizon)
         capacity_factors_data = return_output(truncated_data, data_path)
         time_windows_data = resource_quality_mapping(capacity_factors_data, siting_parameters)
-        criticality_data = xarray_to_ndarray(critical_window_mapping(time_windows_data, model_parameters))
+        D = xarray_to_ndarray(critical_window_mapping(time_windows_data, model_parameters))
         site_positions = sites_position_mapping(time_windows_data)
 
-        pickle.dump(criticality_data, open(join(data_path, 'input/criticality_matrix.p'), 'wb'), protocol=4)
+        pickle.dump(D, open(join(data_path, 'input/criticality_matrix.p'), 'wb'), protocol=4)
         pickle.dump(site_coordinates, open(join(data_path, 'input/site_coordinates.p'), 'wb'), protocol=4)
         pickle.dump(capacity_factors_data, open(join(data_path, 'input/capacity_factors_data.p'), 'wb'), protocol=4)
         pickle.dump(site_positions, open(join(data_path, 'input/site_positions.p'), 'wb'), protocol=4)
 
-        custom_log(' Data read. Building model.')
+    output_dir = join(data_path, f"output/{strftime('%Y%m%d_%H%M%S')}/")
+    if not isdir(output_dir):
+        makedirs(output_dir)
 
-    siting_parameters['solution_method']['BB']['mir'] = args['run_MIR']
-    siting_parameters['solution_method']['BB']['set'] = args['run_BB']
-    siting_parameters['solution_method']['LS']['set'] = args['run_LS']
-    siting_parameters['solution_method']['CROSS']['set'] = args['run_CROSS']
-    siting_parameters['solution_method']['GRED_DET']['set'] = args['run_GRED_DET']
-    siting_parameters['solution_method']['GRED_STO']['set'] = args['run_GRED_STO']
-    siting_parameters['solution_method']['GRED_STO']['p'] = args['p']
-    siting_parameters['solution_method']['RAND']['set'] = args['run_RAND']
-    siting_parameters['solution_method']['CROSS']['method'] = args['CROSS_method']
-    siting_parameters['solution_method']['CROSS']['algorithm'] = args['CROSS_algorithm']
-    siting_parameters['solution_method']['CROSS']['no_years_train'] = args['train']
-    siting_parameters['solution_method']['CROSS']['no_years_test'] = args['test']
+    with open(join(output_dir, 'config_model.yaml'), 'w') as outfile:
+        yaml.dump(model_parameters, outfile, default_flow_style=False, sort_keys=False)
+    with open(join(output_dir, 'config_techs.yaml'), 'w') as outfile:
+        yaml.dump(tech_parameters, outfile, default_flow_style=False, sort_keys=False)
 
-    c = args['c']
+    c = float64(siting_parameters['c'])
+    D = D.astype(float64)
 
-    if siting_parameters['solution_method']['BB']['set']:
+    jl_dict = generate_jl_input(deployment_dict, site_coordinates)
+    j = julia.Julia(compiled_modules=False)
+    Main.include(julia_path)
 
-        custom_log(' BB chosen to solve the IP.')
-        params = siting_parameters['solution_method']['BB']
+    custom_log(f" {siting_parameters['algorithm']} chosen to solve the instance.")
 
-        output_folder = init_folder(model_parameters, c, f"_BB_MIR_{args['run_MIR']}")
-        with open(join(output_folder, 'config_model.yaml'), 'w') as outfile:
-            yaml.dump(model_parameters, outfile, default_flow_style=False, sort_keys=False)
-        with open(join(output_folder, 'config_techs.yaml'), 'w') as outfile:
-            yaml.dump(tech_parameters, outfile, default_flow_style=False, sort_keys=False)
+    if siting_parameters['algorithm'] == 'MIP':
 
-        # Solver options for the MIP problem
-        opt = SolverFactory(params['solver'])
-        opt.options['MIPGap'] = params['mipgap']
-        opt.options['Threads'] = params['threads']
-        opt.options['TimeLimit'] = params['timelimit']
+        x, obj = Main.MIP(D, c, float64(jl_dict['k']))
 
-        instance = build_ip_model(deployment_dict, site_coordinates, criticality_data,
-                                  c, output_folder, args['run_MIR'])
-        custom_log(' Sending model to solver.')
+    elif siting_parameters['algorithm'] == 'MIR':
 
-        results = opt.solve(instance, tee=False, keepfiles=False,
-                            report_timing=False, logfile=join(output_folder, 'solver_log.log'))
+        x, obj = Main.MIR(D, c, float64(jl_dict['k']))
 
-        objective = instance.objective()
-        x_values = array(list(instance.x.extract_values().values()))
+    elif siting_parameters['algorithm'] == 'RG':
 
-        pickle.dump(x_values, open(join(output_folder, 'solution_matrix.p'), 'wb'))
-        pickle.dump(objective, open(join(output_folder, 'objective_vector.p'), 'wb'))
+        # TODO: At this stage, this runs one single time.
+        x, obj = Main.RG(D, c, float64(jl_dict['k']))
 
-    elif siting_parameters['solution_method']['LS']['set']:
+    elif siting_parameters['algorithm'] == 'RGP':
 
-        custom_log(f" LS_{args['LS_init_algorithm']} chosen to solve the IP. Opening a Julia instance.")
-        params = siting_parameters['solution_method']['LS']
+        p = siting_parameters['method_params']['RGP']['p']
+        # TODO: At this stage, this runs one single time.
+        x, obj = Main.RGP(D, c, float64(jl_dict['k']), p)
 
-        jl_dict = generate_jl_input(deployment_dict, site_coordinates)
-        path_to_sol = '10y_n560_k1_c' + str(args['c']) + '_GRED_STGH_p0.05'
-        path_to_init_sol_folder = join(data_path, 'output', path_to_sol)
+    elif siting_parameters['algorithm'] == 'RS':
 
-        import julia
-        j = julia.Julia(compiled_modules=False)
-        from julia import Main
-        Main.include("jl/SitingHeuristics.jl")
+        S = siting_parameters['method_params']['RS']['samples']
+        x, obj = Main.RS(D, c, float64(jl_dict['k']), S)
 
-        start = time.time()
-        jl_selected, jl_objective, jl_traj = Main.main_MIRSA(jl_dict['index_dict'], jl_dict['deployment_dict'],
-                                                             criticality_data, c, params['neighborhood'],
-                                                             params['no_iterations'], params['no_epochs'],
-                                                             params['initial_temp'], params['no_runs'],
-                                                             args['LS_init_algorithm'], args['p'], path_to_init_sol_folder)
-        end = time.time()
-        print(f"Average CPU time for c={c}: {round((end-start)/params['no_runs'], 1)} s")
+    elif siting_parameters['algorithm'] == 'RSSA':
 
-        output_folder = init_folder(model_parameters, c, suffix=f"_LS_{args['LS_init_algorithm']}")
+        I = siting_parameters['method_params']['RSSA']['no_iterations']
+        N = siting_parameters['method_params']['RSSA']['no_epochs']
+        r = siting_parameters['method_params']['RSSA']['radius']
+        T_init = siting_parameters['method_params']['RSSA']['initial_temp']
+        S = siting_parameters['method_params']['RSSA']['samples']
+        x_init, _ = Main.RG(D, c, float64(jl_dict['k']), S)
+        x, obj = Main.SA(D, c, float64(jl_dict['k']), x_init, I, N, r, T_init)
 
-        with open(join(output_folder, 'config_model.yaml'), 'w') as outfile:
-            yaml.dump(model_parameters, outfile, default_flow_style=False, sort_keys=False)
-        with open(join(output_folder, 'config_techs.yaml'), 'w') as outfile:
-            yaml.dump(tech_parameters, outfile, default_flow_style=False, sort_keys=False)
+    elif siting_parameters['algorithm'] == 'MIRSA':
 
-        pickle.dump(jl_selected, open(join(output_folder, 'solution_matrix.p'), 'wb'))
-        pickle.dump(jl_objective, open(join(output_folder, 'objective_vector.p'), 'wb'))
-        pickle.dump(jl_traj, open(join(output_folder, 'trajectory_matrix.p'), 'wb'))
+        I = siting_parameters['method_params']['MIRSA']['no_iterations']
+        N = siting_parameters['method_params']['MIRSA']['no_epochs']
+        r = siting_parameters['method_params']['MIRSA']['radius']
+        T_init = siting_parameters['method_params']['MIRSA']['initial_temp']
+        x, obj = Main.MIRSA(D, c, float64(jl_dict['k']), I, N, r, T_init)
 
-    elif siting_parameters['solution_method']['RAND']['set']:
-    
-        custom_log(' Locations to be chosen via random search.')
-        params = siting_parameters['solution_method']['RAND']
-    
-        jl_dict = generate_jl_input(deployment_dict, site_coordinates)
-    
-        import julia
-        j = julia.Julia(compiled_modules=False)
-        from julia import Main
-        Main.include("jl/SitingHeuristics.jl")
+    elif siting_parameters['algorithm'] == 'RGPSA':
 
-        jl_selected, jl_objective = Main.main_RAND(jl_dict['deployment_dict'], criticality_data,
-                                                   c, params['no_iterations'], params['no_runs'],
-                                                   params['algorithm'])
-    
-        output_folder = init_folder(model_parameters, c, suffix='_RS')
-    
-        pickle.dump(jl_selected, open(join(output_folder, 'solution_matrix.p'), 'wb'))
-        pickle.dump(jl_objective, open(join(output_folder, 'objective_vector.p'), 'wb'))
-
-    elif siting_parameters['solution_method']['GRED_DET']['set']:
-
-        params = siting_parameters['solution_method']['GRED_DET']
-        custom_log(f" GRED_{params['algorithm']} chosen to solve the IP. Opening a Julia instance.")
-
-        jl_dict = generate_jl_input(deployment_dict, site_coordinates)
-
-        import julia
-        j = julia.Julia(compiled_modules=False)
-        from julia import Main
-        Main.include("jl/SitingHeuristics.jl")
-
-        start = time.time()
-        jl_selected, jl_objective = Main.main_GRED(jl_dict['deployment_dict'], criticality_data, c,
-                                                   params['no_runs'], params['p'], params['algorithm'])
-        end = time.time()
-        print(f"Average CPU time for c={c}: {round((end-start)/params['no_runs'], 1)} s")
-
-        output_folder = init_folder(model_parameters, c, suffix=f"_GRED_{params['algorithm']}")
-
-        pickle.dump(jl_selected, open(join(output_folder, 'solution_matrix.p'), 'wb'))
-        pickle.dump(jl_objective, open(join(output_folder, 'objective_vector.p'), 'wb'))
-
-    elif siting_parameters['solution_method']['GRED_STO']['set']:
-
-        params = siting_parameters['solution_method']['GRED_STO']
-        custom_log(f" GRED_{params['algorithm']} chosen to solve the IP. Opening a Julia instance.")
-
-        jl_dict = generate_jl_input(deployment_dict, site_coordinates)
-
-        import julia
-        j = julia.Julia(compiled_modules=False)
-        from julia import Main
-        Main.include("jl/SitingHeuristics.jl")
-
-        start = time.time()
-        jl_selected, jl_objective = Main.main_GRED(jl_dict['deployment_dict'], criticality_data, c,
-                                                   params['no_runs'], params['p'], params['algorithm'])
-        end = time.time()
-        print(f"Average CPU time for c={c}: {round((end-start)/params['no_runs'], 1)} s")
-
-        output_folder = init_folder(model_parameters, c, suffix=f"_GRED_{params['algorithm']}_p{params['p']}")
-
-        pickle.dump(jl_selected, open(join(output_folder, 'solution_matrix.p'), 'wb'))
-        pickle.dump(jl_objective, open(join(output_folder, 'objective_vector.p'), 'wb'))
-
-    elif siting_parameters['solution_method']['CROSS']['set']:
-
-        params = siting_parameters['solution_method']['CROSS']
-        custom_log(f" Cross-validation starting. Opening a Julia instance.")
-
-        import julia
-        j = julia.Julia(compiled_modules=False)
-        from julia import Main
-        Main.include("jl/SitingHeuristics.jl")
-
-        obj_train, obj_test, ind_train, ind_test = Main.main_CROSS(criticality_data, c,
-                                                sum(model_parameters['deployments']), params['k'],
-                                                params['no_years'], params['no_years_train'], params['no_years_test'],
-                                                params['no_experiments'], params['no_runs_per_experiment'],
-                                                params['criterion'], params['method'], params['algorithm'])
-
-        if params['no_years_train'] == params['no_years_test']:
-            bal = 'balanced'
-        else:
-            bal = 'unbalanced'
-
-        output_folder = init_folder(model_parameters, c, suffix=f"_CROSS_{params['method']}_{params['algorithm']}_{bal}")
-
-        pickle.dump(obj_train, open(join(output_folder, 'obj_train.p'), 'wb'))
-        pickle.dump(obj_test, open(join(output_folder, 'obj_test.p'), 'wb'))
-        pickle.dump(ind_train, open(join(output_folder, 'ind_train.p'), 'wb'))
-        pickle.dump(ind_test, open(join(output_folder, 'ind_test.p'), 'wb'))
+        p = siting_parameters['method_params']['RGPSA']['p']
+        n = siting_parameters['method_params']['RGPSA']['init_runs']
+        I = siting_parameters['method_params']['RGPSA']['no_iterations']
+        N = siting_parameters['method_params']['RGPSA']['no_epochs']
+        r = siting_parameters['method_params']['RGPSA']['radius']
+        T_init = siting_parameters['method_params']['RGPSA']['initial_temp']
+        x, obj = Main.RGPSA(D, c, float64(jl_dict['k']), p, n, I, N, r, T_init)
 
     else:
-        raise ValueError(' This solution method is not available. ')
+        raise ValueError(f" Algorithm {siting_parameters['algorithm']} is not available.")
+
+    pickle.dump(x, open(join(output_dir, 'solution_matrix.p'), 'wb'))
+    pickle.dump(obj, open(join(output_dir, 'objective_vector.p'), 'wb'))
+    custom_log(" Results written to disk.")

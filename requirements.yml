@@ -6,8 +6,6 @@ dependencies:
   - bottleneck
   - cdsapi
   - dask
-  - matplotlib
-  - pyomo
   - scipy
   - toolz
   - xarray
@@ -15,5 +13,5 @@ dependencies:
   - pyyaml
   - xlrd
   - geopy
-  - pypsa
   - shapely
+  - julia

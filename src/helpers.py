@@ -452,40 +452,6 @@ def get_partition_index(input_dict):
 
     return index_dict
 
-
-def init_folder(parameters, c, suffix=None):
-    """Initilize an output folder.
-
-    Parameters:
-    ------------
-    parameters : dict
-        Parameters dictionary.
-
-    Returns:
-    ------------
-    path : str
-        Relative path of the folder.
-
-    """
-    output_data_path = join(parameters['data_path'], 'output')
-
-    no_locs = str(sum(parameters['deployments']))
-    no_part = str(len(parameters['regions']))
-    no_yrs = str(int(round((to_datetime(parameters['time_slice'][1]) -
-                            to_datetime(parameters['time_slice'][0])) / timedelta64(1, 'Y'), 0)))
-    c = str(c)
-
-    if not isdir(output_data_path):
-        makedirs(abspath(output_data_path))
-
-    path = abspath(output_data_path + '/' + no_yrs + 'y_n' + no_locs + '_k' + no_part + '_c' + c + suffix)
-    makedirs(path)
-
-    custom_log(f"Folder path is: {path}")
-
-    return path
-
-
 def generate_jl_input(deployment_dict, filtered_coordinates):
 
     concat_deployment_dict = concatenate_dict_keys(deployment_dict)
@@ -495,14 +461,14 @@ def generate_jl_input(deployment_dict, filtered_coordinates):
     for idx, region in enumerate(region_list):
         int_to_region_map[region] = idx + 1
 
-    deployment_dict_int = dict(zip(int_to_region_map.values(), concat_deployment_dict.values()))
+    k = sum(deployment_dict[region][tech] for region in deployment_dict for tech in deployment_dict[region])
 
     index_dict = concatenate_dict_keys(get_partition_index(filtered_coordinates))
     index_dict_swap = {k: oldk for oldk, oldv in index_dict.items() for k in oldv}
     for key, value in index_dict_swap.items():
         index_dict_swap[key] = int_to_region_map[value]
 
-    output_dict = {'deployment_dict': deployment_dict_int,
+    output_dict = {'k': k,
                    'index_dict': index_dict_swap}
 
     return output_dict
