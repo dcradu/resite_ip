@@ -47,7 +47,7 @@ wind_onshore:
 
 wind_offshore:
   where: 'offshore'
-  filters: ['bathymetry']
+  filters: ['bathymetry', 'distance']
   converter_IV: 'V90'
   converter_III: 'V90'
   converter_II: 'V164'
@@ -118,7 +118,6 @@ pv_utility:
   power_density: 5. # MW/sqkm
   land_utilization_factor: 0.5
 
-#TODO: fix pv_residential filters
 pv_residential:
   where: 'onshore'
   filters: ['population_density', 'water_mask']
