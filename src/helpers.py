@@ -539,37 +539,6 @@ def get_partition_index(input_dict):
     return index_dict
 
 
-def init_folder(parameters, no_locs, c, suffix=None):
-    """Initilize an output folder.
-
-    Parameters:
-    ------------
-    parameters : dict
-        Parameters dictionary.
-
-    Returns:
-    ------------
-    path : str
-        Relative path of the folder.
-
-    """
-    output_data_path = join(parameters['data_path'], 'output')
-
-    no_locs = str(no_locs)
-    no_part = str(len(parameters['regions']))
-    no_yrs = str(int(round((to_datetime(parameters['time_slice'][1]) -
-                            to_datetime(parameters['time_slice'][0])) / timedelta64(1, 'Y'), 0)))
-    c = str(c)
-
-    if not isdir(output_data_path):
-        makedirs(abspath(output_data_path))
-
-    path = abspath(output_data_path + '/' + no_yrs + 'y_n' + no_locs + '_k' + no_part + '_c' + c + suffix)
-    makedirs(path)
-
-    return path
-
-
 def generate_jl_input(deployment_dict, filtered_coordinates, site_positions, legacy_sites):
 
     concat_deployment_dict = concatenate_dict_keys(deployment_dict)

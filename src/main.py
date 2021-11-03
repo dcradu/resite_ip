@@ -1,13 +1,14 @@
 import yaml
 import julia
-from os.path import join, isfile
+from julia import Main
+from os.path import join, isdir
+from os import makedirs
 from numpy import argmax, ceil, float64
-import argparse
 import pickle
+from time import strftime
 
 from copy import deepcopy
-from helpers import read_inputs, init_folder, xarray_to_ndarray, generate_jl_input, \
-    get_potential_per_site, capacity_to_cardinality
+from helpers import read_inputs, xarray_to_ndarray, generate_jl_input, get_potential_per_site, capacity_to_cardinality
 from tools import read_database, return_filtered_coordinates, selected_data, return_output, resource_quality_mapping, \
     critical_window_mapping, sites_position_mapping, retrieve_location_dict, retrieve_site_data
 
@@ -16,82 +17,29 @@ logging.basicConfig(level=logging.INFO, format=f"%(levelname)s %(asctime)s - %(m
 logging.disable(logging.CRITICAL)
 logger = logging.getLogger(__name__)
 
-
-def parse_args():
-
-    parser = argparse.ArgumentParser(description='Command line arguments.')
-
-    parser.add_argument('--k', type=str, default=None)
-    parser.add_argument('--c', type=float)
-    parser.add_argument('--alpha_method', type=str, default=None)
-    parser.add_argument('--alpha_coverage', type=str, default=None)
-    parser.add_argument('--delta', type=int, default=None)
-    parser.add_argument('--resampling_rate', type=str)
-    parser.add_argument('--maxdepth', type=str)
-
-    parsed_args = vars(parser.parse_args())
-
-    return parsed_args
-
-
 if __name__ == '__main__':
-
-    args = parse_args()
 
     logger.info('Starting data pre-processing.')
 
-    model_parameters = read_inputs(f"../config_model_{args['k']}.yml")
-    model_parameters['resampling_rate'] = args['resampling_rate']
+    model_parameters = read_inputs(f"../config_model.yml")
     siting_parameters = model_parameters['siting_params']
     tech_parameters = read_inputs('../config_techs.yml')
-
-    siting_parameters['alpha']['method'] = args['alpha_method']
-    siting_parameters['alpha']['coverage'] = args['alpha_coverage']
-    siting_parameters['delta'] = int(args['delta'])
-    siting_parameters['c'] = args['c']
 
     data_path = model_parameters['data_path']
     spatial_resolution = model_parameters['spatial_resolution']
     time_horizon = model_parameters['time_slice']
 
     database = read_database(data_path, spatial_resolution)
+    site_coordinates, legacy_coordinates = return_filtered_coordinates(database, model_parameters, tech_parameters)
+    truncated_data = selected_data(database, site_coordinates, time_horizon)
+    capacity_factors_data = return_output(truncated_data, data_path)
 
-    if isfile(join(data_path, f"input/capacity_factors_data_{args['k']}"
-                              f"_{args['resampling_rate']}h_{args['maxdepth']}m.p")):
-
-        capacity_factors_data = \
-            pickle.load(open(join(data_path,
-                                  f"input/capacity_factors_data_{args['k']}_{args['resampling_rate']}h_"
-                                  f"{args['maxdepth']}m.p"), 'rb'))
-        site_coordinates = \
-            pickle.load(open(join(data_path, f"input/site_coordinates_{args['k']}_{args['maxdepth']}m.p"), 'rb'))
-        legacy_coordinates = \
-            pickle.load(open(join(data_path, f"input/legacy_coordinates_{args['k']}_{args['maxdepth']}m.p"), 'rb'))
-        logger.info('Input files read from disk.')
-
-    else:
-
-        site_coordinates, legacy_coordinates = return_filtered_coordinates(database, model_parameters, tech_parameters)
-        truncated_data = selected_data(database, site_coordinates, time_horizon)
-        capacity_factors_data = return_output(truncated_data, data_path)
-
-        resampled_data = deepcopy(capacity_factors_data)
-        rate = model_parameters['resampling_rate']
-        for region in capacity_factors_data.keys():
-            for tech in capacity_factors_data[region].keys():
-                resampled_data[region][tech] = \
-                    capacity_factors_data[region][tech].resample(time=f"{rate}H").mean(dim='time')
-
-        pickle.dump(resampled_data,
-                    open(join(data_path, f"input/capacity_factors_data_{args['k']}_{args['resampling_rate']}h_"
-                                         f"{args['maxdepth']}m.p"), 'wb'), protocol=4)
-        pickle.dump(site_coordinates,
-                    open(join(data_path, f"input/site_coordinates_{args['k']}_"
-                                         f"{args['maxdepth']}m.p"), 'wb'), protocol=4)
-        pickle.dump(legacy_coordinates,
-                    open(join(data_path, f"input/legacy_coordinates_{args['k']}_"
-                                         f"{args['maxdepth']}m.p"), 'wb'), protocol=4)
-        logger.info('Input files written to disk.')
+    resampled_data = deepcopy(capacity_factors_data)
+    rate = model_parameters['resampling_rate']
+    for region in capacity_factors_data.keys():
+        for tech in capacity_factors_data[region].keys():
+            resampled_data[region][tech] = \
+                capacity_factors_data[region][tech].resample(time=f"{rate}H").mean(dim='time')
 
     time_windows_data = resource_quality_mapping(capacity_factors_data, siting_parameters)
     site_positions = sites_position_mapping(time_windows_data)
@@ -105,29 +53,27 @@ if __name__ == '__main__':
     total_no_locs = sum(deployment_dict[r][t] for r in deployment_dict.keys() for t in deployment_dict[r].keys())
     c = int(ceil(siting_parameters['c'] * total_no_locs))
 
-    output_folder = init_folder(model_parameters, total_no_locs, c,
-                                suffix=f"_{args['alpha_method']}_{args['alpha_coverage']}_d{args['delta']}")
+    output_dir = join(data_path, f"output/{strftime('%Y%m%d_%H%M%S')}/")
+    if not isdir(output_dir):
+        makedirs(output_dir)
+
+    with open(join(output_dir, 'config_model.yaml'), 'w') as outfile:
+        yaml.dump(model_parameters, outfile, default_flow_style=False, sort_keys=False)
+    with open(join(output_dir, 'config_techs.yaml'), 'w') as outfile:
+        yaml.dump(tech_parameters, outfile, default_flow_style=False, sort_keys=False)
 
     logger.info('Data pre-processing finished. Opening Julia instance.')
 
     j = julia.Julia(compiled_modules=False)
-    from julia import Main
     Main.include("jl/SitingHeuristics.jl")
 
     params = siting_parameters['solution_method']
-
-    jl_sel, jl_obj, jl_tra = Main.main_SA(jl_dict['index_dict'],
-                                          jl_dict['deployment_dict'],
-                                          jl_dict['legacy_site_list'],
-                                          criticality_data.astype('float64'), float64(c),
-                                          params['neighborhood'], params['initial_temp'],
-                                          params['no_iterations'], params['no_epochs'], params['no_runs'])
-
-    with open(join(output_folder, 'config_model.yaml'), 'w') as outfile:
-        yaml.dump(model_parameters, outfile, default_flow_style=False, sort_keys=False)
-    with open(join(output_folder, 'config_techs.yaml'), 'w') as outfile:
-        yaml.dump(tech_parameters, outfile, default_flow_style=False, sort_keys=False)
-
+    jl_sel, jl_obj, _ = Main.main_SA(jl_dict['index_dict'],
+                                     jl_dict['deployment_dict'],
+                                     jl_dict['legacy_site_list'],
+                                     criticality_data.astype('float64'), float64(c),
+                                     params['neighborhood'], params['initial_temp'],
+                                     params['no_iterations'], params['no_epochs'], params['no_runs'])
     logger.info('Siting heuristics done. Writing results to disk.')
 
     jl_objective_pick = argmax(jl_obj)
@@ -135,10 +81,9 @@ if __name__ == '__main__':
 
     locations_dict = retrieve_location_dict(jl_locations_vector, model_parameters, site_positions)
     retrieve_site_data(model_parameters, capacity_factors_data, criticality_data, deployment_dict,
-                       site_positions, locations_dict, legacy_coordinates, output_folder, benchmark="PROD")
+                       site_positions, locations_dict, legacy_coordinates, output_dir, benchmark="PROD")
 
-    pickle.dump(jl_sel, open(join(output_folder, 'solution_matrix.p'), 'wb'))
-    pickle.dump(jl_obj, open(join(output_folder, 'objective_vector.p'), 'wb'))
-    pickle.dump(jl_tra, open(join(output_folder, 'trajectory_matrix.p'), 'wb'))
+    pickle.dump(jl_sel, open(join(output_dir, 'solution_matrix.p'), 'wb'))
+    pickle.dump(jl_obj, open(join(output_dir, 'objective_vector.p'), 'wb'))
 
-    logger.info(f"Results written to {output_folder}")
+    logger.info(f"Results written to {output_dir}")
