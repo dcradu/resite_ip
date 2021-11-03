@@ -1,30 +1,34 @@
 # Path to data folder
-#data_path: 'D:/ULg_PhD_work/datasets/resite_ip/'
-data_path: '/data/dcradu/resite_ip/'
+data_path: 'path/to/data/'
 
 # Spatial resolution (in degrees) of the potential sites.
 spatial_resolution: 0.25
-# Start time and end time of the analysis.
+# Start time and end time of the analysis
 time_slice: ['2010-01-01T00:00', '2019-12-31T23:00']
+# Resampling rate of input data (in hours)
 resampling_rate: 3
-# Technologies to deploy.
+# Region (ISO2) to cover within the ERA5 dataset. This key is basically retrieving the shape of the underlying region
+# (e.g., if "DE" is given, the shapefile of the German territory is used to identify which ERA5 points fall within)
 regions: ['GB', 'NL', 'FR', 'DE', 'DK', 'NO', 'PL', 'IE', 'IT', 'SE', 'FI', 'ES', 'GR', 'PT', 'BE', 'LT', 'LV', 'EE', 'HR']
-technologies: ['wind_offshore']
+# Technologies to deploy
+technologies: ['wind_offshore'] # choose among: 'wind_onshore', 'wind_offshore', 'pv_utility', 'pv_residential'
+# Deployment target (GW), list of lists such as [[tech1@region1, tech2@region1], [tech1@region1, tech2@region2], ...]
 deployments: [[80], [60], [57], [36], [35], [30], [28], [22], [20], [20], [15], [13], [10], [9], [6], [4], [3], [1], [1]]
+# Share of demand to be covered by sited technologies (relevant in defining criticality)
 load_coverage: 0.3
 
 siting_params:
   # Defines how \alpha is considered in space and time.
   alpha:
-    method: 'load' # 'potentials'
-    coverage: 'system' # 'partition'
-    smoothing: 'mean' # 'median'
-    norm: 'min' # 'max'
-  # Time-window length used to compute the criticality indicator. Integer value.
+    method: 'potential' # 'potential' vs 'load'
+    coverage: 'system' # 'partition' vs 'system'
+    smoothing: 'mean' # 'median' vs 'mean'
+    norm: 'min' # 'max' vs 'min'
+  # Time-window length (any integer value smaller than the length of the time horizon)
   delta: 1                          # \in \mathbb{N}
   # Threshold
   c: 0.1                            # \in [0, 1]
-  # Solution method: BB or HEU or RAND or GRED.
+  # Parameters of the solution method
   solution_method:
     neighborhood: 1
     no_iterations: 2000

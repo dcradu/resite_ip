@@ -1,19 +1,15 @@
-# resiteIP
+# resite_ip
 
-This file provides the information required to set up the integer programming-based __resite__ tool. At this stage, the IP version is not integrated in the broader __resite__ package.
+This repository hosts the main development work around `resite_ip`, a tool relying on integer programming to site
+renewable generation assets based on various deplyoment criteria.
 
-# Setup
+## Setup
 
-This module runs in any 3.x version of Python. The Python packages required to run this module are listed 
-in the `requirements.yml` file included in the repository. Their installation can be easily achieved via the the following
-command that builds a separate environment for this module from the `yml` file:
-   
-    conda env create -f environment.yml
+The code runs in `Python 3.6` or older. In addition, running the code requires installation of `Julia 1.5` or older.
+Furthermore, the some of the siting algorithm available in this repository will require a branch-and-bound solver. Currently,
+only `gurobi` (with a valid license) is supported.
 
-The tool requires to installation of an MILP solver. At the time of writing, `gurobi` is the only solver this 
-model supports (see installation details [here](https://www.gurobi.com/documentation/8.1/remoteservices/installation.html)).
-   
-# Minimal working example
+## Repository structure
 
 This structure of this package is as follows:
 * `resite_ip` as a container for:
@@ -23,17 +19,15 @@ This structure of this package is as follows:
   * the `config` files
   * auxiliary files required to set up the package
   
-The `data` folder (whose path must be specified in the first line of `config_model.yml`) is provided in a different zenodo-like repository. In order to run the model, the following steps must be taken:
-* Ensure input data is available according to the structure provided in the `data` folder
+The `data` folder (whose path must be specified in the first line of `config_model.yml`) is needed to instantiate the 
+model. Currently, the data available covers solely the European continent and is available [here](https://dox.uliege.be/index.php/s/L9jH5aCQdZ7ie4W). 
+In order to run the model and assuming that this repository has been obtained via `git clone` the following steps must be taken:
+
+* Install all package dependencies listed in the `requirements.yml` file
 * Configure run via the `config` files
 * Run `python main.py` from the `src` folder
 
-Results of these runs are stored in an `output` directory at the same level as the `data` folder.
-
-# Citing
-Please cite the following paper if you use this software in your research.
-
-To be added.
+Results of these runs are stored in an `output` directory in the `data` folder.
 
 # License
 This software is released as free software under the [GPLv3](http://www.gnu.org/licenses/gpl-3.0.en.html).
