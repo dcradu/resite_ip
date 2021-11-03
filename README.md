@@ -1,20 +1,22 @@
 # resite_ip
 
 This branch of the `resite_ip` repository contains Python scripts used to deploy RES assets based on the different siting strategies
-investiaged in Chapter 9 ("On the role of complementarity in siting renewable power generation assets and its economic 
+investigated in Chapter 9 ("On the role of complementarity in siting renewable power generation assets and its economic 
 implications for power systems") of the following publication: "Complementarity of Variable Renewable Energy Sources", 
 ISBN: 9780323855273, available [here](https://www.elsevier.com/books/complementarity-of-variable-renewable-energy-sources/jurasz/978-0-323-85527-3).
 ## Setup
 
-This module runs in any 3.x version of Python. The Python packages required to run this module are listed 
-in the `requirements.yml` file included in the repository. Their installation can be easily achieved via the the following
-command that builds a separate environment for this module from the `yml` file:
-   
-    conda env create -f environment.yml
+This module runs in any `Python` version older than 3.6. In addition, all siting scripts are written in `Julia`, so a `Julia` 
+version no older than 1.5 is also required. Finally, the tool requires to installation of the `gurobi` solver (with a valid license).
+Once `Python`, `Julia` and `gurobi` are installed on the machine, the installation of language-specific modules can follow, in the upcoming order:
 
-The tool requires to installation of the `gurobi` solver.
+* `git clone` repository
+* checkout the `feature-book` branch of the repository
+* create a `Python` environment from the `requirements.yml` file 
+* install of `Julia`-specific modules via the `import Pkg; Pkg.add()` command
+* download input [data](https://dox.uliege.be/index.php/s/L9jH5aCQdZ7ie4W) folder and set-up data paths in the `config_model.yaml` file
    
-## Minimal working example
+## Repository structure
 
 This structure of this package is as follows:
 * `resite_ip` as a container for:
@@ -24,8 +26,10 @@ This structure of this package is as follows:
   * the `config` files
   * auxiliary files required to set up the package
   
-The `data` folder (whose path must be specified in the first line of `config_model.yml`) is provided in a different zenodo-like repository. In order to run the model, the following steps must be taken:
-* Ensure input data is available according to the structure provided in the `data` folder
+The `data` folder (whose path must be specified in the first line of `config_model.yml`) is provided in a different zenodo-like repository. 
+
+## Typical run
+Once all dependencies are installed, in order to run the model, the following steps must be taken:
 * Configure run via the `config` files
 * Run `python main.py` from the `src` folder
 
