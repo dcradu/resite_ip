@@ -6,8 +6,6 @@ dependencies:
   - pip
   - bottleneck
   - dask
-  - matplotlib
-  - pyomo
   - scipy
   - toolz
   - xarray
@@ -15,7 +13,6 @@ dependencies:
   - pyyaml
   - xlrd
   - geopy
-  - pypsa
   - shapely
   - pycountry
 
