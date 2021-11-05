@@ -23,7 +23,7 @@ The `data` folder (whose path must be specified in the first line of `config_mod
 model. Currently, the data available covers solely the European continent and is available [here](https://dox.uliege.be/index.php/s/L9jH5aCQdZ7ie4W). 
 In order to run the model and assuming that this repository has been obtained via `git clone` the following steps must be taken:
 
-* Install all package dependencies listed in the `requirements.yml` file
+* Install all package dependencies via `conda env create -f requirements.yml`
 * Configure run via the `config` files
 * Run `python main.py` from the `src` folder
 
