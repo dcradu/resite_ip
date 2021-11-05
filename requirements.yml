@@ -3,6 +3,7 @@ channels:
   - conda-forge
   - defaults
 dependencies:
+  - pip
   - bottleneck
   - cdsapi
   - dask
@@ -14,4 +15,6 @@ dependencies:
   - xlrd
   - geopy
   - shapely
-  - julia
+
+  - pip:
+    - julia
