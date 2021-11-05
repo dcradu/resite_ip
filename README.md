@@ -11,7 +11,7 @@ version no older than 1.5 is also required. Finally, the tool requires to instal
 Once `Python`, `Julia` and `gurobi` are installed on the machine and assuming that the code was directly obtained
 via the provided tag ling, the installation process requires the following steps:
 
-* create a `Python` environment from the `requirements.yml` file 
+* create a conda environment from the `requirements.yml` file 
 * install of `Julia`-specific modules via the `import Pkg; Pkg.add()` command
 * download input [data](https://dox.uliege.be/index.php/s/L9jH5aCQdZ7ie4W) folder and set-up data paths in the `config_model.yaml` file
    
