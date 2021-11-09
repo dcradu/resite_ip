@@ -6,7 +6,7 @@ implications for power systems") of the following publication: "Complementarity 
 ISBN: 9780323855273, available [here](https://www.elsevier.com/books/complementarity-of-variable-renewable-energy-sources/jurasz/978-0-323-85527-3).
 ## Setup
 
-This module runs in any `Python` version older than 3.6. In addition, all siting scripts are written in `Julia`, so a `Julia` 
+This module runs in `Python 3.6`. In addition, all siting scripts are written in `Julia`, so a `Julia` 
 version no older than 1.5 is also required. Finally, the tool requires to installation of the `gurobi` solver (with a valid license).
 Once `Python`, `Julia` and `gurobi` are installed on the machine and assuming that the code was directly obtained
 via the provided tag ling, the installation process requires the following steps:
