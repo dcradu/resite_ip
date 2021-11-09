@@ -1,6 +1,5 @@
 import yaml
 import julia
-from julia import Main
 from os.path import join, isdir
 from os import makedirs
 from numpy import ceil
@@ -52,6 +51,7 @@ if __name__ == '__main__':
     potential_vector = xarray_to_ndarray(site_potential_data)
 
     j = julia.Julia(compiled_modules=False)
+    from julia import Main
     Main.include("jl/SitingGreedy.jl")
 
     if siting_criterion != "CapacityValue":

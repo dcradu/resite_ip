@@ -23,7 +23,7 @@
 
 wind_onshore:
   where: 'onshore'
-  filters: ['population_density', 'orography', 'water_mask', 'forestry', 'resource_quality', 'latitude']
+  filters: ['population_density', 'water_mask'] 
   converter_IV: 'V110'
   converter_III: 'E103'
   converter_II: 'V90'

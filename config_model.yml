@@ -1,15 +1,16 @@
 # Path to data folder
-data_path: 'D:/ULg_PhD_work/datasets/resite_ip/'
+data_path: '/data/dcradu/resite_ip/'
 
 # Spatial resolution (in degrees) of the potential sites.
 spatial_resolution: 0.25
 # Start time and end time of the analysis.
-time_slice: ['2018-01-01T00:00', '2018-01-31T23:00']
+time_slice: ['2018-01-01T00:00', '2018-01-07T23:00']
+resampling_rate: 1
 # Region (ISO2) to cover within the ERA5 dataset. This key is basically retrieving the shape of the underlying region
 # (e.g., if "DE" is given, the shapefile of the German territory is used to identify which ERA5 points fall within)
-regions: ['EU']
-technologies: ['wind_offshore'] # choose among: 'wind_onshore', 'wind_offshore', 'pv_utility', 'pv_residential'
-deployments: [[450]] # expressed in GW (converted to cardinality in code)
+regions: ['DE'] 
+technologies: ['wind_onshore'] # choose among: 'wind_onshore', 'wind_offshore', 'pv_utility', 'pv_residential'
+deployments: [[45]] # expressed in GW (converted to cardinality in code)
 criterion: 'Criticality' # choose among ["AverageVariability", "MaxVariability", "AverageResidualDemand",
                          # "MaxResidualDemand", "Criticality", "Correlation", "ElectricityOutput"]
 
