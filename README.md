@@ -5,7 +5,7 @@ renewable generation assets based on various deplyoment criteria.
 
 ## Setup
 
-The code runs in `Python 3.6` or older. In addition, running the code requires installation of `Julia 1.5` or older.
+The code runs in `Python 3.6`. In addition, running the code requires installation of `Julia 1.5` or newer.
 Furthermore, the some of the siting algorithm available in this repository will require a branch-and-bound solver. Currently,
 only `gurobi` (with a valid license) is supported.
 

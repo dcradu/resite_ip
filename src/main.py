@@ -1,6 +1,5 @@
 import yaml
 import julia
-from julia import Main
 from os.path import join, isdir
 from os import makedirs
 from numpy import argmax, ceil, float64
@@ -65,6 +64,7 @@ if __name__ == '__main__':
     logger.info('Data pre-processing finished. Opening Julia instance.')
 
     j = julia.Julia(compiled_modules=False)
+    from julia import Main
     Main.include("jl/SitingHeuristics.jl")
 
     params = siting_parameters['solution_method']
