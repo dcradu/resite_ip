@@ -5,7 +5,6 @@ from os import makedirs
 from numpy import float64
 from time import strftime
 import julia
-from julia import Main
 
 from helpers import read_inputs, custom_log, xarray_to_ndarray, \
                     generate_jl_input, get_deployment_vector
@@ -50,6 +49,7 @@ if __name__ == '__main__':
 
     jl_dict = generate_jl_input(deployment_dict, site_coordinates)
     j = julia.Julia(compiled_modules=False)
+    from julia import Main
     Main.include(julia_path)
 
     custom_log(f" {siting_parameters['algorithm']} chosen to solve the instance.")

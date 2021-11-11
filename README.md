@@ -5,7 +5,7 @@ for the max k-multicover problem introduced in the following publication: "Sitin
 
 ## Setup
 
-This module runs in any 3.x version of Python. The Python packages required to run this module are listed 
+This module runs in `Python 3.6`. The Python packages required to run this module are listed 
 in the `requirements.yml` file included in the repository. Their installation can be easily achieved via the the following
 command that builds a separate environment for this module from the `yml` file:
    

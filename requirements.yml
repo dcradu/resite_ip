@@ -3,9 +3,9 @@ channels:
   - conda-forge
   - defaults
 dependencies:
+  - python=3.6
   - pip
   - bottleneck
-  - cdsapi
   - dask
   - scipy
   - toolz
@@ -15,6 +15,9 @@ dependencies:
   - xlrd
   - geopy
   - shapely
+  - pycountry
+  - pyyaml
 
   - pip:
-    - julia
+      - julia
+      - windpowerlib

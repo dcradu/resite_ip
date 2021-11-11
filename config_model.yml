@@ -1,20 +1,20 @@
 # Path to data folder (where input/output data is stored - not necessarily the src folder)
-data_path: 'D:/ULg_PhD_work/datasets/resite_ip/'
+data_path: 'path/to/data'
 # Path to the maxk_multicover algorithms.jl file (might need an updated PYTHONPATH for this one
-julia_models_path: '../../maxk_multicover/src/algorithms.jl'
+julia_models_path: '/path/to/maxk_multicover/src/algorithms.jl'
 
 # Spatial resolution (in degrees) of the ERA5 data (depends on what data was downloaded via era5data.py script)
 spatial_resolution: 0.25
 # Start time and end time of the analysis (again, depends on what coverage is available based on download)
-time_slice: ['2018-01-01T00:00', '2018-01-31T23:00']
+time_slice: ['2018-01-01T00:00', '2018-01-07T23:00']
 # Region (ISO2) to cover within the ERA5 dataset. This key is basically retrieving the shape of the underlying region
 # (e.g., if "DE" is given, the shapefile of the German territory is used to identify which ERA5 points fall within
-regions: ['EU']
+regions: ['DE']
 # Technology to consider (for now limited to one technology only, available choices: 'wind_onshore', 'wind_offshore',
 # 'pv_utility', 'pv_residential').
 technologies: ['wind_onshore']
 # Number of deployments to consider (integer value)
-deployments: [[560]]
+deployments: [[20]]
 
 siting_params:
   # Time-window length (any integer value smaller than the length of the time horizon)
